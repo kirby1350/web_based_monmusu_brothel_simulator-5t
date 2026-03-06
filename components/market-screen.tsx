@@ -88,12 +88,50 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
 
     const existingNames = girls.map((g) => g.name)
     const prompt = buildMarketGirlPrompt(preference, existingNames, 3)
+    const apiKey = settings.chatModel.startsWith('grok') ? settings.grokApiKey : settings.chatApiKey
 
     try {
-      const raw = await apiCall(prompt)
-      // Match outermost JSON array
-      const match = raw.match(/\[[\s\S]*\]/)
-      if (!match) throw new Error('no array')
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: prompt }],
+          model: settings.chatModel,
+          apiKey,
+          stream: true,
+        }),
+      })
+
+      if (!res.ok || !res.body) throw new Error('API error')
+
+      // Stream the response, accumulating all SSE delta chunks
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let accumulated = ''
+      let leftover = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        const chunk = leftover + decoder.decode(value, { stream: true })
+        const lines = chunk.split('\n')
+        leftover = lines.pop() ?? ''
+        for (const line of lines) {
+          const trimmed = line.trim()
+          if (!trimmed.startsWith('data:')) continue
+          const text = trimmed.slice(5).trim()
+          if (text === '[DONE]') continue
+          try {
+            const parsed = JSON.parse(text)
+            const delta = parsed.choices?.[0]?.delta?.content ?? ''
+            if (delta) accumulated += delta
+          } catch { /* skip malformed */ }
+        }
+      }
+
+      // Parse the accumulated JSON array
+      const match = accumulated.match(/\[[\s\S]*\]/)
+      if (!match) throw new Error('no array in streamed response')
       const arr = JSON.parse(match[0]) as Record<string, unknown>[]
       const results: MonstGirl[] = arr.slice(0, 3).map((parsed, i) => ({
         id: nanoid(),
