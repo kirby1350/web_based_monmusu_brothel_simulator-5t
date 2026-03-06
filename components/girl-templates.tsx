@@ -65,6 +65,11 @@ export function GirlTemplates({ onSelect }: GirlTemplatesProps) {
               <StatBar label="好感" value={tmpl.affection} color="pink" size="sm" showValue={false} />
               <StatBar label="服从" value={tmpl.obedience} color="blue" size="sm" showValue={false} />
               <StatBar label="淫乱" value={tmpl.lewdness} color="rose" size="sm" showValue={false} />
+              {(tmpl.bust || tmpl.waist || tmpl.hip) && (
+                <p className="text-[9px] text-muted-foreground/60 font-mono leading-none mt-1">
+                  B{tmpl.bust ?? '?'} / W{tmpl.waist ?? '?'} / H{tmpl.hip ?? '?'}
+                </p>
+              )}
               {race && (
                 <p className="text-[9px] text-muted-foreground/50 leading-relaxed line-clamp-1 mt-0.5">
                   {race.description}

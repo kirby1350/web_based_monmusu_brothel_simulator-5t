@@ -20,7 +20,7 @@ export function buildServiceSystemPrompt(
     .map(
       (g, i) => {
         const bwh = girlBWH(g)
-        return `魔物娘${i + 1}：${g.name}（${g.race}）\n  外貌：${g.bodyDesc}${bwh ? `，三围 ${bwh}` : ''}\n  性格：${g.personality}\n  服装：${g.outfit}\n  服从度：${g.obedience}/100，淫乱度：${g.lewdness}/100，好感度：${g.affection}/100\n  技能：${g.skills.length > 0 ? g.skills.join('、') : '无'}`
+        return `魔物娘${i + 1}：${g.name}（${g.race}）\n  外貌：${g.bodyDesc}${bwh ? `，三围 ${bwh}` : ''}\n  性格：${g.personality}\n  服装：${g.outfit}\n  服从度：${g.obedience}/100，淫乱度：${g.lewdness}/100，好感度：${g.affection}/100\n  技能：${g.skills.length > 0 ? g.skills.join('、') : '无'}${g.sexualDesc ? `\n  色色设定：${g.sexualDesc}` : ''}`
       }
     )
     .join('\n')
@@ -180,7 +180,7 @@ export function buildGuestGenerationPrompt(
 玩家偏好：${preference || '随机'}
 已有客人（避免重复）：${existingGuests.join('、') || '无'}
 
-请生成JSON格式的客人信息，字段：
+请生成JSON格式的客人信息，字���：
 {
   "name": "客人名字（2-4字中文名）",
   "race": "种族职业（例如：肌肉兽人、淫荡精灵）",

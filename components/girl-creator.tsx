@@ -175,6 +175,11 @@ export function GirlCreator({ settings, onComplete }: GirlCreatorProps) {
           </div>
 
           <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">色色设定（性癖与敏感点）</Label>
+            <Textarea value={draft.sexualDesc ?? ''} onChange={(e) => updateDraft({ sexualDesc: e.target.value })} className="bg-input text-sm resize-none" rows={3} placeholder="描述角色的性癖、弱点、偏好等（将在调教/服侍场景中加入提示词）" />
+          </div>
+
+          <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">其他设定（背景故事等）</Label>
             <Textarea value={draft.otherDesc} onChange={(e) => updateDraft({ otherDesc: e.target.value })} className="bg-input text-sm resize-none" rows={2} />
           </div>

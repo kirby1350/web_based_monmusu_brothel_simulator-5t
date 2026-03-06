@@ -148,6 +148,7 @@ export interface MonstGirl {
   outfitTags: string
   otherDesc: string
   otherTags: string
+  sexualDesc?: string
   // 数值
   affection: number
   obedience: number
