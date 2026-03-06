@@ -329,7 +329,7 @@ ${mainGirl ? `主要对象：${mainGirl.name}（${mainGirl.race}），性格：$
 要求：
 - 50-80字，第三人称叙述
 - 描写调教室的淫靡气味、被绑魔物娘颤抖的乳头与滴水的蜜穴
-- 充满即将被彻底干到高潮的紧张与期待
+- 充满即将被彻��干到高潮的紧张与期待
 - 只输出叙述文本`
 
     case 'market':
@@ -359,15 +359,18 @@ ${mainGirl ? `主要对象：${mainGirl.name}（${mainGirl.race}），性格：$
 
     case 'purchase':
       if (!mainGirl) return ''
-      return `你是一个重口味互动小说写作引擎。以第一人称扮演 ${mainGirl.name} 刚被 ${player.name} 买下时的第一句淫荡回应。
+      return `你是一个幻想互动小说写作引擎。以第一人称扮演 ${mainGirl.name} 被 ${player.name} 买下后的自我介绍。
 
-【魔物娘】${mainGirl.name}（${mainGirl.race}），性格：${mainGirl.personality}，服从度 ${mainGirl.obedience}/100
+【魔物娘】${mainGirl.name}（${mainGirl.race}），性格：${mainGirl.personality}
+三围：${bwh || '未知'}　服从度：${mainGirl.obedience}/100　淫乱度：${mainGirl.lewdness}/100${mainGirl.sexualDesc ? `\n性癖：${mainGirl.sexualDesc}` : ''}
 背景：${mainGirl.otherDesc}
 
 要求：
-- 40-60字，第一人称，口吻极度符合性格与服从度
-- 服从度低可以抗拒中带湿意，服从度高则直接求操
-- 只输出她说的第一句话`
+- 以第一人称进行大约300字的自我介绍，口吻自然符合她的性格、服从度与淫乱度
+- 介绍包括：外貌（强调三围带来的诱惑感）、性格、背景、当前状态（服从度低时带点抗拒或不安，但透露出潜在的湿意与顺从欲；服从度中时犹豫却好奇；服从度高时直接顺从、甚至主动表达侍奉意愿）
+- 融入淫乱度与性癖：淫乱度低时害羞内敛，淫乱度高时大胆描述自己发情反应或性癖偏好（如求被调教、特定玩法暗示）
+- 整体氛围温馨带点暧昧幻想感，不需极度重口，但允许轻度色情暗示以匹配成人向游戏
+- 只输出自我介绍文本，不要说明或标题`
 
     default:
       return ''
