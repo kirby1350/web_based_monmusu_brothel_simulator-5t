@@ -211,40 +211,9 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
       setOpeningLoading(false)
     }
 
-    // Step 2: Generate a character interaction line (streaming) based on scene + characters
-    setDialogueLoading(true)
-    try {
-      const names = sessionGirls.map((g) => `${g.name}（${g.race}）`).join('、')
-      const guestLine = guest ? `客人 ${guest.name}（${guest.race}，需求：${guest.desires}）` : ''
-      const dialoguePrompt = `根据以下场景，生成一句角色之间真实的互动对话（含说话人名字，50字以内，直接输出对话，不要旁白）：\n场景：${openingText || (type === 'service' ? '客人踏入包间' : '调教室')}\n在场角色：${names}${guestLine ? '，' + guestLine : ''}`
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [{ role: 'user', content: dialoguePrompt }],
-          model: settings.chatModel, apiKey, stream: true,
-        }),
-      })
-      if (res.ok && res.body) {
-        const reader = res.body.getReader()
-        const decoder = new TextDecoder()
-        let full = ''
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          for (const line of decoder.decode(value, { stream: true }).split('\n')) {
-            if (!line.startsWith('data: ')) continue
-            const data = line.slice(6)
-            if (data === '[DONE]') continue
-            try {
-              full += JSON.parse(data).choices?.[0]?.delta?.content ?? ''
-              setOpeningDialogue(full)
-            } catch { /* skip */ }
-          }
-        }
-      }
-    } catch { /* ignore */ }
-    finally { setDialogueLoading(false) }
+    // Step 2: Generate a character interaction line — temporarily disabled
+    // setDialogueLoading(true)
+    // ... (streaming dialogue prompt disabled)
   }
 
   // ─── Session helpers ─────────────────────────────────────────────────────────
@@ -487,7 +456,7 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
                       )}
                       onClick={() => setSelectedTrainerId(g.id)}
                     >
-                      {g.name}（好感 {g.affection}）
+                      {g.name}（好��� {g.affection}）
                     </button>
                   ))}
                 </div>
