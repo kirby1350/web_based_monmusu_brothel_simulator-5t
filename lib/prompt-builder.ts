@@ -112,7 +112,7 @@ ${session.girls.map(girl => `- ${girl.name} 的每一句话、呻吟、反应必
 4. 服从度低的魔物娘先挣扎羞耻哭喊，淫乱度高的主动摇臀求内射、夹紧吸吮
 5. 体力归零后描写"彻底被干到失神、子宫痉挛抽搐、潮吹如尿失禁般喷射不止"，仍可继续但状态更虚弱淫乱
 6. 语言极度下流直白，满口鸡巴、小穴、子宫、射精、内射、潮吹等词汇
-7. 结局完全由玩家决定（玩家发送"结束服务"才结算）${STATS_INSTRUCTION}
+7. 结局完全��玩家决定（玩家发送"结束服务"才结算）${STATS_INSTRUCTION}
 
 只输出叙述正文，不要任何说明、标题或额外标记。`
   }
@@ -304,16 +304,16 @@ export function buildGuestGenerationPrompt(
 
 // ─── 市场魔物娘生成提示词 ──────────────────────────────────────────────────────
 
-export function buildMarketGirlPrompt(preference: string, existingNames: string[]): string {
-  return `你是一个色情角色生成AI。为一款魔物娘娼馆经营游戏生成一个待售的淫荡魔物娘奴���。
+export function buildMarketGirlPrompt(preference: string, existingNames: string[], count = 3): string {
+  return `你是一个色情角色生成AI。为一款魔物娘娼馆经营游戏一次性生成 ${count} 个不同的待售淫荡魔物娘奴隶。
 
 玩家偏好：${preference || '随机'}
 已有名字（避免重复）：${existingNames.join('、') || '无'}
 
-生成JSON格式，字段：
+生成JSON数组格式，包含 ${count} 个对象，每个对象字段如下：
 {
-  "name": "名字（2-3字中文名）",
-  "race": "魔物娘种族（例如：猫娘、魅魔、触手娘）",
+  "name": "名字（2-3字中文名，每个角色不同）",
+  "race": "魔物娘种族（例如：猫娘、魅魔、触手娘，每个角色不同种族）",
   "age": "年龄数字字符串",
   "bodyDesc": "极度色情的身材外貌描述（一句话，强调乳交、臀交潜力）",
   "bodyTags": "英文体型tag（巨乳、肥臀、淫纹等）",
@@ -333,6 +333,9 @@ export function buildMarketGirlPrompt(preference: string, existingNames: string[
   "skills": [],
   "imageTags": "完整英文生图tag，充满色情元素，包含湿润小穴、乳头、淫液，以masterpiece,best quality,explicit,nsfw结尾",
   "price": 市场价格数字(150-1200)
+}
+
+只输出JSON数组 [...] ，不要其他内容。`
 }
 
 只输出JSON，不要其他内容。`

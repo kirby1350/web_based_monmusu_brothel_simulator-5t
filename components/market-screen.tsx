@@ -87,54 +87,44 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
     setListings([])
 
     const existingNames = girls.map((g) => g.name)
-    const results: MonstGirl[] = new Array(3).fill(null)
+    const prompt = buildMarketGirlPrompt(preference, existingNames, 3)
 
-    await Promise.all(
-      Array.from({ length: 3 }).map(async (_, i) => {
-        const prompt = buildMarketGirlPrompt(preference, [
-          ...existingNames,
-          ...results.filter(Boolean).map((r) => r.name),
-        ])
-        try {
-          const raw = await apiCall(prompt)
-          const match = raw.match(/\{[\s\S]*\}/)
-          if (match) {
-            const parsed = JSON.parse(match[0])
-            results[i] = {
-              id: nanoid(),
-              name: parsed.name ?? `市场女孩${i + 1}`,
-              race: parsed.race ?? '猫娘',
-              age: parsed.age ?? '18',
-              bodyDesc: parsed.bodyDesc ?? '',
-              bodyTags: parsed.bodyTags ?? '',
-              bust: Number(parsed.bust) || 85,
-              waist: Number(parsed.waist) || 58,
-              hip: Number(parsed.hip) || 88,
-              personality: parsed.personality ?? '',
-              personalityTags: parsed.personalityTags ?? '',
-              outfit: parsed.outfit ?? '',
-              outfitTags: parsed.outfitTags ?? '',
-              otherDesc: parsed.otherDesc ?? '',
-              otherTags: parsed.otherTags ?? '',
-              sexualDesc: parsed.sexualDesc ?? '',
-              affection: Number(parsed.affection) || 20,
-              obedience: Number(parsed.obedience) || 25,
-              lewdness: Number(parsed.lewdness) || 15,
-              skills: parsed.skills ?? [],
-              imageTags: parsed.imageTags ?? '1girl, anime, masterpiece, best quality',
-              price: Number(parsed.price) || 200,
-            }
-          } else {
-            results[i] = fallbackGirl(i)
-          }
-        } catch {
-          results[i] = fallbackGirl(i)
-        }
-      })
-    )
-
-    setListings(results.filter(Boolean))
-    setLoading(false)
+    try {
+      const raw = await apiCall(prompt)
+      // Match outermost JSON array
+      const match = raw.match(/\[[\s\S]*\]/)
+      if (!match) throw new Error('no array')
+      const arr = JSON.parse(match[0]) as Record<string, unknown>[]
+      const results: MonstGirl[] = arr.slice(0, 3).map((parsed, i) => ({
+        id: nanoid(),
+        name: (parsed.name as string) ?? `市场女孩${i + 1}`,
+        race: (parsed.race as string) ?? '猫娘',
+        age: (parsed.age as string) ?? '18',
+        bodyDesc: (parsed.bodyDesc as string) ?? '',
+        bodyTags: (parsed.bodyTags as string) ?? '',
+        bust: Number(parsed.bust) || 85,
+        waist: Number(parsed.waist) || 58,
+        hip: Number(parsed.hip) || 88,
+        personality: (parsed.personality as string) ?? '',
+        personalityTags: (parsed.personalityTags as string) ?? '',
+        outfit: (parsed.outfit as string) ?? '',
+        outfitTags: (parsed.outfitTags as string) ?? '',
+        otherDesc: (parsed.otherDesc as string) ?? '',
+        otherTags: (parsed.otherTags as string) ?? '',
+        sexualDesc: (parsed.sexualDesc as string) ?? '',
+        affection: Number(parsed.affection) || 20,
+        obedience: Number(parsed.obedience) || 25,
+        lewdness: Number(parsed.lewdness) || 15,
+        skills: (parsed.skills as string[]) ?? [],
+        imageTags: (parsed.imageTags as string) ?? '1girl, anime, masterpiece, best quality',
+        price: Number(parsed.price) || 200,
+      }))
+      setListings(results)
+    } catch {
+      setListings([fallbackGirl(0), fallbackGirl(1), fallbackGirl(2)])
+    } finally {
+      setLoading(false)
+    }
   }, [preference, girls, settings])
 
   // ─── Purchase ───────────────────────────────────────────────────────────────

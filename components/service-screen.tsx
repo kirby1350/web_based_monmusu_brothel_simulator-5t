@@ -607,42 +607,71 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
               {session.girls.map((girl) => {
                 const stats = session.girlsStats[girl.id]
                 return (
-                  <div key={girl.id} className="bg-secondary/20 rounded-lg p-2.5 space-y-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-semibold gold-text">{girl.name}</span>
-                      <Badge variant="secondary" className="text-[8px] h-3.5 px-1">{girl.race}</Badge>
-                    </div>
-                    {stats && (
-                      <>
-                        <StatBar label="快感" value={stats.pleasure} color="pink" size="sm" />
-                        <StatBar label="体力" value={stats.stamina} color="blue" size="sm" />
-                        {stats.isExhausted && (
-                          <Badge variant="outline" className="text-[8px] border-amber-500/40 text-amber-400">已疲惫</Badge>
-                        )}
-                      </>
+                  <div key={girl.id} className="bg-secondary/20 rounded-lg overflow-hidden space-y-0">
+                    {/* Avatar */}
+                    {girl.imageUrl && (
+                      <div className="w-full aspect-[3/2] overflow-hidden">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={girl.imageUrl}
+                          alt={girl.name}
+                          className="w-full h-full object-cover object-top"
+                        />
+                      </div>
                     )}
+                    <div className="p-2.5 space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-semibold gold-text">{girl.name}</span>
+                        <Badge variant="secondary" className="text-[8px] h-3.5 px-1">{girl.race}</Badge>
+                      </div>
+                      {stats && (
+                        <>
+                          <StatBar label="快感" value={stats.pleasure} color="pink" size="sm" />
+                          <StatBar label="体力" value={stats.stamina} color="blue" size="sm" />
+                          {stats.isExhausted && (
+                            <Badge variant="outline" className="text-[8px] border-amber-500/40 text-amber-400">已疲惫</Badge>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
                 )
               })}
               {session.guest && session.guestStats && (
-                <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-2.5 space-y-1.5">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-semibold text-amber-400">{session.guest.name}</span>
-                    <Badge variant="secondary" className="text-[8px] h-3.5 px-1">客</Badge>
+                <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg overflow-hidden">
+                  {session.guest.imageUrl && (
+                    <div className="w-full aspect-[3/2] overflow-hidden">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={session.guest.imageUrl} alt={session.guest.name} className="w-full h-full object-cover object-top" />
+                    </div>
+                  )}
+                  <div className="p-2.5 space-y-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-semibold text-amber-400">{session.guest.name}</span>
+                      <Badge variant="secondary" className="text-[8px] h-3.5 px-1">客</Badge>
+                    </div>
+                    <StatBar label="快感" value={session.guestStats.pleasure} color="gold" size="sm" />
+                    <StatBar label="体力" value={session.guestStats.stamina} color="green" size="sm" />
+                    <StatBar label="满意" value={session.guest.satisfaction} color="rose" size="sm" />
                   </div>
-                  <StatBar label="快感" value={session.guestStats.pleasure} color="gold" size="sm" />
-                  <StatBar label="体力" value={session.guestStats.stamina} color="green" size="sm" />
-                  <StatBar label="满意" value={session.guest.satisfaction} color="rose" size="sm" />
                 </div>
               )}
               {session.trainer && session.trainerStats && (
-                <div className="bg-primary/5 border border-primary/20 rounded-lg p-2.5 space-y-1.5">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-semibold text-primary">{session.trainer.name}</span>
-                    <Badge variant="secondary" className="text-[8px] h-3.5 px-1">调教者</Badge>
+                <div className="bg-primary/5 border border-primary/20 rounded-lg overflow-hidden">
+                  {session.trainer.imageUrl && (
+                    <div className="w-full aspect-[3/2] overflow-hidden">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={session.trainer.imageUrl} alt={session.trainer.name} className="w-full h-full object-cover object-top" />
+                    </div>
+                  )}
+                  <div className="p-2.5 space-y-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-semibold text-primary">{session.trainer.name}</span>
+                      <Badge variant="secondary" className="text-[8px] h-3.5 px-1">调教者</Badge>
+                    </div>
+                    <StatBar label="快感" value={session.trainerStats.pleasure} color="pink" size="sm" />
+                    <StatBar label="体力" value={session.trainerStats.stamina} color="blue" size="sm" />
                   </div>
-                  <StatBar label="快感" value={session.trainerStats.pleasure} color="pink" size="sm" />
-                  <StatBar label="体力" value={session.trainerStats.stamina} color="blue" size="sm" />
                 </div>
               )}
             </div>
