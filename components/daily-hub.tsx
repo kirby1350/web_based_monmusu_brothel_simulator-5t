@@ -32,11 +32,16 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
   const chatEndRef = useRef<HTMLDivElement>(null)
   const { player, girls } = save
 
+  const purchaseRef = useRef<MonstGirl | null>(null)
+
   // ─── Opening dialogue (cached per day, generates once on mount) ──────────
   useEffect(() => {
     let ignore = false
 
     const fallback = `欢迎回来，${player.name}。今天是第 ${save.currentDay} 天，你的娼馆已经开门了。`
+
+    // If a purchase is pending, skip the opening — purchase effect will handle chat
+    if (purchaseRef.current) return
 
     // Hit cache first — only valid for the current day
     const cached = getOpeningCache()
@@ -63,29 +68,35 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
           saveOpeningCache(save.currentDay, text)
           setChatMessages([{ role: 'system', text }])
         } else {
-          // API returned empty — show fallback, do NOT cache so next visit retries
           setChatMessages([{ role: 'system', text: fallback }])
         }
       })
       .catch(() => {
         if (ignore) return
-        // Network error — show fallback, do NOT cache
         setChatMessages([{ role: 'system', text: fallback }])
       })
       .finally(() => { if (!ignore) setChatLoading(false) })
 
     return () => { ignore = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [save.currentDay]) // re-run when day advances
+  }, [save.currentDay])
 
   // ─── New girl purchased — send welcome dialogue ────────────────────────────
   useEffect(() => {
     if (!newlyPurchasedGirl) return
-    onNewGirlGreeted?.()
+
+    // Store in ref so opening effect can check synchronously on same render
+    purchaseRef.current = newlyPurchasedGirl
+    // Notify parent to clear the prop — do NOT call synchronously here to avoid
+    // triggering an extra re-render before we start the fetch
+    const timer = setTimeout(() => onNewGirlGreeted?.(), 0)
+
     const fallback = `${newlyPurchasedGirl.name} 走进了娼馆，四处打量着这里，神情有些拘谨。`
     const apiKey = settings.chatModel.startsWith('grok') ? settings.grokApiKey : settings.chatApiKey
     const prompt = buildOpeningDialoguePrompt('purchase', player, [newlyPurchasedGirl], { girl: newlyPurchasedGirl })
     setChatLoading(true)
+    // Clear any stale opening messages first so only the purchase greeting shows
+    setChatMessages([])
     fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -94,10 +105,16 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
       .then((r) => r.json())
       .then((data) => {
         const text = (data.content ?? data.text ?? '').trim() || fallback
-        setChatMessages((prev) => [...prev, { role: 'system', text }])
+        setChatMessages([{ role: 'system', text }])
       })
-      .catch(() => setChatMessages((prev) => [...prev, { role: 'system', text: fallback }]))
-      .finally(() => setChatLoading(false))
+      .catch(() => setChatMessages([{ role: 'system', text: fallback }]))
+      .finally(() => {
+        setChatLoading(false)
+        purchaseRef.current = null
+      })
+
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [newlyPurchasedGirl])
 
   useEffect(() => {
