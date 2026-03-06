@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
-import { ArrowLeft, RefreshCw, Loader2, Coins, ShoppingCart, Filter, Send, Settings2, X } from 'lucide-react'
+import { ArrowLeft, RefreshCw, Loader2, Coins, ShoppingCart, Filter, Send, Settings2, X, BookOpen } from 'lucide-react'
 import { GameSave, MonstGirl, AppSettings } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -36,6 +36,7 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
   // Per-listing image key (bump to force ImageDisplay remount + autoGenerate) and editable tags
   const [imageKeys, setImageKeys] = useState<Record<string, number>>({})
   const [editingTags, setEditingTags] = useState<{ id: string; tags: string } | null>(null)
+  const [detailGirl, setDetailGirl] = useState<MonstGirl | null>(null)
 
   // Market arrival opening
   useEffect(() => {
@@ -115,6 +116,7 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
               outfitTags: parsed.outfitTags ?? '',
               otherDesc: parsed.otherDesc ?? '',
               otherTags: parsed.otherTags ?? '',
+              sexualDesc: parsed.sexualDesc ?? '',
               affection: Number(parsed.affection) || 20,
               obedience: Number(parsed.obedience) || 25,
               lewdness: Number(parsed.lewdness) || 15,
@@ -380,7 +382,15 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
                       </div>
                     )}
                     <Button
-                      className={cn('w-full h-8 text-xs mt-1', canAfford ? 'glow-btn' : '')}
+                      variant="outline"
+                      className="w-full h-8 text-xs mt-1"
+                      onClick={() => setDetailGirl(girl)}
+                    >
+                      <BookOpen className="w-3 h-3 mr-1.5" />
+                      查看详情
+                    </Button>
+                    <Button
+                      className={cn('w-full h-8 text-xs', canAfford ? 'glow-btn' : '')}
                       variant={canAfford ? 'default' : 'outline'}
                       disabled={!canAfford || purchasing === girl.id}
                       onClick={() => handlePurchase(girl)}
@@ -417,6 +427,64 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
           </div>
         </div>
       )}
+      {/* Detail Modal */}
+      {detailGirl && (
+        <div className="absolute inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={() => setDetailGirl(null)}>
+          <div className="bg-card border border-border rounded-xl w-full max-w-md max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+              <div>
+                <h3 className="text-sm font-bold gold-text">{detailGirl.name}</h3>
+                <p className="text-[11px] text-muted-foreground">{detailGirl.race} · {detailGirl.age}岁{(detailGirl.bust || detailGirl.waist || detailGirl.hip) ? `　B${detailGirl.bust} / W${detailGirl.waist} / H${detailGirl.hip}` : ''}</p>
+              </div>
+              <Button variant="ghost" size="icon" className="w-7 h-7 shrink-0" onClick={() => setDetailGirl(null)}>
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+            <div className="overflow-y-auto p-4 space-y-3 text-xs leading-relaxed">
+              <DetailRow label="外貌体型" value={detailGirl.bodyDesc} />
+              <DetailRow label="性格特征" value={detailGirl.personality} />
+              <DetailRow label="当前服装" value={detailGirl.outfit} />
+              {detailGirl.sexualDesc && <DetailRow label="色色设定" value={detailGirl.sexualDesc} highlight />}
+              <DetailRow label="背景故事" value={detailGirl.otherDesc} />
+              {detailGirl.skills.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide">已有技能</p>
+                  <div className="flex flex-wrap gap-1">
+                    {detailGirl.skills.map((s) => (
+                      <span key={s} className="bg-secondary text-secondary-foreground rounded px-1.5 py-0.5 text-[10px]">{s}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="space-y-1.5 pt-1">
+                <StatBar label="好感度" value={detailGirl.affection} color="pink" size="sm" />
+                <StatBar label="服从度" value={detailGirl.obedience} color="blue" size="sm" />
+                <StatBar label="淫乱度" value={detailGirl.lewdness} color="rose" size="sm" />
+              </div>
+            </div>
+            <div className="px-4 pb-4 pt-2 shrink-0">
+              <Button
+                className={cn('w-full h-9 text-xs', player.gold >= (detailGirl.price ?? 200) ? 'glow-btn' : '')}
+                variant={player.gold >= (detailGirl.price ?? 200) ? 'default' : 'outline'}
+                disabled={player.gold < (detailGirl.price ?? 200) || purchasing === detailGirl.id}
+                onClick={() => { setDetailGirl(null); handlePurchase(detailGirl) }}
+              >
+                {player.gold < (detailGirl.price ?? 200) ? `金币不足（需 ${detailGirl.price} G）` : `购入（${detailGirl.price} G）`}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DetailRow({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+  if (!value) return null
+  return (
+    <div className="space-y-0.5">
+      <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide">{label}</p>
+      <p className={cn('text-foreground/80 leading-relaxed', highlight && 'text-rose-300/90')}>{value}</p>
     </div>
   )
 }
@@ -424,7 +492,7 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
 function fallbackGirl(index: number): MonstGirl {
   const templates = [
     { name: '茉莉', race: '兔娘', age: '18', bodyDesc: '娇小可爱，白色兔耳，粉色短发', bodyTags: 'bunny ears, pink hair, petite', bust: 78, waist: 55, hip: 82, personality: '活泼好动，对什么都充满好奇', personalityTags: 'energetic, curious', outfit: '白色蓬蓬裙', outfitTags: 'white dress', otherDesc: '流浪而来', otherTags: 'wanderer', affection: 25, obedience: 30, lewdness: 20, skills: [], imageTags: '1girl, bunny ears, pink hair, white dress, anime, masterpiece, best quality', price: 150 },
-    { name: '黎明', race: '黑暗精灵', age: '22', bodyDesc: '深棕肤色，白色长发，高挑身材', bodyTags: 'dark elf, dark skin, white hair', bust: 88, waist: 60, hip: 90, personality: '傲慢冷酷，但内心隐藏温柔', personalityTags: 'tsundere, cold', outfit: '暗紫色皮革轻甲', outfitTags: 'leather armor', otherDesc: '被族人驱逐的前精灵侦察兵', otherTags: 'exiled elf', affection: 15, obedience: 20, lewdness: 35, skills: ['低语诱惑'], imageTags: '1girl, dark elf, dark skin, white hair, leather armor, anime, masterpiece, best quality', price: 320 },
+    { name: '黎明', race: '黑暗精灵', age: '22', bodyDesc: '深���肤色，白色长发，高挑身材', bodyTags: 'dark elf, dark skin, white hair', bust: 88, waist: 60, hip: 90, personality: '傲慢冷酷，但内心隐藏温柔', personalityTags: 'tsundere, cold', outfit: '暗紫色皮革轻甲', outfitTags: 'leather armor', otherDesc: '被族人驱逐的前精灵侦察兵', otherTags: 'exiled elf', affection: 15, obedience: 20, lewdness: 35, skills: ['低语诱惑'], imageTags: '1girl, dark elf, dark skin, white hair, leather armor, anime, masterpiece, best quality', price: 320 },
     { name: '珊珊', race: '牛娘', age: '20', bodyDesc: '丰满圆润，棕色牛角，温和笑容', bodyTags: 'holstaur, brown horns, large breasts', bust: 105, waist: 65, hip: 100, personality: '温柔贤淑，像大姐姐一样照顾人', personalityTags: 'gentle, nurturing', outfit: '白色农家风连衣裙', outfitTags: 'white rural dress', otherDesc: '前农场主人去世后独自流浪', otherTags: 'farm girl', affection: 45, obedience: 50, lewdness: 25, skills: ['按摩'], imageTags: '1girl, holstaur, large breasts, white dress, anime, masterpiece, best quality', price: 280 },
   ]
   return { id: nanoid(), ...templates[index % templates.length] }

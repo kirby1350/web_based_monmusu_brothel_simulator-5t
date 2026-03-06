@@ -218,6 +218,7 @@ export function buildMarketGirlPrompt(preference: string, existingNames: string[
   "outfitTags": "英文服装tag（开裆、乳贴、拘束等）",
   "otherDesc": "淫乱背景故事（一句话）",
   "otherTags": "英文背景tag",
+  "sexualDesc": "色色设定：详细描述该角色的性癖、敏感弱点、偏好玩法、高潮特征（2-5句话）",
   "affection": 初始好感度数字(5-35),
   "obedience": 初始服从度数字(5-45),
   "lewdness": 初始淫乱度数字(10-60),
