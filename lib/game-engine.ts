@@ -2,8 +2,8 @@ import { MonstGirl, Guest, ParticipantStats, ServiceSession, Player } from '@/li
 
 // ─── STATS 块解析 ──────────────────────────────────────────────────────────────
 
-const STATS_REGEX = /<!--STATS:([\s\S]*?)-->/
-const ACTIONS_REGEX = /<!--ACTIONS:(\[[\s\S]*?\])-->/
+const STATS_REGEX = /<!--\s*STATS:\s*([\s\S]*?)\s*-->/
+const ACTIONS_REGEX = /<!--\s*ACTIONS:\s*(\[[\s\S]*?\])\s*-->/
 
 export interface SingleStatsDelta {
   pleasureDelta: number
