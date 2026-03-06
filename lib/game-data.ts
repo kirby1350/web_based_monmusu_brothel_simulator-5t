@@ -62,8 +62,9 @@ export const GIRL_TEMPLATE_IMAGES: (string | null)[] = [
   null,       // 艾希
   null,       // 维拉
   null,       // 艾拉
-  '/presets/wenxiang.jpg', // 文香
-  '/presets/zhixi.jpg',    // 志希
+  '/presets/wenxiang.jpg',   // 文香
+  '/presets/zhixi.jpg',      // 志希
+  '/presets/narumeiya.jpg',  // 娜露梅亚
 ]
 
 export const GIRL_TEMPLATES: Omit<MonstGirl, 'id' | 'imageUrl'>[] = [
@@ -243,6 +244,29 @@ export const GIRL_TEMPLATES: Omit<MonstGirl, 'id' | 'imageUrl'>[] = [
     bust: 86,
     waist: 57,
     hip: 85,
+    price: 0,
+  },
+  {
+    name: '娜露梅亚',
+    race: '牛娘',
+    age: '22',
+    bodyDesc: '粉紫色长直发，紫色眼睛，优雅东方美女脸庞，头顶一对弯曲牛角，牛耳和长牛尾，上身极度丰满的巨乳，下身修长人腿，皮肤小麦色光滑',
+    bodyTags: 'holstaur, cow girl, monster girl, cow ears, cow horns, long cow tail, pink purple hair, long hair, straight hair, purple eyes, tanned skin, medium skin, huge breasts, massive breasts, lactation, milk leaking',
+    bust: 105,
+    waist: 60,
+    hip: 92,
+    personality: '优雅温柔如剑士般从容，母性爆棚，表面高贵淡定，内心对产奶和被挤奶的过程充满羞耻快感，喜欢用乳汁滋养伴侣，像守护骑士般忠诚',
+    personalityTags: 'elegant, motherly, gentle, knightly, secretly loves milking and lactation play, composed, loyal, nurturing',
+    outfit: '破损的和服剑士服 + 牛铃项圈 + 溢乳痕迹',
+    outfitTags: 'torn kimono, damaged yukata, samurai outfit, cow bell choker, milk stains, exposed cleavage, detached sleeves, ribbon accents, translucent wet fabric',
+    otherDesc: '原本是碧蓝幻想世界中手持六刀的东方剑公主，在一次神秘的牛灵诅咒仪式中转化为奶牛娘魔物娘。现在她的巨乳源源不断产出甜美乳汁，用来"滋养"客人，同时保留了剑术本能，在H时会用柔软牛尾缠绕对方',
+    otherTags: 'granblue fantasy narmaya, cursed cow spirit, sword princess, lactation curse, mystical milk, ancient ritual',
+    sexualDesc: '乳房极度敏感且产奶量惊人，轻微刺激就会喷射甜蜜乳汁，特别喜欢被用力挤奶或乳交play，过程中会优雅地低吟"请...尽情品尝我的恩赐吧"，牛尾会本能缠绕伴侣腰部拉近距离。H时巨乳会随着节奏晃动不止，乳汁四溅形成湿滑润滑，容易进入连续高潮状态，出现乳晕扩张和乳头硬挺的夸张反应。高潮时会发出母牛般的低鸣，身体微微颤抖，事后喜欢用乳汁喂食对方，像母亲般温柔舔舐残留。弱点：牛角和乳根被抚摸会让她瞬间发情失控，强制产奶喷泉；牛尾根部被拉扯则会让她跪地求饶，进入完全顺从的"母牛模式"，主动摇晃乳房乞求更多。',
+    affection: 22,
+    obedience: 20,
+    lewdness: 40,
+    skills: [],
+    imageTags: '1girl, solo, holstaur, cow girl, monster girl, cow ears, cow horns, cow tail, narmaya granblue, pink purple hair, long hair, purple eyes, tanned skin, shy, embarrassed, blushing, lactation, milk squirt, huge breasts, massive breasts, cleavage, breast focus, torn kimono, cow bell, masterpiece, best quality, highly detailed, anime',
     price: 0,
   },
 ]
