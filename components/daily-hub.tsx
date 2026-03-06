@@ -53,7 +53,7 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
     // No valid cache — generate a new opening
     setChatLoading(true)
     const apiKey = settings.chatModel.startsWith('grok') ? settings.grokApiKey : settings.chatApiKey
-    const prompt = buildOpeningDialoguePrompt('game-start', player, girls)
+    const prompt = buildOpeningDialoguePrompt('game-start', player, girls, { currentDay: save.currentDay })
 
     fetch('/api/chat', {
       method: 'POST',

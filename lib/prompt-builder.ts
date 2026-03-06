@@ -256,25 +256,55 @@ export function buildOpeningDialoguePrompt(
   scene: 'game-start' | 'service' | 'training' | 'market' | 'interaction' | 'purchase',
   player: Player,
   girls: MonstGirl[],
-  extra?: { guest?: Guest; girl?: MonstGirl }
+  extra?: { guest?: Guest; girl?: MonstGirl; currentDay?: number }
 ): string {
   const girlNames = girls.map((g) => `${g.name}（${g.race}）`).join('、')
   const mainGirl = extra?.girl ?? girls[0]
   const bwh = mainGirl ? girlBWH(mainGirl) : ''
+  const currentDay = extra?.currentDay ?? 1
 
   switch (scene) {
-    case 'game-start':
-      return `你是一个重口味互动小说写作引擎。为以下场景写一段极度色情的开场白。
+    case 'game-start': {
+      if (currentDay === 1) {
+        return `你是一个幻想互动小说写作引擎。为以下场景写一段温馨而带点期待的开场白。
 
-【场景】魔物娘娼馆初建第一天，空气中已充满发情的气息
+【场景】魔物娘娼馆初建第一天，空气中带着新木与淡淡花香
 【馆主】${player.name}（特性：${playerTraitsFull(player)}）
 【馆内魔物娘】${girlNames || '无'}
 
 要求：
 - 以第三人称叙述，50-80字
-- 描写馆主看着魔物娘湿透的小穴和挺立的乳头时的勃起与征服欲
-- 带浓厚的肉欲期待与淫靡氛围
+- 描写馆主第一次正式接手这座娼馆，环顾四周时的心情，以及对未来经营的期待与责任感
+- 轻描魔物娘们初次与新主人相处的氛围：她们或好奇、或羞涩、或安静等待
+- 带一点幻想风格的温暖与可能性，不含露骨色情描写
 - 只输出叙述文本`
+      }
+
+      // Day 2+: randomly pick up to 3 girls and include affection levels
+      const shuffled = [...girls].sort(() => Math.random() - 0.5).slice(0, 3)
+      const girlsWithAffection = shuffled
+        .map((g) => {
+          const affLabel = g.affection >= 60 ? '亲昵' : g.affection >= 30 ? '友好' : '生疏'
+          return `${g.name}（${g.race}，好感度：${g.affection}/100，${affLabel}）`
+        })
+        .join('、')
+
+      return `你是一个幻想互动小说写作引擎。为以下场景写一段温馨而带点暧昧期待的开场白。
+
+【场景】魔物娘娼馆开业第 ${currentDay} 天清晨，阳光透过彩色玻璃窗洒进大厅，空气中混着淡淡的香薰与早餐的香气
+【馆主】${player.name}（特性：${playerTraitsFull(player)}）
+【今日出场魔物娘】${girlsWithAffection || girlNames || '无'}
+
+要求：
+- 以第三人称叙述，60-90字
+- 描写魔物娘们正在打理娼馆的日常景象：擦拭桌椅、摆放花瓶、整理接待区的靠枕、准备迎客用的茶点等
+- 至少有一到两位魔物娘主动向馆主问好，根据她们的好感度表现出不同态度：
+  - 好感度高（60+，亲昵）：带点调皮/亲昵的动作（如轻轻蹭尾巴、抛媚眼、故意靠近说早安时声音软软的）
+  - 好感度中（30-59，友好）：害羞但努力友好（红着脸小声问好、偷偷瞄馆主）
+  - 好感度低（<30，生疏）：礼貌但保持距离（微微鞠躬、声音平静）
+- 整体氛围温暖、充满生活感与经营日常的期待，带一点幻想风格的轻暧昧与可能性
+- 只输出叙述文本，不要说明或标题`
+    }
 
     case 'service':
       return `你是一个成人互动小说写作引擎。写一段充满性张力的营业开场白。
