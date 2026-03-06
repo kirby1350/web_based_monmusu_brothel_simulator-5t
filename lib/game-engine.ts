@@ -2,8 +2,10 @@ import { MonstGirl, Guest, ParticipantStats, ServiceSession, Player } from '@/li
 
 // ─── STATS 块解析 ──────────────────────────────────────────────────────────────
 
-const STATS_REGEX = /<!--\s*STATS:\s*([\s\S]*?)\s*-->/
-const ACTIONS_REGEX = /<!--\s*ACTIONS:\s*(\[[\s\S]*?\])\s*-->/
+// STATS_REGEX: 不允许捕获组跨越 <!-- 防止贪婪吞掉后续块
+const STATS_REGEX = /<!--\s*STATS:\s*((?:(?!<!--)[\s\S])*?)\s*-->/
+// ACTIONS_REGEX: 捕获 [ 到 ] 之间的内容，忽略 ] 后紧跟的多余字符（如 }）
+const ACTIONS_REGEX = /<!--\s*ACTIONS:\s*(\[[\s\S]*?\])[^-]*-->/
 
 export interface SingleStatsDelta {
   pleasureDelta: number

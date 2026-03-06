@@ -74,6 +74,11 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
         const controller = new AbortController()
         abortRef.current = controller
 
+        // Auto-abort after 60 seconds to prevent UI lockup
+        const timeoutId = setTimeout(() => {
+          controller.abort()
+        }, 60_000)
+
         try {
           const provider = settings.chatModel.startsWith('grok') ? 'grok' : 'default'
           const apiKey =
@@ -142,6 +147,7 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
           }
 
           if (full) {
+            clearTimeout(timeoutId)
             const clean = stripStatsBlock(full)
             const assistantMsg: ChatMessage = { role: 'assistant', content: clean }
             onMessagesChange([...next, assistantMsg])
@@ -149,7 +155,20 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
             onRawStreamComplete?.(full)  // raw contains <!--STATS:...-->
           }
         } catch (err: unknown) {
-          if ((err as Error)?.name !== 'AbortError') {
+          clearTimeout(timeoutId)
+          if ((err as Error)?.name === 'AbortError') {
+            // Timeout or manual abort — show what we got so far, or an error message
+            if (full) {
+              const clean = stripStatsBlock(full)
+              const assistantMsg: ChatMessage = { role: 'assistant', content: clean + '\n\n[回复已中断]' }
+              onMessagesChange([...next, assistantMsg])
+              onStreamComplete?.(clean)
+              onRawStreamComplete?.(full)
+            } else {
+              const errMsg: ChatMessage = { role: 'assistant', content: '[请求超时或已中断，请重试]' }
+              onMessagesChange([...next, errMsg])
+            }
+          } else {
             const errMsg: ChatMessage = {
               role: 'assistant',
               content: '[连接失败，请检查 API 设置]',
@@ -157,6 +176,7 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
             onMessagesChange([...next, errMsg])
           }
         } finally {
+          clearTimeout(timeoutId)
           setStreaming(false)
           setStreamingText('')
           abortRef.current = null
