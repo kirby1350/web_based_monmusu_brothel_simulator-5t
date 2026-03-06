@@ -38,8 +38,17 @@ export function getGameSave(): GameSave | null {
   try {
     const raw = localStorage.getItem(GAME_KEY)
     if (!raw) return null
-    return JSON.parse(raw) as GameSave
+    const parsed = JSON.parse(raw)
+    // 校验是否为合法的游戏存档对象
+    if (!parsed || typeof parsed !== 'object' || !parsed.player || !Array.isArray(parsed.girls)) {
+      // 清除无效数据，防止反复报错
+      localStorage.removeItem(GAME_KEY)
+      return null
+    }
+    return parsed as GameSave
   } catch {
+    // JSON 解析失败，清除脏数据
+    try { localStorage.removeItem(GAME_KEY) } catch { /* ignore */ }
     return null
   }
 }
@@ -77,7 +86,9 @@ export function getSaveSlots(): SaveSlot[] {
   try {
     const raw = localStorage.getItem(SAVE_SLOTS_KEY)
     if (!raw) return []
-    return JSON.parse(raw) as SaveSlot[]
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed as SaveSlot[]
   } catch {
     return []
   }
