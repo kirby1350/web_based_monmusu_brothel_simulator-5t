@@ -329,7 +329,7 @@ ${mainGirl ? `主要对象：${mainGirl.name}（${mainGirl.race}），性格：$
 要求：
 - 50-80字，第三人称叙述
 - 描写调教室的淫靡气味、被绑魔物娘颤抖的乳头与滴水的蜜穴
-- 充满即将被彻��干到高潮的紧张与期待
+- 充满即将被彻���干到高潮的紧张与期待
 - 只输出叙述文本`
 
     case 'market':
@@ -357,20 +357,33 @@ ${mainGirl ? `主要对象：${mainGirl.name}（${mainGirl.race}），性格：$
 - 体现她的发情状态与渴望
 - 只输出对话`
 
-    case 'purchase':
+    case 'purchase': {
       if (!mainGirl) return ''
-      return `你是一个幻想互动小说写作引擎。以第一人称扮演 ${mainGirl.name} 被 ${player.name} 买下后的自我介绍。
+      // 从馆内其他魔物娘里随机抽一位作为欢迎者（排除刚购入的角色本身）
+      const others = girls.filter((g) => g.id !== mainGirl.id)
+      const welcomer = others.length > 0 ? others[Math.floor(Math.random() * others.length)] : null
+      const welcomerDesc = welcomer
+        ? `${welcomer.name}（${welcomer.race}，好感度：${welcomer.affection}/100）`
+        : '暂无其他魔物娘'
 
+      return `你是一个色情互动小说写作引擎。以第一人称扮演 ${mainGirl.name} 被 ${player.name} 买下并带回娼馆后的第一段回应（欢迎+自我介绍）。
+
+【场景】${mainGirl.name}刚刚被带回 ${player.name} 的魔物娘娼馆，大厅烛光摇曳，空气中混着淡淡的香薰与先前魔物娘留下的体香
 【魔物娘】${mainGirl.name}（${mainGirl.race}），性格：${mainGirl.personality}
-三围：${bwh || '未知'}　服从度：${mainGirl.obedience}/100　淫乱度：${mainGirl.lewdness}/100${mainGirl.sexualDesc ? `\n性癖：${mainGirl.sexualDesc}` : ''}
+三围：${bwh || '未知'}
+服从度：${mainGirl.obedience}/100，淫乱度：${mainGirl.lewdness}/100${mainGirl.sexualDesc ? `\n性癖：${mainGirl.sexualDesc}` : ''}
 背景：${mainGirl.otherDesc}
+【其他魔物娘】${welcomerDesc}
 
 要求：
-- 以第一人称进行大约300字的自我介绍，口吻自然符合她的性格、服从度与淫乱度
-- 介绍包括：外貌（强调三围带来的诱惑感）、性格、背景、当前状态（服从度低时带点抗拒或不安，但透露出潜在的湿意与顺从欲；服从度中时犹豫却好奇；服从度高时直接顺从、甚至主动表达侍奉意愿）
-- 融入淫乱度与性癖：淫乱度低时害羞内敛，淫乱度高时大胆描述自己发情反应或性癖偏好（如求被调教、特定玩法暗示）
-- 整体氛围温馨带点暧昧幻想感，不需极度重口，但允许轻度色情暗示以匹配成人向游戏
-- 只输出自我介绍文本，不要说明或标题`
+- 以第一人称（扮演 ${mainGirl.name}）写大约250-350字的开场回应
+- 开头先描写自己被带进娼馆大厅时的第一印象与感受（例如：看到华丽却淫靡的装饰、闻到其他女孩的味道、看到锁链痕迹或软垫床铺时的心情）
+- 接着描写另一位馆内魔物娘（${welcomer ? welcomer.name : ''}）主动上前欢迎自己：根据那位魔物娘的好感度与性格，表现出不同态度（好感高则热情拥抱/调戏，好感低则好奇观察/轻声问候）${!welcomer ? '\n- 若馆内暂无其他魔物娘，则描写独自打量这座娼馆的孤独与期待' : ''}
+- 然后进行自我介绍：包括外貌（强调三围的诱惑感与身体特征）、性格、背景、当前心情（服从度低时带抗拒与不安但身体已微微发热；服从度中时犹豫好奇；服从度高时顺从甚至主动表达想被调教/侍奉的意愿）
+- 融入淫乱度与性癖：淫乱度低时害羞描述自己敏感部位，淫乱度高时大胆说出发情反应或性癖偏好（轻度色情暗示，如"我的尾巴一碰就湿了""喜欢被粗暴对待"等）
+- 整体氛围温馨暧昧带点肉欲期待，适合成人向经营模拟器，不需极度重口
+- 只输出 ${mainGirl.name} 说的第一段完整回应文本（包含对场景的感受、对其他魔物娘的反应、自我介绍），不要说明或标题`
+    }
 
     default:
       return ''
