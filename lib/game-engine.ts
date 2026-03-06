@@ -3,6 +3,7 @@ import { MonstGirl, Guest, ParticipantStats, ServiceSession, Player } from '@/li
 // ─── STATS 块解析 ──────────────────────────────────────────────────────────────
 
 const STATS_REGEX = /<!--STATS:([\s\S]*?)-->/
+const ACTIONS_REGEX = /<!--ACTIONS:(\[[\s\S]*?\])-->/
 
 export interface SingleStatsDelta {
   pleasureDelta: number
@@ -64,10 +65,26 @@ export function getGirlDelta(
 }
 
 /**
- * 剥离回复中的隐藏 STATS 块，返回干净的显示文本。
+ * 从 AI 回复中解析推荐行动块 <!--ACTIONS:[...]-->
+ * 返回三个行动字符串，失败时返回 null。
+ */
+export function parseActionsFromReply(text: string): [string, string, string] | null {
+  const match = text.match(ACTIONS_REGEX)
+  if (!match) return null
+  try {
+    const arr = JSON.parse(match[1]) as string[]
+    if (!Array.isArray(arr) || arr.length < 3) return null
+    return [arr[0], arr[1], arr[2]]
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 剥离回复中的隐藏 STATS 和 ACTIONS 块，返回干净的显示文本。
  */
 export function stripStatsBlock(text: string): string {
-  return text.replace(STATS_REGEX, '').trimEnd()
+  return text.replace(STATS_REGEX, '').replace(ACTIONS_REGEX, '').trimEnd()
 }
 
 // ─── 服务/调教数值计算 ──────────────────────────────────────────────────────────

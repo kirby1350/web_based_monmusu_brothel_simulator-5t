@@ -23,6 +23,7 @@ import {
 import {
   createServiceSession, applyStatDelta, estimateStatDelta, parseStatsFromReply, getGirlDelta,
   calcServiceReward, calcGirlStatGrowth, updateGuestSatisfaction, findEligibleTrainers,
+  parseActionsFromReply,
 } from '@/lib/game-engine'
 import { cn } from '@/lib/utils'
 import { nanoid } from 'nanoid'
@@ -64,6 +65,7 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
   const [guestLoading, setGuestLoading] = useState(false)
   const [session, setSession] = useState<ServiceSession | null>(null)
   const [lastAiMsg, setLastAiMsg] = useState('')
+  const [suggestions, setSuggestions] = useState<[string, string, string] | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [goldEarned, setGoldEarned] = useState(0)
   // Record stat deltas for result screen: girlId -> { affection, obedience, lewdness }
@@ -220,6 +222,9 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
 
   const handleRawReply = useCallback((rawContent: string) => {
     setLastAiMsg(rawContent)
+    // Parse suggested actions from the reply
+    const actions = parseActionsFromReply(rawContent)
+    setSuggestions(actions)
     if (!session) return
 
     // Try AI-generated multi-stats first, fallback to keyword estimation
@@ -637,10 +642,7 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
               className="flex-1 min-h-0"
             />
             <SuggestionBar
-              lastAssistantMessage={lastAiMsg}
-              sessionType={type}
-              playerTraits={player.traits}
-              settings={settings}
+              suggestions={suggestions}
               onSelect={(text) => setInputValue(text)}
             />
             <div className="border-t border-border px-3 pb-3 pt-2 flex gap-2 items-end">
