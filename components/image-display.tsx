@@ -59,6 +59,15 @@ export function ImageDisplay({
   }, [autoGenerate])
 
   if (!hasApiKey) {
+    // Even without an API key, show the cached/preset image if available
+    if (url) {
+      return (
+        <div className={cn('relative rounded-lg overflow-hidden', className)}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={url} alt={alt} className="w-full h-full object-cover" />
+        </div>
+      )
+    }
     return (
       <div
         className={cn(
