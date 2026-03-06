@@ -101,30 +101,43 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
           const reader = res.body.getReader()
           const decoder = new TextDecoder()
           let full = ''
+          let leftover = '' // buffer for incomplete SSE lines across chunks
 
           while (true) {
             const { done, value } = await reader.read()
             if (done) break
-            const chunk = decoder.decode(value, { stream: true })
-            // SSE: "data: <text>\n\n"
+            const chunk = leftover + decoder.decode(value, { stream: true })
             const lines = chunk.split('\n')
+            // Last element may be an incomplete line — save for next iteration
+            leftover = lines.pop() ?? ''
             for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                const text = line.slice(6)
-                if (text === '[DONE]') continue
-                try {
-                  const parsed = JSON.parse(text)
-                  const delta = parsed.choices?.[0]?.delta?.content ?? parsed.content ?? ''
+              const trimmed = line.trim()
+              if (!trimmed.startsWith('data:')) continue
+              const text = trimmed.slice(5).trim()
+              if (text === '[DONE]') continue
+              try {
+                const parsed = JSON.parse(text)
+                const delta = parsed.choices?.[0]?.delta?.content ?? parsed.content ?? ''
+                if (delta) {
                   full += delta
                   const cleanFull = stripStatsBlock(full)
                   setStreamingText(cleanFull)
                   onAssistantReply?.(cleanFull)
-                } catch {
-                  // plain text fallback
-                  full += text
-                  setStreamingText(full)
                 }
+              } catch {
+                // Truly malformed — skip silently, do NOT append raw JSON to output
               }
+            }
+          }
+          // Flush any remaining leftover line
+          if (leftover.trim().startsWith('data:')) {
+            const text = leftover.trim().slice(5).trim()
+            if (text && text !== '[DONE]') {
+              try {
+                const parsed = JSON.parse(text)
+                const delta = parsed.choices?.[0]?.delta?.content ?? parsed.content ?? ''
+                if (delta) full += delta
+              } catch { /* ignore */ }
             }
           }
 
