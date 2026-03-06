@@ -58,6 +58,7 @@ export const SERVING_SKILLS = [
 export const GIRL_TEMPLATE_IMAGES: (string | null)[] = [
   '/presets/qianxue.jpg',    // 千雪
   '/presets/narumeiya.jpg',  // 娜露梅亚
+  '/presets/lueira.jpg',     // 露埃拉
   '/presets/wenxiang.jpg',   // 文香
   '/presets/zhixi.jpg',      // 志希
 ]
@@ -107,6 +108,29 @@ export const GIRL_TEMPLATES: Omit<MonstGirl, 'id' | 'imageUrl'>[] = [
     lewdness: 40,
     skills: [],
     imageTags: '1girl, solo, holstaur, cow girl, monster girl, cow ears, cow horns, cow tail, narmaya granblue, pink purple hair, long hair, purple eyes, tanned skin, shy, embarrassed, blushing, lactation, milk squirt, huge breasts, massive breasts, cleavage, breast focus, torn kimono, cow bell, masterpiece, best quality, highly detailed, anime',
+    price: 0,
+  },
+  {
+    name: '露埃拉',
+    race: '龙娘',
+    age: '24',
+    bodyDesc: '银白色长直发，紫色眼睛，优雅圣女般的脸庞，头顶一对晶莹冰蓝龙角，龙耳和长而有力的冰霜龙尾，上身丰满诱人，下身修长人腿覆盖细小龙鳞，皮肤白皙如雪散发寒气',
+    bodyTags: 'dragon girl, ice dragon girl, monster girl, dragon horns, dragon tail, long dragon tail, silver hair, long hair, straight hair, purple eyes, pale skin, huge breasts, cleavage, icy scales, frosty aura',
+    bust: 91,
+    waist: 57,
+    hip: 90,
+    personality: '温柔奉献如圣女般包容一切，表面平静治愈，内心隐藏龙族的骄傲与占有欲，对被"守护"的对象会展现强烈保护欲和隐秘的支配快感，喜欢用冰息温柔包裹伴侣',
+    personalityTags: 'gentle, saintly, nurturing, secretly possessive, proud dragon, healer type, composed, loyal protector',
+    outfit: '破损的圣女冰霜长袍 + 龙鳞项圈 + 冰晶饰品',
+    outfitTags: 'torn saintess robe, damaged white dress, icy crystals, dragon scale choker, exposed cleavage, translucent frost fabric, detached sleeves, ribbon accents, frozen lace',
+    otherDesc: '原本是为布里塔尼亚所有人牺牲的圣女，在觉醒冰龙之力后转化为冰龙娘魔物娘。现在她用冰河屏障般的龙息护盾"守护"客人，同时保留了料理爱好和圣洁笑容',
+    otherTags: 'lost sword lueira, awakened saintess, ice dragon curse, frost barrier, culinary enthusiast, britannia saintess',
+    sexualDesc: '龙尾和龙翼极度敏感，轻柔触碰就会释放冰凉吐息包围全身，制造冷热交替的极致快感，特别喜欢用龙尾缓慢缠绕伴侣下体并注入冰霜魔力，过程中会低语"让我...完全守护你吧"，翼膜包裹时能隔绝外界形成私密冰茧。H时冰息会让皮肤起鸡皮疙瘩却欲火焚身，容易进入龙吼般的连续高潮，身体覆盖薄霜并微微颤抖。高潮后会本能用龙翼拥抱对方，尾巴尖端轻轻舔舐耳后不肯放开，像守护珍宝般宠溺。弱点：龙角根部和尾巴基部被热吻或抚摸会让她瞬间融化，强制进入发情"龙后模式"，主动喷吐催情冰雾并乞求"请...占有我的全部力量..."；胸部被温暖双手揉捏则会失控释放护盾般的冰壁，跪地顺从。',
+    affection: 26,
+    obedience: 28,
+    lewdness: 38,
+    skills: [],
+    imageTags: '1girl, solo, dragon girl, ice dragon girl, monster girl, dragon horns, dragon tail, silver hair, long hair, purple eyes, pale skin, embarrassed, blushing, huge breasts, cleavage, torn saintess robe, ice crystals, frost effects, holding spoon, ice cream, blue flowers, white dress, masterpiece, best quality, highly detailed, anime',
     price: 0,
   },
   {
@@ -174,6 +198,6 @@ export const GUEST_PERSONALITIES = [
 
 export const GUEST_TRAITS = [
   '财大气粗', '小气吝啬', '体力过人', '技巧熟练',
-  '初次体验', '老顾客', '特殊癖好', '花心',
+  '初次体验', '老顾���', '特殊癖好', '花心',
   '专一', '沉默寡言', '话痨',
 ]
