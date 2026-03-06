@@ -112,7 +112,7 @@ ${session.girls.map(girl => `- ${girl.name} 的每一句话、呻吟、反应必
 4. 服从度低的魔物娘先挣扎羞耻哭喊，淫乱度高的主动摇臀求内射、夹紧吸吮
 5. 体力归零后描写"彻底被干到失神、子宫痉挛抽搐、潮吹如尿失禁般喷射不止"，仍可继续但状态更虚弱淫乱
 6. 语言极度下流直白，满口鸡巴、小穴、子宫、射精、内射、潮吹等词汇
-7. 结局完全��玩家决定（玩家发送"结束服务"才结算）${STATS_INSTRUCTION}
+7. 结局完全����玩家决定（玩家发送"结束服务"才结算）${STATS_INSTRUCTION}
 
 只输出叙述正文，不要任何说明、标题或额外标记。`
   }
@@ -291,7 +291,7 @@ export function buildGuestGenerationPrompt(
 
 请生成JSON格式的客人信息，字���：
 {
-  "name": "客人名字（2-4字中文名）",
+  "name": "客人名字（2-4字中文名���",
   "race": "种族职业（例如：肌肉兽人、淫荡精灵）",
   "personality": "一句话色情性格描述",
   "traits": ["性癖1", "性癖2"],
@@ -336,9 +336,6 @@ export function buildMarketGirlPrompt(preference: string, existingNames: string[
 }
 
 只输出JSON数组 [...] ，不要其他内容。`
-}
-
-只输出JSON，不要其他内容。`
 }
 
 // ─── 建议回复生成提示词 ────────────────────────────────────────────────────────
@@ -419,7 +416,7 @@ export function buildOpeningDialoguePrompt(
 
     case 'service':
       if (!mainGirl) return ''
-      return `你是一个成人互动小说写作引擎。写一段充满感官张力的服务开场白。
+      return `你是一个成人互���小说写作引擎。写一段充满感官张力的服务开场白。
 
 【场景】${player.name}的娼馆私密包间，灯光昏暗柔和，空气中弥漫着淡淡香薰与花香
 【参与魔物娘】${girlNames}
