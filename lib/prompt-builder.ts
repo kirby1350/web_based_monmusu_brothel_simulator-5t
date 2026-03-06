@@ -105,10 +105,11 @@ ${girlDescriptions}
 
 const STATS_INSTRUCTION = `
 7. 每次回复结尾必须附加一行隐藏数值块，格式严格如下（不换行，不加空格，数值为整数）：
-<!--STATS:{"pleasure":数值,"stamina":数值,"satisfaction":数值}-->
-pleasure = 本回合快感变化量（-10到+20的整数，高潮/呻吟为正，抵抗/疼痛为负）
-stamina = 本回合体力变化量（-20到-2的整数，激烈消耗更多）
-satisfaction = 本回合满意度变化量（仅服务场景，-5到+15的整数；调教场景填0）
+<!--STATS:{"girls":{"角色名1":{"pleasure":数值,"stamina":数值},"角色名2":{"pleasure":数值,"stamina":数值}},"satisfaction":数值}-->
+girls 中每个参与的魔物娘都必须有独立条目，key 就是她的名字（汉字）
+pleasure = 该角色本回合快感变化量（-10到+20的整数，高潮/呻吟为正，抵抗为负）
+stamina = 该角色本回合体力变化量（-20到-2的整数，激烈消耗更多）
+satisfaction = 本回合客人满意度变化量（仅服务场景，-5到+15的整数；调教场景填0）
 此行不算入正文字数，玩家不会看到它。`
 
 export function buildInteractionSystemPrompt(
@@ -178,7 +179,7 @@ export function buildGuestGenerationPrompt(
   return `你是一个色情角色生成AI。为一款魔物娘娼馆经营游戏生成一个饥渴的客人。
 
 玩家偏好：${preference || '随机'}
-已有客人（避免重复）：${existingGuests.join('、') || '无'}
+已有客人（避免重���）：${existingGuests.join('、') || '无'}
 
 请生成JSON格式的客人信息，字���：
 {

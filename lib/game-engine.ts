@@ -2,29 +2,65 @@ import { MonstGirl, Guest, ParticipantStats, ServiceSession, Player } from '@/li
 
 // ─── STATS 块解析 ──────────────────────────────────────────────────────────────
 
-const STATS_REGEX = /<!--STATS:(\{[^}]+\})-->/
+const STATS_REGEX = /<!--STATS:([\s\S]*?)-->/
 
-/**
- * 从 AI 回复中解析隐藏的数值块。
- * 返回 null 表示未找到，调用方应 fallback 到 estimateStatDelta。
- */
-export function parseStatsFromReply(text: string): {
+export interface SingleStatsDelta {
   pleasureDelta: number
   staminaDelta: number
   satisfactionDelta: number
-} | null {
+}
+
+export interface MultiStatsDelta {
+  girls: Record<string, { pleasureDelta: number; staminaDelta: number }>
+  satisfactionDelta: number
+}
+
+/**
+ * 从 AI 回复中解析多角色隐藏数值块。
+ * 新格式：<!--STATS:{"girls":{"名字":{"pleasure":N,"stamina":N},...},"satisfaction":N}-->
+ * 旧格式（单块）：<!--STATS:{"pleasure":N,"stamina":N,"satisfaction":N}-->
+ * 返回 null 表示未找到。
+ */
+export function parseStatsFromReply(text: string): MultiStatsDelta | null {
   const match = text.match(STATS_REGEX)
   if (!match) return null
   try {
-    const obj = JSON.parse(match[1])
-    return {
+    const obj = JSON.parse(match[1].trim())
+    const satisfactionDelta = Math.max(-5, Math.min(15, Number(obj.satisfaction) || 0))
+
+    // 新多角色格式
+    if (obj.girls && typeof obj.girls === 'object') {
+      const girls: Record<string, { pleasureDelta: number; staminaDelta: number }> = {}
+      for (const [name, vals] of Object.entries(obj.girls as Record<string, { pleasure?: number; stamina?: number }>)) {
+        girls[name] = {
+          pleasureDelta: Math.max(-10, Math.min(20, Number(vals.pleasure) || 0)),
+          staminaDelta: Math.max(-20, Math.min(-2, Number(vals.stamina) || -8)),
+        }
+      }
+      return { girls, satisfactionDelta }
+    }
+
+    // 旧单块格式：所有角色共享
+    const shared = {
       pleasureDelta: Math.max(-10, Math.min(20, Number(obj.pleasure) || 0)),
       staminaDelta: Math.max(-20, Math.min(-2, Number(obj.stamina) || -8)),
-      satisfactionDelta: Math.max(-5, Math.min(15, Number(obj.satisfaction) || 0)),
     }
+    return { girls: { __shared__: shared }, satisfactionDelta }
   } catch {
     return null
   }
+}
+
+/**
+ * 从 MultiStatsDelta 中获取特定角色的 delta，找不到时返回 shared 或 null。
+ */
+export function getGirlDelta(
+  multi: MultiStatsDelta,
+  girlName: string
+): { pleasureDelta: number; staminaDelta: number } | null {
+  if (multi.girls[girlName]) return multi.girls[girlName]
+  if (multi.girls['__shared__']) return multi.girls['__shared__']
+  return null
 }
 
 /**

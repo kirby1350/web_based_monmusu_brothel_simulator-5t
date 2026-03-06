@@ -21,7 +21,7 @@ import {
   buildOpeningDialoguePrompt,
 } from '@/lib/prompt-builder'
 import {
-  createServiceSession, applyStatDelta, estimateStatDelta, parseStatsFromReply,
+  createServiceSession, applyStatDelta, estimateStatDelta, parseStatsFromReply, getGirlDelta,
   calcServiceReward, calcGirlStatGrowth, updateGuestSatisfaction, findEligibleTrainers,
 } from '@/lib/game-engine'
 import { cn } from '@/lib/utils'
@@ -66,6 +66,8 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
   const [lastAiMsg, setLastAiMsg] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [goldEarned, setGoldEarned] = useState(0)
+  // Record stat deltas for result screen: girlId -> { affection, obedience, lewdness }
+  const [girlGrowths, setGirlGrowths] = useState<Record<string, { affection: number; obedience: number; lewdness: number }>>({})
   const [openingText, setOpeningText] = useState('')
   const [openingDialogue, setOpeningDialogue] = useState('') // character interaction line
   const [openingLoading, setOpeningLoading] = useState(false)
@@ -251,23 +253,35 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
     setLastAiMsg(rawContent)
     if (!session) return
 
-    // Try AI-generated stats first, fallback to keyword estimation
-    const aiStats = parseStatsFromReply(rawContent)
-    const delta = aiStats ?? estimateStatDelta(rawContent)
-    const satisfactionDelta = aiStats?.satisfactionDelta
+    // Try AI-generated multi-stats first, fallback to keyword estimation
+    const multiStats = parseStatsFromReply(rawContent)
+    const fallbackDelta = multiStats ? null : estimateStatDelta(rawContent)
+    const satisfactionDelta = multiStats?.satisfactionDelta
 
     setSession((prev) => {
       if (!prev) return prev
       const newGirlsStats = { ...prev.girlsStats }
       for (const g of prev.girls) {
+        // Per-girl delta from multi-stats, or shared fallback
+        const delta = multiStats
+          ? (getGirlDelta(multiStats, g.name) ?? { pleasureDelta: 5, staminaDelta: -8 })
+          : fallbackDelta!
         newGirlsStats[g.id] = applyStatDelta(newGirlsStats[g.id], delta)
       }
+      // Guest/trainer use average pleasure from all girls or fallback
+      const avgPleasureDelta = multiStats
+        ? Object.values(multiStats.girls).reduce((s, v) => s + v.pleasureDelta, 0) / Math.max(1, Object.keys(multiStats.girls).length)
+        : fallbackDelta!.pleasureDelta
+      const avgStaminaDelta = multiStats
+        ? Object.values(multiStats.girls).reduce((s, v) => s + v.staminaDelta, 0) / Math.max(1, Object.keys(multiStats.girls).length)
+        : fallbackDelta!.staminaDelta
+      const sharedDelta = { pleasureDelta: Math.round(avgPleasureDelta), staminaDelta: Math.round(avgStaminaDelta) }
       return {
         ...prev,
         girlsStats: newGirlsStats,
-        guestStats: prev.guestStats ? applyStatDelta(prev.guestStats, delta) : undefined,
-        trainerStats: prev.trainerStats ? applyStatDelta(prev.trainerStats, delta) : undefined,
-        guest: prev.guest ? updateGuestSatisfaction(prev.guest, delta.pleasureDelta, satisfactionDelta) : undefined,
+        guestStats: prev.guestStats ? applyStatDelta(prev.guestStats, sharedDelta) : undefined,
+        trainerStats: prev.trainerStats ? applyStatDelta(prev.trainerStats, sharedDelta) : undefined,
+        guest: prev.guest ? updateGuestSatisfaction(prev.guest, sharedDelta.pleasureDelta, satisfactionDelta) : undefined,
         messages,
       }
     })
@@ -281,10 +295,18 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
       earned = calcServiceReward(session.guest, session)
     }
     const turnCount = messages.filter((m) => m.role === 'user').length
+    const growths: Record<string, { affection: number; obedience: number; lewdness: number }> = {}
     for (const girl of session.girls) {
+      const before = { affection: girl.affection, obedience: girl.obedience, lewdness: girl.lewdness }
       const growth = calcGirlStatGrowth(girl, session, turnCount)
       updatedGirls = updatedGirls.map((g) => g.id === girl.id ? { ...g, ...growth } : g)
+      growths[girl.id] = {
+        affection: (growth.affection ?? before.affection) - before.affection,
+        obedience: (growth.obedience ?? before.obedience) - before.obedience,
+        lewdness: (growth.lewdness ?? before.lewdness) - before.lewdness,
+      }
     }
+    setGirlGrowths(growths)
     setGoldEarned(earned)
     onSaveChange({
       ...save,
@@ -672,23 +694,61 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
             </h2>
             <p className="text-sm text-muted-foreground">本次活动已完成</p>
           </div>
-          <div className="bg-card border border-border rounded-xl p-5 w-full max-w-sm space-y-3">
+          <div className="bg-card border border-border rounded-xl p-5 w-full max-w-sm space-y-4">
+            {/* Service: satisfaction + gold */}
             {type === 'service' && session.guest && (
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">客人满意度</span>
                 <span className="text-sm font-semibold text-amber-400">{session.guest.satisfaction} / 100</span>
               </div>
             )}
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">本次收入</span>
-              <span className="text-sm font-semibold gold-text">+{goldEarned} G</span>
+            {type === 'service' && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">本次收入</span>
+                <span className="text-sm font-semibold gold-text">+{goldEarned} G</span>
+              </div>
+            )}
+            {(type === 'service' && session.guest) && <div className="h-px bg-border" />}
+
+            {/* Girl stat growths */}
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-foreground/70">魔物娘属性变化</p>
+              {session.girls.map((girl) => {
+                const g = girlGrowths[girl.id]
+                if (!g) return null
+                return (
+                  <div key={girl.id} className="space-y-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-semibold gold-text">{girl.name}</span>
+                      <span className="text-[10px] text-muted-foreground">{girl.race}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <StatDelta label="好感" value={g.affection} color="text-pink-400" />
+                      <StatDelta label="服从" value={g.obedience} color="text-sky-400" />
+                      <StatDelta label="淫乱" value={g.lewdness} color="text-rose-400" />
+                    </div>
+                  </div>
+                )
+              })}
             </div>
-            <div className="h-px bg-border" />
-            <p className="text-xs text-muted-foreground text-center">各魔物娘属性已根据本次活动结果提升</p>
           </div>
           <Button className="w-full max-w-sm h-11 glow-btn" onClick={onBack}>返回大厅</Button>
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── StatDelta chip ──────────────────────────────────────────────────────────
+
+function StatDelta({ label, value, color }: { label: string; value: number; color: string }) {
+  const sign = value > 0 ? '+' : ''
+  return (
+    <div className="flex flex-col items-center bg-secondary/30 rounded-lg py-1.5 px-2 gap-0.5">
+      <span className="text-[9px] text-muted-foreground">{label}</span>
+      <span className={cn('text-xs font-bold tabular-nums', color, value === 0 && 'text-muted-foreground/50')}>
+        {sign}{value}
+      </span>
     </div>
   )
 }
