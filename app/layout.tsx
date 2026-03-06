@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import { Cinzel, Noto_Serif_SC } from 'next/font/google'
-import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
 const _cinzel = Cinzel({
@@ -29,7 +28,6 @@ export default function RootLayout({
     <html lang="zh-CN">
       <body className={`${_cinzel.variable} ${_notoSerifSC.variable} font-sans antialiased`}>
         {children}
-        <Analytics />
       </body>
     </html>
   )
