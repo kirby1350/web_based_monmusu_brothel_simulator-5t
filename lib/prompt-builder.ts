@@ -395,23 +395,21 @@ export function buildOpeningDialoguePrompt(
 
     case 'service':
       if (!mainGirl) return ''
-      return `你是一个幻想互动小说写作引擎。以第一人称扮演 ${mainGirl.name} 向 ${player.name} 进行日常问候与闲聊。
+      return `你是一个成人互动小说写作引擎。写一段充满感官张力的服务开场白。
 
-【魔物娘】${mainGirl.name}（${mainGirl.race}），性格：${mainGirl.personality}
-三围：${girlBWH(mainGirl) || '未知'}
-好感度：${mainGirl.affection}/100，淫乱度：${mainGirl.lewdness}/100
-【玩家】${player.name}
+【场景】${player.name}的娼馆私密包间，灯光昏暗柔和，空气中弥漫着淡淡香薰与花香
+【参与魔物娘】${girlNames}
+主要角色：${mainGirl.name}（${mainGirl.race}），性格：${mainGirl.personality}，好感度：${mainGirl.affection}/100，淫乱度：${mainGirl.lewdness}/100${girlBWH(mainGirl) ? `，三围：${girlBWH(mainGirl)}` : ''}
+${extra?.guest ? `【客人】${extra.guest.name}（${extra.guest.race}），${extra.guest.personality}，需求：${extra.guest.desires}` : ''}
 
 要求：
-- 以第一人称写30-70字的日常对话（问候、分享日常小事、轻微撒娇或闲聊）
-- 必须根据三围、种族、淫��度自然调整发言内容、语气与尺度：
-  - 三围影响：巨乳（B90+）时可能不经意提到"胸口有点沉""衣服总是绷得紧"；纤腰肥臀（W<60 & H90+）时会带点扭动或曲线自嘲；整体夸张三围时会轻微强调身体带来的"负担"或"吸引力"
-  - 种族影响：猫娘/狐娘等兽耳尾巴种族会提到尾巴晃动、耳朵抖动等可爱动作；史莱姆/触手娘等会提到身体柔软、黏腻或变形感；拉米亚/龙娘等会提到尾巴缠绕或鳞片触感
-  - 淫乱度低（<40）：完全纯真日常，无任何性暗示，焦点在可爱、害羞或认真打理娼馆
-  - 淫乱度中（40-69）：偶尔带轻微暧昧或身体自觉的描述（如"今天好热，身体有点黏""尾巴自己缠上来了呢"），但仍保持日常框架
-  - 淫乱度高（70+）：更开放大胆，会自然融入性感暗示（如"胸口一直胀胀的，想被揉一揉""小穴有点湿了，站着都难受""想被主人摸摸尾巴根部"），但仍以"日常闲聊"形式出现，不直接求爱或色情指令
-- 整体氛围温馨、幻想风格，体现魔物娘个性与对玩家的情感渐进变化
-- 只输出 ${mainGirl.name} 说的这段完整对话文本，不要说明或标题`
+- 40-70字，第三人称叙述
+- 描写包间环境与人物第一眼的氛围感：客人进入时的神情、魔物娘迎接时的姿态与体态细节
+- 根据好感度与淫乱度调整氛围尺度：
+  - 好感度高+淫乱度高：主动撩拨、媚眼如丝，暗含肉欲期待
+  - 好感度低/淫乱度低：温柔有礼但带一丝局促，眼神试探
+- 不直接描写性行为，保留悬念与紧张感
+- 只输出叙述文本，不要说明或标题`
 
     case 'training':
       if (!mainGirl) return ''
