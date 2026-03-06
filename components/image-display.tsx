@@ -30,11 +30,13 @@ export function ImageDisplay({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>('')
 
-  const hasApiKey =
-    settings.imageProvider === 'pixai' ? !!settings.pixaiApiKey : !!settings.tensorartApiKey
+  // Allow generation attempt if the user has explicitly provided a key in settings,
+  // OR always allow so the server-side env var (PIXAI_API_KEY / TENSORART_API_KEY) can be used.
+  // Real auth failures will surface as error messages after the API call.
+  const hasApiKey = !!settings.pixaiApiKey || !!settings.tensorartApiKey || settings.imageProvider === 'pixai' || settings.imageProvider === 'tensorart'
 
   const generate = useCallback(async () => {
-    if (!tags || !hasApiKey) return
+    if (!tags) return
     setLoading(true)
     setError('')
     const result = await generateImage(tags, settings)
@@ -45,7 +47,7 @@ export function ImageDisplay({
     } else {
       setError(result.error ?? '生成失败')
     }
-  }, [tags, settings, hasApiKey, onUrlCached])
+  }, [tags, settings, onUrlCached])
 
   useEffect(() => {
     if (cachedUrl) setUrl(cachedUrl)
