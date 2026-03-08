@@ -54,6 +54,15 @@ ${girlDescriptions}
 特性：${g.traits.join('、') || '无'}
 需求：${g.desires}
 当前状态 — 肉棒快感 ${stats?.pleasure ?? 0}/100，体力 ${stats?.stamina ?? 100}/100${stats?.isExhausted ? '（射精过度、阴茎抽搐）' : ''}，射精满足度 ${g.satisfaction}/100
+${g.memories && Object.keys(g.memories).length > 0 ? `
+【关系记忆（老客人档案，必须自然融入叙述语气）】
+${session.girls.map(girl => {
+  const mem = g.memories?.[girl.name]
+  if (!mem) return null
+  return `- ${g.name} × ${girl.name}（第${mem.visitCount}次服务）
+  ${g.name}的印象："${mem.guestAboutGirl}"
+  ${girl.name}的印象："${mem.girlAboutGuest}"`
+}).filter(Boolean).join('\n')}` : ''}
 
 【角色人格锚点（必须100%严格遵守）】
 ${session.girls.map(girl => `- ${girl.name} 的每一句话、呻吟、反应必须完全体现性格「${girl.personality}」${girl.sexualDesc ? `和色色设定「${girl.sexualDesc}」` : ''}：
@@ -520,4 +529,27 @@ ${extra?.guest ? `【客人】${extra.guest.name}（${extra.guest.race}），${e
     default:
       return ''
   }
+}
+
+// ─── 关系记忆生成提示词 ────────────────────────────────────────────────────────
+
+export function buildMemoryPrompt(
+  guest: Guest,
+  girl: MonstGirl,
+  sessionSummary: string,
+  existingMemory?: { guestAboutGirl: string; girlAboutGuest: string; visitCount: number }
+): string {
+  const visitCount = (existingMemory?.visitCount ?? 0) + 1
+  const prevContext = existingMemory
+    ? `上次印象 — ${guest.name}对${girl.name}："${existingMemory.guestAboutGirl}"；${girl.name}对${guest.name}："${existingMemory.girlAboutGuest}"`
+    : '这是第一次服务'
+
+  return `根据以下这次服务信息，分别生成：
+1. 客人${guest.name}（${guest.race}，性格：${guest.personality}）对魔物娘${girl.name}新形成的最新印象（15-25字，第一人称，体现情感变化）
+2. 魔物娘${girl.name}（${girl.race}，性格：${girl.personality}）对客人${guest.name}新形成的最新印象（15-25字，第一人称，贴合她的性格语气）
+
+${prevContext}
+第${visitCount}次服务摘要：${sessionSummary}
+
+只输出JSON：{"guestAboutGirl":"...","girlAboutGuest":"..."}`
 }
