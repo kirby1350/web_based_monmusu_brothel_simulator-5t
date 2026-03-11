@@ -161,6 +161,15 @@ export interface MonstGirl {
   price?: number
 }
 
+export interface GuestGirlMemory {
+  // 客人对该魔物娘的印象（一句话）
+  guestAboutGirl: string
+  // 魔物娘对该客人的印象（一句话）
+  girlAboutGuest: string
+  // 历史服务次数
+  visitCount: number
+}
+
 export interface Guest {
   id: string
   name: string
@@ -171,6 +180,8 @@ export interface Guest {
   imageTags: string
   imageUrl?: string
   satisfaction: number
+  // 关系记忆：key 为魔物娘名字
+  memories?: Record<string, GuestGirlMemory>
 }
 
 export interface ChatMessage {

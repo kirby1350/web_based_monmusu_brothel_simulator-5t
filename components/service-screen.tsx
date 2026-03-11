@@ -16,9 +16,7 @@ import { GuestCard } from '@/components/guest-card'
 import { ChatEngine, ChatEngineHandle } from '@/components/chat-engine'
 import { SuggestionBar } from '@/components/suggestion-bar'
 import {
-  buildServiceSystemPrompt,
-  buildGuestGenerationPrompt,
-  buildOpeningDialoguePrompt,
+  buildServiceSystemPrompt, buildOpeningDialoguePrompt, buildMemoryPrompt,
 } from '@/lib/prompt-builder'
 import {
   createServiceSession, applyStatDelta, estimateStatDelta, parseStatsFromReply, getGirlDelta,
@@ -81,6 +79,9 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
   const [prefDraft, setPrefDraft] = useState('')
   const [savedGuests, setSavedGuests] = useState<Guest[]>([])
   const [savedGuestsOpen, setSavedGuestsOpen] = useState(false)
+  // Memory / save-guest state
+  const [memorySaving, setMemorySaving] = useState(false)
+  const [memorySaved, setMemorySaved] = useState(false)
 
   const chatRef = useRef<ChatEngineHandle>(null)
   const eligibleTrainers = findEligibleTrainers(girls)
@@ -308,12 +309,59 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
     }
     setGirlGrowths(growths)
     setGoldEarned(earned)
+    setMemorySaved(false)
+    setMemorySaving(false)
     onSaveChange({
       ...save,
       girls: updatedGirls,
       player: { ...player, gold: player.gold + earned, day: save.currentDay },
     })
     setStep('result')
+  }
+
+  // Generate relationship memories then save the guest
+  const handleSaveGuest = async () => {
+    const currentSession = session
+    const currentGuest = currentSession?.guest
+    if (!currentGuest || memorySaved || memorySaving) return
+    setMemorySaving(true)
+    const apiKey = settings.chatModel.startsWith('grok') ? settings.grokApiKey : settings.chatApiKey
+    const existingSaved = getSavedGuests().find((g) => g.id === currentGuest.id)
+
+    // Build session summary from last assistant message
+    const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant')
+    const summary = lastAssistant?.content?.slice(0, 120) ?? '进行了一次服务'
+
+    // Generate memories for each girl in parallel
+    const newMemories: NonNullable<Guest['memories']> = { ...(existingSaved?.memories ?? {}) }
+    const girls = currentSession?.girls ?? []
+    await Promise.all(girls.map(async (girl) => {
+      try {
+        const existing = existingSaved?.memories?.[girl.name]
+        const prompt = buildMemoryPrompt(currentGuest, girl, summary, existing)
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], model: settings.chatModel, apiKey, stream: false }),
+        })
+        if (!res.ok) return
+        const text = ((await res.json()).content ?? '').trim()
+        const match = text.match(/\{[\s\S]*?\}/)
+        if (!match) return
+        const parsed = JSON.parse(match[0]) as { guestAboutGirl?: string; girlAboutGuest?: string }
+        newMemories[girl.name] = {
+          guestAboutGirl: parsed.guestAboutGirl ?? '',
+          girlAboutGuest: parsed.girlAboutGuest ?? '',
+          visitCount: (existing?.visitCount ?? 0) + 1,
+        }
+      } catch { /* skip on error */ }
+    }))
+
+    const guestToSave: Guest = { ...currentGuest, memories: newMemories }
+    saveGuest(guestToSave)
+    setSavedGuests(getSavedGuests())
+    setMemorySaving(false)
+    setMemorySaved(true)
   }
 
   const systemPrompt = session ? buildServiceSystemPrompt(player, { ...session, messages }) : ''
@@ -757,6 +805,38 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
                 )
               })}
             </div>
+
+            {/* Save guest button — only for service with guest */}
+            {type === 'service' && session.guest && (
+              <>
+                <div className="h-px bg-border" />
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground/60">
+                    保存客人后，下次服务时 AI 将记住双方的关系印象
+                  </p>
+                  {memorySaved ? (
+                    <div className="flex items-center gap-2 text-xs text-emerald-400 font-medium">
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      已保存「{session.guest.name}」并更新关系记忆
+                    </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full h-9 text-xs border-amber-500/40 text-amber-400 hover:border-amber-500 hover:bg-amber-500/10"
+                      disabled={memorySaving}
+                      onClick={handleSaveGuest}
+                    >
+                      {memorySaving ? (
+                        <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />正在生成关系记忆…</>
+                      ) : (
+                        <><Bookmark className="w-3.5 h-3.5 mr-1.5" />保存「{session.guest.name}」为常客</>
+                      )}
+                    </Button>
+                  )}
+                </div>
+              </>
+            )}
           </div>
           <Button className="w-full max-w-sm h-11 glow-btn" onClick={onBack}>返回大厅</Button>
         </div>
