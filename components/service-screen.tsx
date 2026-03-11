@@ -321,21 +321,24 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
 
   // Generate relationship memories then save the guest
   const handleSaveGuest = async () => {
-    if (!session?.guest || memorySaved || memorySaving) return
+    const currentSession = session
+    const currentGuest = currentSession?.guest
+    if (!currentGuest || memorySaved || memorySaving) return
     setMemorySaving(true)
     const apiKey = settings.chatModel.startsWith('grok') ? settings.grokApiKey : settings.chatApiKey
-    const existingSaved = getSavedGuests().find((g) => g.id === session.guest!.id)
+    const existingSaved = getSavedGuests().find((g) => g.id === currentGuest.id)
 
     // Build session summary from last assistant message
     const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant')
     const summary = lastAssistant?.content?.slice(0, 120) ?? '进行了一次服务'
 
     // Generate memories for each girl in parallel
-    const newMemories: Guest['memories'] = { ...(existingSaved?.memories ?? {}) }
-    await Promise.all(session.girls.map(async (girl) => {
+    const newMemories: NonNullable<Guest['memories']> = { ...(existingSaved?.memories ?? {}) }
+    const girls = currentSession?.girls ?? []
+    await Promise.all(girls.map(async (girl) => {
       try {
         const existing = existingSaved?.memories?.[girl.name]
-        const prompt = buildMemoryPrompt(session.guest!, girl, summary, existing)
+        const prompt = buildMemoryPrompt(currentGuest, girl, summary, existing)
         const res = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -345,7 +348,7 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
         const text = ((await res.json()).content ?? '').trim()
         const match = text.match(/\{[\s\S]*?\}/)
         if (!match) return
-        const parsed = JSON.parse(match[0])
+        const parsed = JSON.parse(match[0]) as { guestAboutGirl?: string; girlAboutGuest?: string }
         newMemories[girl.name] = {
           guestAboutGirl: parsed.guestAboutGirl ?? '',
           girlAboutGuest: parsed.girlAboutGuest ?? '',
@@ -354,7 +357,7 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
       } catch { /* skip on error */ }
     }))
 
-    const guestToSave: Guest = { ...session.guest, memories: newMemories }
+    const guestToSave: Guest = { ...currentGuest, memories: newMemories }
     saveGuest(guestToSave)
     setSavedGuests(getSavedGuests())
     setMemorySaving(false)
