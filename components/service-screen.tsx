@@ -151,7 +151,7 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
     }
   }, [settings])
 
-  const handleSaveGuest = () => {
+  const handleQuickSaveGuest = () => {
     if (!guest) return
     saveGuest(guest)
     setSavedGuests(getSavedGuests())
@@ -408,7 +408,7 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
                     <BookOpen className="w-3.5 h-3.5" />
                   </Button>
                   <Button variant="ghost" size="icon" className="w-7 h-7" title="保存当前客人"
-                    disabled={!guest} onClick={handleSaveGuest}>
+                    disabled={!guest} onClick={handleQuickSaveGuest}>
                     <Save className="w-3.5 h-3.5" />
                   </Button>
                   <Button variant="ghost" size="icon" className="w-7 h-7" title="重新生成"
