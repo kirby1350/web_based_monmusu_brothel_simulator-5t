@@ -167,6 +167,8 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
             } else {
               const errMsg: ChatMessage = { role: 'assistant', content: '[请求超时或已中断，请重试]' }
               onMessagesChange([...next, errMsg])
+              // Ensure raw callback fires even on empty abort so callers can reset their state
+              onRawStreamComplete?.('')
             }
           } else {
             const errMsg: ChatMessage = {
@@ -174,6 +176,7 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
               content: '[连接失败，请检查 API 设置]',
             }
             onMessagesChange([...next, errMsg])
+            onRawStreamComplete?.('')
           }
         } finally {
           clearTimeout(timeoutId)

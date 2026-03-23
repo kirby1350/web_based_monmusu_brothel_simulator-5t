@@ -151,7 +151,7 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
     }
   }, [settings])
 
-  const handleSaveGuest = () => {
+  const handleQuickSaveGuest = () => {
     if (!guest) return
     saveGuest(guest)
     setSavedGuests(getSavedGuests())
@@ -249,9 +249,17 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
 
   const handleRawReply = useCallback((rawContent: string) => {
     setLastAiMsg(rawContent)
-    // Parse suggested actions from the reply
+    // Parse suggested actions — only update if we got valid actions, keep previous otherwise
     const actions = parseActionsFromReply(rawContent)
-    setSuggestions(actions)
+    if (actions) setSuggestions(actions)
+    // If no ACTIONS block at all, generate fallback suggestions from keywords in reply
+    else {
+      setSuggestions((prev) => {
+        if (prev) return prev // keep existing suggestions
+        // derive 3 generic fallback actions so the bar is never empty
+        return ['继续当前行动', '加深刺激力度', '改变姿势角度']
+      })
+    }
     if (!session) return
 
     // Try AI-generated multi-stats first, fallback to keyword estimation
@@ -408,7 +416,7 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
                     <BookOpen className="w-3.5 h-3.5" />
                   </Button>
                   <Button variant="ghost" size="icon" className="w-7 h-7" title="保存当前客人"
-                    disabled={!guest} onClick={handleSaveGuest}>
+                    disabled={!guest} onClick={handleQuickSaveGuest}>
                     <Save className="w-3.5 h-3.5" />
                   </Button>
                   <Button variant="ghost" size="icon" className="w-7 h-7" title="重新生成"

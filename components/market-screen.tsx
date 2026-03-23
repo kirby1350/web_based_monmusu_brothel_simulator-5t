@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
-import { ArrowLeft, RefreshCw, Loader2, Coins, ShoppingCart, Filter, Send, Settings2, X, BookOpen } from 'lucide-react'
+import { ArrowLeft, RefreshCw, Loader2, Coins, ShoppingCart, Filter, Send, Settings2, X, BookOpen, Star } from 'lucide-react'
 import { GameSave, MonstGirl, AppSettings } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { StatBar } from '@/components/stat-bar'
 import { ImageDisplay } from '@/components/image-display'
 import { buildMarketGirlPrompt, buildOpeningDialoguePrompt } from '@/lib/prompt-builder'
+import { GIRL_TEMPLATES, GIRL_TEMPLATE_IMAGES } from '@/lib/game-data'
 import { nanoid } from 'nanoid'
 import { cn } from '@/lib/utils'
 
@@ -24,6 +25,7 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
   const { player, girls } = save
 
   const [step, setStep] = useState<'market' | 'purchase-dialogue'>('market')
+  const [tab, setTab] = useState<'random' | 'preset'>('random')
   const [listings, setListings] = useState<MonstGirl[]>([])
   const [loading, setLoading] = useState(false)
   const [preference, setPreference] = useState(player.marketPreference ?? '')
@@ -329,7 +331,91 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
         </div>
       </header>
 
-      <div className="border-b border-border px-4 py-3 flex items-end gap-3 shrink-0">
+      <div className="border-b border-border px-4 py-0 flex shrink-0">
+        <button
+          className={cn('px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors', tab === 'random' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground')}
+          onClick={() => setTab('random')}
+        >
+          随机市场
+        </button>
+        <button
+          className={cn('px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors flex items-center gap-1.5', tab === 'preset' ? 'border-amber-400 text-amber-400' : 'border-transparent text-muted-foreground hover:text-foreground')}
+          onClick={() => setTab('preset')}
+        >
+          <Star className="w-3 h-3" />
+          特约角色
+        </button>
+      </div>
+
+      {tab === 'preset' && (
+        <div className="flex-1 overflow-y-auto p-4">
+          <p className="text-[11px] text-muted-foreground mb-4 leading-relaxed">
+            特约角色为精心培育的稀有魔物娘，每位售价 <span className="text-amber-400 font-semibold">500 G</span>，购入后无法退还。已拥有的角色无法重复购买。
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {GIRL_TEMPLATES.map((template, i) => {
+              const imageUrl = GIRL_TEMPLATE_IMAGES[i] ?? undefined
+              const alreadyOwned = girls.some((g) => g.name === template.name)
+              const canAfford = player.gold >= 500
+              const presetGirl: MonstGirl = { ...template, id: `preset-${i}`, imageUrl, price: 500 }
+              return (
+                <div key={template.name} className={cn('bg-card border border-border rounded-xl overflow-hidden', alreadyOwned && 'opacity-60')}>
+                  <div className="aspect-[3/4] relative">
+                    {imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={imageUrl} alt={template.name} className="w-full h-full object-cover object-top" />
+                    ) : (
+                      <div className="w-full h-full bg-muted/20 flex items-center justify-center">
+                        <Star className="w-8 h-8 text-muted-foreground/20" />
+                      </div>
+                    )}
+                    {alreadyOwned && (
+                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                        <Badge className="text-xs bg-emerald-500/90 text-white border-0">已拥有</Badge>
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-3 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-bold">{template.name}</p>
+                        <p className="text-[11px] text-muted-foreground">{template.race} · {template.age}岁</p>
+                        <p className="text-[10px] text-muted-foreground/70 font-mono mt-0.5">B{template.bust} / W{template.waist} / H{template.hip}</p>
+                      </div>
+                      <Badge variant="outline" className="text-[10px] shrink-0 border-amber-500/40 text-amber-400">500 G</Badge>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2">{template.personality}</p>
+                    <div className="space-y-1">
+                      <StatBar label="好感度" value={template.affection} color="pink" size="sm" />
+                      <StatBar label="服从度" value={template.obedience} color="blue" size="sm" />
+                      <StatBar label="淫乱度" value={template.lewdness} color="rose" size="sm" />
+                    </div>
+                    <Button
+                      variant="outline"
+                      className="w-full h-8 text-xs"
+                      onClick={() => setDetailGirl(presetGirl)}
+                    >
+                      <BookOpen className="w-3 h-3 mr-1.5" />
+                      查看详情
+                    </Button>
+                    <Button
+                      className={cn('w-full h-8 text-xs', !alreadyOwned && canAfford ? 'glow-btn' : '')}
+                      variant={!alreadyOwned && canAfford ? 'default' : 'outline'}
+                      disabled={alreadyOwned || !canAfford || purchasing === presetGirl.id}
+                      onClick={() => !alreadyOwned && handlePurchase(presetGirl)}
+                    >
+                      {alreadyOwned ? '已拥有' : !canAfford ? `金币不足（需 500 G）` : purchasing === presetGirl.id ? '购入中…' : '购入（500 G）'}
+                    </Button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {tab === 'random' && (<>
+        <div className="border-b border-border px-4 py-3 flex items-end gap-3 shrink-0">
         <div className="flex-1 space-y-1.5">
           <Label className="text-[11px] text-muted-foreground flex items-center gap-1.5">
             <Filter className="w-3 h-3" />刷新偏好（例如：猫娘、巨乳、温柔型…）
@@ -432,6 +518,7 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
           </div>
         )}
       </div>
+      </>)}
 
       {/* TAG Editor Modal */}
       {editingTags && (
