@@ -117,7 +117,9 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
           if (full) {
             clearTimeout(timeoutId)
             const clean = stripStatsBlock(full)
-            const assistantMsg: ChatMessage = { role: 'assistant', content: clean }
+            // 存【原始】回复（含 STATS/ACTIONS 块）进历史——这样回传给模型的对话里
+            // 每条助手消息都带数据块，格式一致，模型才会持续输出；显示时由渲染层 stripStatsBlock 隐藏。
+            const assistantMsg: ChatMessage = { role: 'assistant', content: full }
             onMessagesChange([...next, assistantMsg])
             onStreamComplete?.(clean)
             onRawStreamComplete?.(full)  // raw contains <!--STATS:...-->
@@ -191,7 +193,7 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
                   <p className="text-[10px] text-muted-foreground mb-1">你</p>
                 )}
                 <p className="whitespace-pre-wrap text-foreground/90">
-                  {msg.content}
+                  {msg.role === 'assistant' ? stripStatsBlock(msg.content) : msg.content}
                   {msg.role === 'assistant' && streaming && i === allMessages.filter((m) => m.role !== 'system').length - 1 && (
                     <span className="inline-block w-1 h-4 bg-primary/70 animate-pulse ml-0.5 align-middle" />
                   )}

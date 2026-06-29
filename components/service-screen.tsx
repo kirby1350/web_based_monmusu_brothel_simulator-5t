@@ -638,8 +638,17 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
             className="h-10 px-8 glow-btn gap-2"
             disabled={openingLoading || dialogueLoading}
             onClick={() => {
+              // 给开场白这条历史消息附加隐藏的 STATS/ACTIONS 块（零增量），
+              // 让模型从第一条 assistant 消息就看到该格式，避免它模仿"无数据块"的开场而后续不输出。
+              // 显示时 chat-engine 会用 stripStatsBlock 把这两行隐藏。
+              const girlsZero = session
+                ? Object.fromEntries(session.girls.map((g) => [g.name, { pleasure: 0, stamina: 0 }]))
+                : {}
+              const seedMeta =
+                `\n<!--STATS:${JSON.stringify({ girls: girlsZero, satisfaction: 0 })}-->` +
+                `\n<!--ACTIONS:["主动上前回应","与她贴身调情","她搂住你索吻"]-->`
               const seed: ChatMessage[] = []
-              if (openingText) seed.push({ role: 'assistant', content: openingText })
+              if (openingText) seed.push({ role: 'assistant', content: openingText + seedMeta })
               if (openingDialogue) seed.push({ role: 'assistant', content: openingDialogue })
               setMessages(seed)
               setLastAiMsg(openingDialogue || openingText)

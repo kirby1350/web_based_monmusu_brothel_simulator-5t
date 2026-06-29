@@ -57,13 +57,13 @@ const GUEST_FETISH_PREFS: { tag: string; matches: (g: MonstGirl) => boolean }[] 
   { tag: '兽耳', matches: (g) => BEAST_RACES.includes(g.race) },
 ]
 
-const BASE_GUEST_BUDGET = 40        // 声望 0 时客人的基础预算下限
+const BASE_GUEST_BUDGET = 65        // 声望 0 时客人的基础预算下限
 const REGULAR_RETURN_CHANCE = 0.4   // 每名回头客每天回访的概率
 const MATCH_BONUS = 15              // 命中一项偏好带来的初始满意度加成
 
 /** 客人基础预算：随声望线性提升，叠加少量随机 */
 function rollGuestBudget(reputation: number): number {
-  return BASE_GUEST_BUDGET + Math.round(reputation * 1.0) + Math.floor(Math.random() * 30)
+  return BASE_GUEST_BUDGET + Math.round(reputation * 1.2) + Math.floor(Math.random() * 40)
 }
 
 /** 随机生成一名客人（本地随机，不调用 AI）。reputation 越高，预算越高 */
@@ -223,7 +223,7 @@ export function parseStatsFromReply(text: string): MultiStatsDelta | null {
     const jsonStr = extractBracketed(match[1], 'object')
     const obj = parseLooseJson<Record<string, unknown> & { satisfaction?: unknown; girls?: unknown; pleasure?: unknown; stamina?: unknown }>(jsonStr)
     if (!obj) return null
-    const satisfactionDelta = Math.max(-5, Math.min(15, Number(obj.satisfaction) || 0))
+    const satisfactionDelta = Math.max(-5, Math.min(20, Number(obj.satisfaction) || 0))
 
     // 新多角色格式
     if (obj.girls && typeof obj.girls === 'object') {
@@ -348,13 +348,13 @@ const SKILL_REWARD_BONUS = 8
  * 收入 =（客人预算 + 回头客累计加成 + 多魔物娘加成 + 技能加成）× 满意度分档倍率
  */
 export function calcServiceReward(guest: Guest, session: ServiceSession): number {
-  const visitBonus = (guest.visits ?? 0) * 15            // 回头客每回访一次基底 +15
-  const base = (guest.budget ?? 50) + visitBonus
-  const girlCountBonus = (session.girls.length - 1) * 20
+  const visitBonus = (guest.visits ?? 0) * 20            // 回头客每回访一次基底 +20
+  const base = (guest.budget ?? 80) + visitBonus
+  const girlCountBonus = (session.girls.length - 1) * 25
   const skillBonus = session.girls.reduce((sum, g) => sum + g.skills.length * SKILL_REWARD_BONUS, 0)
   const tier = getSatisfactionTier(guest.satisfaction)
   const subtotal = base + girlCountBonus + skillBonus
-  return Math.max(20, Math.round(subtotal * tier.payMult))
+  return Math.max(30, Math.round(subtotal * tier.payMult))
 }
 
 /**
@@ -436,6 +436,6 @@ export function findEligibleTrainers(girls: MonstGirl[], excludeId?: string): Mo
  * satisfactionDelta 直接传入时使用 AI 解析值，否则从 pleasureDelta 推算
  */
 export function updateGuestSatisfaction(guest: Guest, pleasureDelta: number, satisfactionDelta?: number): Guest {
-  const delta = satisfactionDelta !== undefined ? satisfactionDelta : Math.floor(pleasureDelta / 2)
+  const delta = satisfactionDelta !== undefined ? satisfactionDelta : Math.round(pleasureDelta * 0.6)
   return { ...guest, satisfaction: Math.min(100, Math.max(0, guest.satisfaction + delta)) }
 }
