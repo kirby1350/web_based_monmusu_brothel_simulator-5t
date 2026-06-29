@@ -97,7 +97,12 @@ LLM 在叙事正文后追加两行 HTML 注释，玩家不可见：
 - `<!--STATS:{"girls":{"名字":{"pleasure":N,"stamina":N}},"satisfaction":N}-->`
   解析时按角色名匹配，并 **clamp 到合法范围**（pleasure -10..20，stamina -20..-2，satisfaction -5..15）。兼容旧单块格式（`__shared__`）。
 - `<!--ACTIONS:["行动1","行动2","行动3"]-->` 三条推荐行动（玩家主动/双方互动/魔物娘主动）。
-- 解析失败时 `estimateStatDelta` 用关键词启发式兜底。正则见 `game-engine.ts` 顶部，**对空格/多余字符容错**。
+- 解析失败时 `estimateStatDelta` 用关键词启发式兜底。
+- **容错解析（重要）**：模型常违反格式，解析层多重防御：
+  - 定位正则容**全角冒号**（`STATS\s*[:：]`，`game-engine.ts`）——模型常输出 `<!--STATS：…-->`，半角正则会整块漏掉导致标记泄漏到正文 + 数值不更新。
+  - `extractBracketed` 截出最外层 `{}`/`[]`（容全角括号、首尾多余字符）。
+  - `parseLooseJson`（`utils.ts`）三级兜底：严格 → `normalizeJsonStructure`（**字符串感知**地把结构性全角符号转 ASCII，保留字符串内中文标点）→ `repairTruncatedJson`（闭合截断的字符串/括号）。
+  - 同一套 `parseLooseJson` 也用于市场/客人/记忆/推荐行动等所有「解析模型 JSON」处。
 - `STATS_INSTRUCTION` 强制模型用**半角符号**输出 JSON（避免全角 `：｛｝` 导致 `JSON.parse` 失败）；`chat/route.ts` 的 `max_tokens=4096` 是为了给正文 + 这两行结构化尾块都留够空间，避免截断。
 
 ### 经营机制（每日行动 / 客人池 / 升级）

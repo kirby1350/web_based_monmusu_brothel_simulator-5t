@@ -180,10 +180,24 @@ export function evaluateSkillUnlocks(girl: MonstGirl): string[] {
 
 // ─── STATS 块解析 ──────────────────────────────────────────────────────────────
 
-// STATS_REGEX: 不允许捕获组跨越 <!-- 防止贪婪吞掉后续块
-const STATS_REGEX = /<!--\s*STATS:\s*((?:(?!<!--)[\s\S])*?)\s*-->/
-// ACTIONS_REGEX: 捕获 [ 到 ] 之间的内容，忽略 ] 后紧跟的多余字符（如 }）
-const ACTIONS_REGEX = /<!--\s*ACTIONS:\s*(\[[\s\S]*?\])[^-]*-->/
+// 标记定位正则——容错要点（模型经常违反格式）：
+// - STATS 后的冒号容半角/全角 [:：]；标记名与冒号间容空白
+// - 捕获组懒惰匹配且不跨越下一个 <!--，防止贪婪吞掉后续块
+// - 内层 JSON 的全角符号 / 截断由 extractBracketed + parseLooseJson 处理
+const STATS_REGEX = /<!--\s*STATS\s*[:：]\s*((?:(?!<!--)[\s\S])*?)\s*-->/
+const ACTIONS_REGEX = /<!--\s*ACTIONS\s*[:：]\s*((?:(?!<!--)[\s\S])*?)\s*-->/
+
+// 从一段原始文本里截出最外层的 {...} 或 [...]（容全角括号、首尾多余字符）。
+// 找不到闭合符号时（截断）原样返回，交给 parseLooseJson 的截断修复兜底。
+function extractBracketed(raw: string, kind: 'object' | 'array'): string {
+  const opens = kind === 'object' ? '{｛' : '[［'
+  const closes = kind === 'object' ? '}｝' : ']］'
+  let start = -1
+  for (let i = 0; i < raw.length; i++) { if (opens.includes(raw[i])) { start = i; break } }
+  let end = -1
+  for (let i = raw.length - 1; i >= 0; i--) { if (closes.includes(raw[i])) { end = i; break } }
+  return start >= 0 && end > start ? raw.slice(start, end + 1) : raw.slice(start >= 0 ? start : 0)
+}
 
 export interface SingleStatsDelta {
   pleasureDelta: number
@@ -206,7 +220,8 @@ export function parseStatsFromReply(text: string): MultiStatsDelta | null {
   const match = text.match(STATS_REGEX)
   if (!match) return null
   try {
-    const obj = parseLooseJson<Record<string, unknown> & { satisfaction?: unknown; girls?: unknown; pleasure?: unknown; stamina?: unknown }>(match[1].trim())
+    const jsonStr = extractBracketed(match[1], 'object')
+    const obj = parseLooseJson<Record<string, unknown> & { satisfaction?: unknown; girls?: unknown; pleasure?: unknown; stamina?: unknown }>(jsonStr)
     if (!obj) return null
     const satisfactionDelta = Math.max(-5, Math.min(15, Number(obj.satisfaction) || 0))
 
@@ -253,7 +268,7 @@ export function parseActionsFromReply(text: string): [string, string, string] | 
   const match = text.match(ACTIONS_REGEX)
   if (!match) return null
   try {
-    const arr = parseLooseJson<string[]>(match[1])
+    const arr = parseLooseJson<string[]>(extractBracketed(match[1], 'array'))
     if (!Array.isArray(arr) || arr.length < 3) return null
     return [arr[0], arr[1], arr[2]]
   } catch {

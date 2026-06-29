@@ -171,7 +171,7 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
         })
         if (!res.ok) return null
         const text = ((await res.json()).content ?? '').trim()
-        const match = text.match(/\[[\s\S]*?\]/)
+        const match = text.match(/[[［][\s\S]*?[\]］]/)
         if (!match) return null
         const arr = parseLooseJson<string[]>(match[0])
         if (!Array.isArray(arr) || arr.length < 3) return null
@@ -341,7 +341,7 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
         })
         if (!res.ok) return
         const text = ((await res.json()).content ?? '').trim()
-        const match = text.match(/\{[\s\S]*?\}/)
+        const match = text.match(/[{｛][\s\S]*?[}｝]/)
         if (!match) return
         const parsed = parseLooseJson<{ guestAboutGirl?: string; girlAboutGuest?: string }>(match[0])
         if (!parsed) return

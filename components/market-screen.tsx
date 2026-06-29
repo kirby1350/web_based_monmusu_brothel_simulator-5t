@@ -133,7 +133,7 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
       }
 
       // Parse the accumulated JSON array
-      const match = accumulated.match(/\[[\s\S]*\]/)
+      const match = accumulated.match(/[[［][\s\S]*[\]］]/)
       if (!match) throw new Error('no array in streamed response')
       const arr = parseLooseJson<Record<string, unknown>[]>(match[0])
       if (!Array.isArray(arr)) throw new Error('invalid array in streamed response')
