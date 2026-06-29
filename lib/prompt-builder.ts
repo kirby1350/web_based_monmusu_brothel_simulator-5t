@@ -69,6 +69,17 @@ export function buildServiceSystemPrompt(
     )
     .join('，')
 
+  // 多人在场时的硬性约束：每回合正文必须同时推进所有魔物娘
+  const girlNameList = session.girls.map((g) => g.name).join('、')
+  const multiGirlRule = session.girls.length > 1
+    ? `
+
+【多魔物娘强制规则（必须100%严格遵守，本场有 ${session.girls.length} 位魔物娘：${girlNameList}）】
+- 每一回合的正文都必须同时推进并描写**全部** ${session.girls.length} 位魔物娘（${girlNameList}），每位都要有当回合的具体动作、呻吟或反应，严禁只写其中一位而让其他人消失或沦为背景。
+- 若某位魔物娘当回合未被直接操弄，也必须交代她正在做什么（旁观、自慰、被冷落的反应、等待、相互爱抚等），保持她在场感。
+- 结尾的 STATS 数据块中，${girlNameList} 每一位都必须有独立条目，缺一不可。`
+    : ''
+
   if (session.type === 'service' && session.guest) {
     const g = session.guest
     const stats = session.guestStats
@@ -158,7 +169,7 @@ ${proseSection(proseStyle)}
 4. 服从度低的魔物娘先挣扎羞耻哭喊，淫乱度高的主动摇臀求内射、夹紧吸吮
 5. 体力归零后描写"彻底被干到失神、子宫痉挛抽搐、潮吹如尿失禁般喷射不止"，仍可继续但状态更虚弱淫乱
 6. 语言极度下流直白，满口鸡巴、小穴、子宫、射精、内射、潮吹等词汇
-7. 结局完全由玩家决定（玩家发送"结束服务"才结算）${STATS_INSTRUCTION}
+7. 结局完全由玩家决定（玩家发送"结束服务"才结算）${multiGirlRule}${STATS_INSTRUCTION}
 
 只输出叙述正文，不要任何说明、标题或额外标记。`
   }
@@ -240,7 +251,7 @@ ${proseSection(proseStyle)}
 3. 高服从度魔物娘主动张腿求插、夹紧吸吮，低服从度哭喊抵抗却蜜穴湿透、身体背叛
 4. 体力归零后描写"被干到子宫失禁、意识模糊仍被继续内射、潮吹如尿般喷射不止"，效果翻倍（快感加成、淫乱度暴涨）
 5. 语言极度淫秽露骨，满口鸡巴、小穴、子宫、射精、内射、失禁、潮吹、干坏、操烂等词汇
-6. 结局完全由玩家决定（玩家发送"结束调教"才结算）${STATS_INSTRUCTION}
+6. 结局完全由玩家决定（玩家发送"结束调教"才结算）${multiGirlRule}${STATS_INSTRUCTION}
 
 只输出叙述正文，不要任何说明、标题或额外标记。`
   }
@@ -474,7 +485,7 @@ export function buildOpeningDialoguePrompt(
 【场景】${player.name}的娼馆私密包间，灯光昏暗柔和，空气中弥漫着淡淡香薰与花香
 【参与魔物娘】${girlNames}
 ${isMulti ? `本次共有 ${serviceGirls.length} 位魔物娘一同侍奉同一位客人，全部都要在开场白中登场亮相：\n${girlBriefs}` : `主要角色：\n${girlBriefs}`}
-${extra?.guest ? `【客人】${extra.guest.name}（${extra.guest.race}），${extra.guest.personality}，需求：${extra.guest.desires}` : ''}
+${extra?.guest ? `【客人】${extra.guest.name}（${extra.guest.race}），${extra.guest.personality}，需求：${extra.guest.desires}${(extra.guest.prefRace || extra.guest.prefTrait) ? `\n客人偏好：${[extra.guest.prefRace, extra.guest.prefTrait].filter(Boolean).join('、')}——若在场魔物娘命中其偏好（种族相符 / 巨乳·贫乳·丰臀·兽耳等特征相符），开场需明确写出客人一眼相中、眼前一亮、跃跃欲试的神情与反应；若完全不符，则写出他略带挑剔或将就的微妙态度` : ''}` : ''}
 
 要求：
 - ${isMulti ? '60-100' : '40-70'}字，第三人称叙述

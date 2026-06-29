@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { StatBar } from '@/components/stat-bar'
 import { ImageDisplay } from '@/components/image-display'
 import { buildMarketGirlPrompt, buildOpeningDialoguePrompt } from '@/lib/prompt-builder'
+import { getGirlCapacity } from '@/lib/game-engine'
 import { GIRL_TEMPLATES, GIRL_TEMPLATE_IMAGES } from '@/lib/game-data'
 import { nanoid } from 'nanoid'
 import { cn, parseLooseJson } from '@/lib/utils'
@@ -170,9 +171,13 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
 
   // ─── Purchase ───────────────────────────────────────────────────────────────
 
+  const girlCap = getGirlCapacity(player.level)
+  const atCapacity = girls.length >= girlCap
+
   const handlePurchase = async (girl: MonstGirl) => {
     const price = girl.price ?? 200
     if (player.gold < price) return
+    if (atCapacity) return
     setPurchasing(girl.id)
 
     const updatedSave: GameSave = {
@@ -326,11 +331,22 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
           <Button variant="ghost" size="icon" className="w-7 h-7" onClick={onBack}><ArrowLeft className="w-4 h-4" /></Button>
           <h1 className="text-sm font-bold gold-text">奴隶市场</h1>
         </div>
-        <div className="flex items-center gap-1.5">
-          <Coins className="w-3.5 h-3.5 text-amber-400" />
-          <span className="text-xs gold-text font-semibold">{player.gold} G</span>
+        <div className="flex items-center gap-3">
+          <span className={cn('text-[11px] font-medium', atCapacity ? 'text-rose-400' : 'text-muted-foreground')} title="魔物娘持有上限（升级提升）">
+            魔物娘 {girls.length}/{girlCap}
+          </span>
+          <div className="flex items-center gap-1.5">
+            <Coins className="w-3.5 h-3.5 text-amber-400" />
+            <span className="text-xs gold-text font-semibold">{player.gold} G</span>
+          </div>
         </div>
       </header>
+
+      {atCapacity && (
+        <div className="bg-rose-500/10 border-b border-rose-500/20 px-4 py-1.5 text-center text-[11px] text-rose-400">
+          已达魔物娘持有上限（{girlCap}），升级娼馆可提升上限
+        </div>
+      )}
 
       <div className="border-b border-border px-4 py-0 flex shrink-0">
         <button
@@ -402,10 +418,10 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
                     <Button
                       className={cn('w-full h-8 text-xs', !alreadyOwned && canAfford ? 'glow-btn' : '')}
                       variant={!alreadyOwned && canAfford ? 'default' : 'outline'}
-                      disabled={alreadyOwned || !canAfford || purchasing === presetGirl.id}
+                      disabled={alreadyOwned || !canAfford || atCapacity || purchasing === presetGirl.id}
                       onClick={() => !alreadyOwned && handlePurchase(presetGirl)}
                     >
-                      {alreadyOwned ? '已拥有' : !canAfford ? `金币不足（需 500 G）` : purchasing === presetGirl.id ? '购入中…' : '购入（500 G）'}
+                      {alreadyOwned ? '已拥有' : atCapacity ? '已达上限' : !canAfford ? `金币不足（需 500 G）` : purchasing === presetGirl.id ? '购入中…' : '购入（500 G）'}
                     </Button>
                   </div>
                 </div>
@@ -507,10 +523,10 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
                     <Button
                       className={cn('w-full h-8 text-xs', canAfford ? 'glow-btn' : '')}
                       variant={canAfford ? 'default' : 'outline'}
-                      disabled={!canAfford || purchasing === girl.id}
+                      disabled={!canAfford || atCapacity || purchasing === girl.id}
                       onClick={() => handlePurchase(girl)}
                     >
-                      {!canAfford ? `金币不足（需 ${girl.price} G）` : purchasing === girl.id ? '购入中…' : `购入（${girl.price} G）`}
+                      {atCapacity ? '已达上限' : !canAfford ? `金币不足（需 ${girl.price} G）` : purchasing === girl.id ? '购入中…' : `购入（${girl.price} G）`}
                     </Button>
                   </div>
                 </div>
@@ -582,10 +598,10 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
               <Button
                 className={cn('w-full h-9 text-xs', player.gold >= (detailGirl.price ?? 200) ? 'glow-btn' : '')}
                 variant={player.gold >= (detailGirl.price ?? 200) ? 'default' : 'outline'}
-                disabled={player.gold < (detailGirl.price ?? 200) || purchasing === detailGirl.id}
+                disabled={player.gold < (detailGirl.price ?? 200) || atCapacity || purchasing === detailGirl.id}
                 onClick={() => { setDetailGirl(null); handlePurchase(detailGirl) }}
               >
-                {player.gold < (detailGirl.price ?? 200) ? `金币不足（需 ${detailGirl.price} G）` : `购入（${detailGirl.price} G）`}
+                {atCapacity ? '已达上限' : player.gold < (detailGirl.price ?? 200) ? `金币不足（需 ${detailGirl.price} G）` : `购入（${detailGirl.price} G）`}
               </Button>
             </div>
           </div>

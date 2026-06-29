@@ -2,8 +2,8 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react'
 import {
-  ArrowLeft, CheckCircle, RefreshCw, Loader2, Send,
-  ChevronRight, Settings2, Save, BookOpen, X, Bookmark,
+  ArrowLeft, CheckCircle, Loader2, Send,
+  ChevronRight, Save, BookOpen, X, Bookmark, Star,
 } from 'lucide-react'
 import {
   GameSave, MonstGirl, Guest, ChatMessage, ServiceSession, AppSettings,
@@ -17,28 +17,19 @@ import { ChatEngine, ChatEngineHandle } from '@/components/chat-engine'
 import { SuggestionBar } from '@/components/suggestion-bar'
 import {
   buildServiceSystemPrompt, buildOpeningDialoguePrompt, buildMemoryPrompt,
-  buildGuestGenerationPrompt,
 } from '@/lib/prompt-builder'
 import {
   createServiceSession, applyStatDelta, estimateStatDelta, parseStatsFromReply, getGirlDelta,
   calcServiceReward, calcGirlStatGrowth, updateGuestSatisfaction, findEligibleTrainers,
-  parseActionsFromReply,
+  parseActionsFromReply, evaluateSkillUnlocks, getSatisfactionTier, applyReputationDelta, rollBecameRegular,
+  computeInitialSatisfaction, getGuestMatch,
 } from '@/lib/game-engine'
 import { cn, parseLooseJson } from '@/lib/utils'
-import { nanoid } from 'nanoid'
-import { GUEST_RACES, GUEST_PERSONALITIES, GUEST_TRAITS } from '@/lib/game-data'
 import {
   getSavedGuests, saveGuest, deleteSavedGuest,
-  getGuestPreference, saveGuestPreference,
 } from '@/lib/storage'
-import { Textarea } from '@/components/ui/textarea'
 
 // ─── Preset preference tags ──────────────────────────────────────────────────
-
-const PREF_PRESETS = [
-  '正太冒险家', '富裕商人', '神秘精灵', '粗犷武士',
-  '温柔骑士', '颓废浪人', '傲慢贵族', '老实农夫',
-]
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -61,7 +52,6 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
   const [selectedGirls, setSelectedGirls] = useState<string[]>([])
   const [selectedTrainerId, setSelectedTrainerId] = useState<string | null>(null)
   const [guest, setGuest] = useState<Guest | null>(null)
-  const [guestLoading, setGuestLoading] = useState(false)
   const [session, setSession] = useState<ServiceSession | null>(null)
   const [lastAiMsg, setLastAiMsg] = useState('')
   const [suggestions, setSuggestions] = useState<[string, string, string] | null>(null)
@@ -69,15 +59,16 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
   const [goldEarned, setGoldEarned] = useState(0)
   // Record stat deltas for result screen: girlId -> { affection, obedience, lewdness }
   const [girlGrowths, setGirlGrowths] = useState<Record<string, { affection: number; obedience: number; lewdness: number }>>({})
+  // 结算附加信息：技能解锁（girlId -> 新技能）、满意度评价、声望增减、是否成为回头客
+  const [skillUnlocks, setSkillUnlocks] = useState<Record<string, string[]>>({})
+  const [settleInfo, setSettleInfo] = useState<{ tierLabel: string; reputationDelta: number; becameRegular: boolean } | null>(null)
   const [openingText, setOpeningText] = useState('')
   const [openingDialogue, setOpeningDialogue] = useState('') // character interaction line
   const [openingLoading, setOpeningLoading] = useState(false)
   const [dialogueLoading, setDialogueLoading] = useState(false)
   const [inputValue, setInputValue] = useState('')
 
-  // Guest preference panel
-  const [prefOpen, setPrefOpen] = useState(false)
-  const [prefDraft, setPrefDraft] = useState('')
+  // Saved guests panel
   const [savedGuests, setSavedGuests] = useState<Guest[]>([])
   const [savedGuestsOpen, setSavedGuestsOpen] = useState(false)
   // Memory / save-guest state
@@ -87,9 +78,8 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
   const chatRef = useRef<ChatEngineHandle>(null)
   const eligibleTrainers = findEligibleTrainers(girls)
 
-  // Load persisted preference + saved guests on mount
+  // Load saved guests on mount
   useEffect(() => {
-    setPrefDraft(getGuestPreference())
     setSavedGuests(getSavedGuests())
   }, [])
 
@@ -101,56 +91,8 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
     )
   }
 
-  const makeRandomGuest = (): Guest => ({
-    id: nanoid(),
-    name: ['雷克', '阿尔', '马克', '路德', '凯因', '托尔'][Math.floor(Math.random() * 6)],
-    race: GUEST_RACES[Math.floor(Math.random() * GUEST_RACES.length)],
-    personality: GUEST_PERSONALITIES[Math.floor(Math.random() * GUEST_PERSONALITIES.length)],
-    traits: [GUEST_TRAITS[Math.floor(Math.random() * GUEST_TRAITS.length)]],
-    desires: '想体验这里的特别服务',
-    imageTags: '1man, adventurer, anime, masterpiece, best quality',
-    satisfaction: 0,
-  })
-
-  const generateGuest = useCallback(async () => {
-    setGuestLoading(true)
-    try {
-      const pref = getGuestPreference()
-      const prompt = buildGuestGenerationPrompt(pref, [])
-      const apiKey = settings.chatModel.startsWith('grok') ? settings.grokApiKey : settings.chatApiKey
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [{ role: 'user', content: prompt }],
-          model: settings.chatModel, apiKey, stream: false,
-        }),
-      })
-      if (!res.ok) throw new Error('API error')
-      const data = await res.json()
-      const raw: string = data.content ?? data.text ?? ''
-      const match = raw.match(/\{[\s\S]*\}/)
-      const parsed = match ? parseLooseJson<Record<string, any>>(match[0]) : null
-      if (parsed) {
-        setGuest({
-          id: nanoid(),
-          name: parsed.name ?? '神秘客人',
-          race: parsed.race ?? GUEST_RACES[Math.floor(Math.random() * GUEST_RACES.length)],
-          personality: parsed.personality ?? GUEST_PERSONALITIES[Math.floor(Math.random() * GUEST_PERSONALITIES.length)],
-          traits: parsed.traits ?? [],
-          desires: parsed.desires ?? '享受特殊服务',
-          imageTags: parsed.imageTags ?? '1man, adventurer, anime, masterpiece',
-          satisfaction: 0,
-        })
-      } else {
-        setGuest(makeRandomGuest())
-      }
-    } catch {
-      setGuest(makeRandomGuest())
-    } finally {
-      setGuestLoading(false)
-    }
-  }, [settings])
+  // 当天的客人池（开局一次性随机生成，存于存档）；接待后会从池中移除
+  const dailyGuests = save.dailyGuests ?? []
 
   const handleQuickSaveGuest = () => {
     if (!guest) return
@@ -168,11 +110,6 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
     setSavedGuests(getSavedGuests())
   }
 
-  const handleSavePref = () => {
-    saveGuestPreference(prefDraft)
-    setPrefOpen(false)
-  }
-
   const canStart = type === 'service'
     ? (selectedGirls.length > 0 && guest !== null)
     : selectedGirls.length > 0
@@ -184,8 +121,12 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
     const trainer = type === 'training' && selectedTrainerId
       ? girls.find((g) => g.id === selectedTrainerId)
       : undefined
+    // 开场偏好匹配：命中的客人带着初始满意度进入会话
+    const startGuest = type === 'service' && guest
+      ? { ...guest, satisfaction: computeInitialSatisfaction(guest, sessionGirls) }
+      : undefined
     const newSession = createServiceSession(type, sessionGirls, {
-      guest: type === 'service' && guest ? guest : undefined,
+      guest: startGuest,
       trainer: type === 'training' ? trainer : undefined,
     })
     setSession(newSession)
@@ -308,24 +249,67 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
     }
     const turnCount = messages.filter((m) => m.role === 'user').length
     const growths: Record<string, { affection: number; obedience: number; lewdness: number }> = {}
+    const unlocks: Record<string, string[]> = {}
     for (const girl of session.girls) {
       const before = { affection: girl.affection, obedience: girl.obedience, lewdness: girl.lewdness }
       const growth = calcGirlStatGrowth(girl, session, turnCount)
-      updatedGirls = updatedGirls.map((g) => g.id === girl.id ? { ...g, ...growth } : g)
+      const grown = { ...girl, ...growth }
+      // 数值成长后判定本次新解锁的侍奉技能
+      const newSkills = evaluateSkillUnlocks(grown)
+      const merged = newSkills.length > 0 ? { ...grown, skills: [...grown.skills, ...newSkills] } : grown
+      if (newSkills.length > 0) unlocks[girl.id] = newSkills
+      updatedGirls = updatedGirls.map((g) => g.id === girl.id ? merged : g)
       growths[girl.id] = {
         affection: (growth.affection ?? before.affection) - before.affection,
         obedience: (growth.obedience ?? before.obedience) - before.obedience,
         lewdness: (growth.lewdness ?? before.lewdness) - before.lewdness,
       }
     }
+
+    // 满意度分档：决定声望增减、是否成为回头客（仅服务场景）
+    let reputationDelta = 0
+    let becameRegular = false
+    let tierLabel = ''
+    let updatedRegulars = save.regulars ?? []
+    const servedGuest = session.type === 'service' ? session.guest : undefined
+    if (servedGuest) {
+      const tier = getSatisfactionTier(servedGuest.satisfaction)
+      tierLabel = tier.label
+      reputationDelta = tier.reputationDelta
+      becameRegular = rollBecameRegular(tier)
+      if (becameRegular) {
+        // 累计回访次数 +1，沉淀进回头客池（按 id 去重更新，保留已有记忆）
+        const existing = updatedRegulars.find((r) => r.id === servedGuest.id)
+        const regular: Guest = {
+          ...servedGuest,
+          visits: (servedGuest.visits ?? 0) + 1,
+          memories: existing?.memories ?? servedGuest.memories,
+        }
+        updatedRegulars = [regular, ...updatedRegulars.filter((r) => r.id !== servedGuest.id)].slice(0, 20)
+      }
+    }
+
     setGirlGrowths(growths)
+    setSkillUnlocks(unlocks)
     setGoldEarned(earned)
+    setSettleInfo(servedGuest ? { tierLabel, reputationDelta, becameRegular } : null)
     setMemorySaved(false)
     setMemorySaving(false)
     onSaveChange({
       ...save,
       girls: updatedGirls,
-      player: { ...player, gold: player.gold + earned, day: save.currentDay },
+      player: {
+        ...player,
+        gold: player.gold + earned,
+        day: save.currentDay,
+        reputation: applyReputationDelta(player.reputation, reputationDelta),
+      },
+      actionsUsedToday: (save.actionsUsedToday ?? 0) + 1,
+      // 服务场景：把已接待客人移出今日客人池
+      dailyGuests: servedGuest
+        ? (save.dailyGuests ?? []).filter((g) => g.id !== servedGuest.id)
+        : save.dailyGuests,
+      regulars: updatedRegulars,
     })
     setStep('result')
   }
@@ -372,6 +356,13 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
     const guestToSave: Guest = { ...currentGuest, memories: newMemories }
     saveGuest(guestToSave)
     setSavedGuests(getSavedGuests())
+    // 若该客人已沉淀为回头客，把新记忆同步进回头客池，下次回访即可带着记忆出场
+    if ((save.regulars ?? []).some((r) => r.id === guestToSave.id)) {
+      onSaveChange({
+        ...save,
+        regulars: (save.regulars ?? []).map((r) => r.id === guestToSave.id ? { ...r, memories: newMemories } : r),
+      })
+    }
     setMemorySaving(false)
     setMemorySaved(true)
   }
@@ -410,64 +401,16 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
               <>
                 {/* Guest toolbar */}
                 <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border shrink-0">
-                  <span className="text-xs font-semibold gold-text flex-1">今日客人</span>
-                  <Button variant="ghost" size="icon" className="w-7 h-7" title="客人倾向设置"
-                    onClick={() => { setPrefOpen(true); setSavedGuestsOpen(false) }}>
-                    <Settings2 className="w-3.5 h-3.5" />
-                  </Button>
+                  <span className="text-xs font-semibold gold-text flex-1">今日客人（{dailyGuests.length}）</span>
                   <Button variant="ghost" size="icon" className="w-7 h-7" title="已保存客人"
-                    onClick={() => { setSavedGuestsOpen(true); setPrefOpen(false) }}>
+                    onClick={() => setSavedGuestsOpen((v) => !v)}>
                     <BookOpen className="w-3.5 h-3.5" />
                   </Button>
                   <Button variant="ghost" size="icon" className="w-7 h-7" title="保存当前客人"
                     disabled={!guest} onClick={handleQuickSaveGuest}>
                     <Save className="w-3.5 h-3.5" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="w-7 h-7" title="重新生成"
-                    disabled={guestLoading} onClick={generateGuest}>
-                    <RefreshCw className={cn('w-3.5 h-3.5', guestLoading && 'animate-spin')} />
-                  </Button>
                 </div>
-
-                {/* Guest preference panel */}
-                {prefOpen && (
-                  <div className="border-b border-border bg-card/50 p-3 space-y-2 shrink-0">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">客人生成倾向</span>
-                      <Button variant="ghost" size="icon" className="w-6 h-6" onClick={() => setPrefOpen(false)}>
-                        <X className="w-3 h-3" />
-                      </Button>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {PREF_PRESETS.map((p) => (
-                        <button key={p}
-                          className={cn(
-                            'text-[10px] px-2 py-0.5 rounded-full border transition-all',
-                            prefDraft.includes(p)
-                              ? 'border-primary bg-primary/10 text-primary'
-                              : 'border-border text-muted-foreground hover:border-primary/40'
-                          )}
-                          onClick={() =>
-                            setPrefDraft((d) =>
-                              d.includes(p) ? d.replace(p, '').replace(/[,，]\s*$/, '').trim() : d ? `${d}，${p}` : p
-                            )
-                          }>
-                          {p}
-                        </button>
-                      ))}
-                    </div>
-                    <Textarea
-                      value={prefDraft}
-                      onChange={(e) => setPrefDraft(e.target.value)}
-                      placeholder="自定义倾向，例如：喜欢娇小型，不要老人…"
-                      className="text-xs resize-none bg-input"
-                      rows={2}
-                    />
-                    <Button size="sm" className="w-full h-7 text-xs glow-btn" onClick={handleSavePref}>
-                      保存倾向
-                    </Button>
-                  </div>
-                )}
 
                 {/* Saved guests panel */}
                 {savedGuestsOpen && (
@@ -499,24 +442,74 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
                   </div>
                 )}
 
-                {/* Guest card area */}
-                <div className="flex-1 overflow-y-auto p-3">
-                  {guestLoading ? (
-                    <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground">
-                      <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                      <span className="text-xs">生成客人中…</span>
+                {/* 今日客人选择（开局已随机生成，从池中挑选） */}
+                <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                  {dailyGuests.length === 0 && !guest ? (
+                    <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground text-center">
+                      <p className="text-xs">今日客人已全部接待完毕</p>
+                      <p className="text-[10px] text-muted-foreground/60">「结束今天」后会有新的客人到访</p>
                     </div>
-                  ) : guest ? (
-                    <GuestCard guest={guest} settings={settings} />
                   ) : (
-                    <div className="flex flex-col items-center justify-center h-full gap-3">
-                      <p className="text-xs text-muted-foreground text-center">
-                        点击右上角刷新按钮生成今日客人
-                      </p>
-                      <Button className="glow-btn h-9 px-6 text-sm" onClick={generateGuest}>
-                        <RefreshCw className="w-4 h-4 mr-2" />生成客人
-                      </Button>
-                    </div>
+                    <>
+                      {dailyGuests.length > 0 && (
+                        <p className="text-[10px] text-muted-foreground/70 px-0.5">选择一位今日客人开始服务</p>
+                      )}
+                      {dailyGuests.map((dg) => (
+                        <button
+                          key={dg.id}
+                          onClick={() => setGuest(dg)}
+                          className={cn(
+                            'w-full text-left rounded-lg border p-2.5 transition-all',
+                            guest?.id === dg.id
+                              ? 'border-primary bg-primary/10'
+                              : 'border-border hover:border-primary/40'
+                          )}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-semibold text-amber-400">{dg.name}</span>
+                            <Badge variant="secondary" className="text-[9px] h-4 px-1.5">{dg.race}</Badge>
+                            {(dg.visits ?? 0) > 0 && (
+                              <Badge variant="secondary" className="text-[9px] h-4 px-1.5 bg-pink-500/15 text-pink-300 border border-pink-500/30">
+                                <Star className="w-2.5 h-2.5 mr-0.5" />回头客·{dg.visits}
+                              </Badge>
+                            )}
+                            <span className="text-[9px] text-muted-foreground ml-auto truncate max-w-[40%]">{dg.personality}</span>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2">需求：{dg.desires}</p>
+                          {(dg.prefRace || dg.prefTrait) && (
+                            <p className="text-[10px] text-pink-300/70 mt-0.5">
+                              偏好：{[dg.prefRace, dg.prefTrait].filter(Boolean).join(' · ')}
+                            </p>
+                          )}
+                        </button>
+                      ))}
+                      {guest && (
+                        <div className="pt-2 mt-2 border-t border-border/50 space-y-2">
+                          <GuestCard guest={guest} settings={settings} />
+                          {(() => {
+                            const sg = girls.filter((g) => selectedGirls.includes(g.id))
+                            const m = getGuestMatch(guest, sg)
+                            return (
+                              <div className="rounded-lg border border-border bg-card/40 p-2 text-[10px] space-y-1">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-muted-foreground">偏好匹配（按已选魔物娘）</span>
+                                  <span className={cn('font-semibold', m.bonus > 0 ? 'text-emerald-400' : 'text-muted-foreground')}>初始满意度 +{m.bonus}</span>
+                                </div>
+                                <div className="flex gap-3">
+                                  <span className={m.raceMatched ? 'text-emerald-400' : 'text-muted-foreground/60'}>
+                                    {m.raceMatched ? '✓' : '×'} 种族·{guest.prefRace ?? '—'}
+                                  </span>
+                                  <span className={m.traitMatched ? 'text-emerald-400' : 'text-muted-foreground/60'}>
+                                    {m.traitMatched ? '✓' : '×'} 特征·{guest.prefTrait ?? '—'}
+                                  </span>
+                                </div>
+                                {sg.length === 0 && <p className="text-muted-foreground/50">先在右侧选择参与的魔物娘</p>}
+                              </div>
+                            )
+                          })()}
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </>
@@ -785,13 +778,30 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
             {type === 'service' && session.guest && (
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">客人满意度</span>
-                <span className="text-sm font-semibold text-amber-400">{session.guest.satisfaction} / 100</span>
+                <span className="text-sm font-semibold text-amber-400">
+                  {session.guest.satisfaction} / 100
+                  {settleInfo?.tierLabel && <span className="text-muted-foreground font-normal">（{settleInfo.tierLabel}）</span>}
+                </span>
               </div>
             )}
             {type === 'service' && (
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">本次收入</span>
                 <span className="text-sm font-semibold gold-text">+{goldEarned} G</span>
+              </div>
+            )}
+            {type === 'service' && settleInfo && settleInfo.reputationDelta !== 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">声望</span>
+                <span className={cn('text-sm font-semibold', settleInfo.reputationDelta >= 0 ? 'text-pink-300' : 'text-rose-400')}>
+                  {settleInfo.reputationDelta > 0 ? '+' : ''}{settleInfo.reputationDelta}
+                </span>
+              </div>
+            )}
+            {type === 'service' && settleInfo?.becameRegular && session.guest && (
+              <div className="flex items-center gap-1.5 text-xs text-emerald-400">
+                <Star className="w-3.5 h-3.5 shrink-0" />
+                「{session.guest.name}」成为了回头客，日后可能带着回忆再访
               </div>
             )}
             {(type === 'service' && session.guest) && <div className="h-px bg-border" />}
@@ -813,6 +823,14 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
                       <StatDelta label="服从" value={g.obedience} color="text-sky-400" />
                       <StatDelta label="淫乱" value={g.lewdness} color="text-rose-400" />
                     </div>
+                    {(skillUnlocks[girl.id]?.length ?? 0) > 0 && (
+                      <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                        <span className="text-[10px] text-emerald-400">✨ 解锁技能</span>
+                        {skillUnlocks[girl.id].map((s) => (
+                          <Badge key={s} variant="secondary" className="text-[9px] h-4 px-1.5 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">{s}</Badge>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )
               })}

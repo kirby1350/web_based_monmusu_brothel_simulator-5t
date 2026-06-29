@@ -70,8 +70,8 @@ hooks/, public/presets/  # 预设角色立绘
 
 ## 核心数据模型（`lib/types.ts`）
 
-- **`GameSave`**：`{ player, girls[], currentDay, phase, activeSession? }` —— 单一存档对象，存于 `localStorage['game_save']`。
-- **`Player`**：name、traits、fetishes、gold、day、guest/marketPreference。
+- **`GameSave`**：`{ player, girls[], currentDay, phase, activeSession?, actionsUsedToday?, dailyGuests? }` —— 单一存档对象，存于 `localStorage['game_save']`。`actionsUsedToday`/`dailyGuests` 为经营机制字段，旧存档在 `game/page.tsx` 载入时回填。
+- **`Player`**：name、traits、fetishes、gold、day、guest/marketPreference、`level?`（娼馆等级，升级提升容量；旧存档缺省视为 1）。
 - **`MonstGirl`**：核心三维数值 `affection`/`obedience`/`lewdness`（好感/服从/淫乱，0–100）、外貌/性格/服装的「描述文本 + 英文生图 tags」双字段、`sexualDesc`（性癖设定）、`skills[]`、`imageTags`/`imageUrl`。
 - **`Guest`**：客人，含 `satisfaction` 和 `memories`（按魔物娘名字索引的双向关系记忆）。
 - **`ServiceSession`**：一次服务/调教会话，含参与魔物娘、消息历史、每个参与者的 `ParticipantStats`（`pleasure`/`stamina`/`isExhausted`，**仅会话内有效，不跨天保留**）。
@@ -100,6 +100,21 @@ LLM 在叙事正文后追加两行 HTML 注释，玩家不可见：
 - 解析失败时 `estimateStatDelta` 用关键词启发式兜底。正则见 `game-engine.ts` 顶部，**对空格/多余字符容错**。
 - `STATS_INSTRUCTION` 强制模型用**半角符号**输出 JSON（避免全角 `：｛｝` 导致 `JSON.parse` 失败）；`chat/route.ts` 的 `max_tokens=4096` 是为了给正文 + 这两行结构化尾块都留够空间，避免截断。
 
+### 经营机制（每日行动 / 客人池 / 升级）
+`lib/game-engine.ts` 集中管理：
+- `MAX_ACTIONS_PER_DAY = 3`：每天接客/调教合计上限。`save.actionsUsedToday` 在 `service-screen` 完成一次会话（`endSession`）时 +1；`daily-hub` 据此禁用行动按钮，「结束今天」(`advanceDay`) 归零。
+- `getGirlCapacity(level)` / `getGuestCapacity(level)` / `getUpgradeCost(level)`：等级派生容量与升级花费。升级在 `daily-hub` 的 `handleUpgrade` 扣金币 +1 级；魔物娘上限即时生效（`market-screen` 用 `getGirlCapacity` 拦截购买），客人上限自下一天起生效。
+- `createRandomGuest()` / `generateDailyGuests(n)`：**本地随机**生成（不调用 AI）。每天开始时一次性生成 `save.dailyGuests`（`setup` 新游戏、`advanceDay` 换天、`game/page` 回填）。`service-screen` 从该池中**选择**客人而非现场生成，接待完成后把该客人从池中移除。
+
+### 满意度 / 声望 / 技能 / 回头客（结算闭环）
+`endSession`（`service-screen.tsx`）在每次接客/调教结束时结算，依赖 `game-engine.ts` 的纯函数：
+- **开场偏好匹配 → 初始满意度**：客人带 `prefRace`/`prefTrait`（巨乳/贫乳/丰臀/兽耳，对魔物娘属性可判定）。`startSession` 用 `computeInitialSatisfaction(guest, girls)` 按命中给初始满意度（每项 +15）。服务屏「选客人」步骤用 `getGuestMatch` 实时预览匹配；服务开场白提示词会据偏好命中写出客人眼前一亮/挑剔的反应。
+- **满意度分档** `getSatisfactionTier(satisfaction)` → 不满/一般/满意/极乐，决定收入倍率（×0.5/1.0/1.3/1.6）、声望增减、成为回头客的概率。满意度本身在会话内由 LLM 的 STATS `satisfaction` 增量累加（缺失则按 `pleasureDelta/2` 兜底）。
+- **收入** `calcServiceReward` =（客人 `budget` + 回头客 `visits`×15 + 多魔物娘 + 技能数×8）× 分档倍率。
+- **声望** `Player.reputation`（0–100）经 `applyReputationDelta` 累积；`createRandomGuest(reputation)` 据此抬高客人 `budget`（声望→客人质量）。
+- **技能解锁** `evaluateSkillUnlocks(girl)`：数值成长后按阈值（服从/淫乱/好感）解锁 `SERVING_SKILLS`，追加到 `girl.skills`；技能既加收入，又自动进入 system prompt 丰富叙事。
+- **回头客** `rollBecameRegular(tier)` 命中后把客人沉淀进 `GameSave.regulars`（`visits+1`、保留记忆）；`generateDailyGuests(count, reputation, regulars)` 每天按概率让回头客带记忆回访。保存关系记忆时会同步更新 regulars 中的对应条目。
+
 ### 叙事文风（重油模式）
 `AppSettings.proseStyle`（`standard` / `dense`）由设置面板「叙事文风」切换，经 `service-screen` 传入 `buildServiceSystemPrompt`。`prompt-builder.ts` 中：常驻 `PROSE_BAN`（去油黑名单）始终生效，`dense` 额外叠加「重油堆叠」密集感官片段。
 
@@ -126,6 +141,6 @@ image-service.generateImage(tags, settings)
 - **安全**：`api/*` 路由无鉴权/限流/请求校验，且未传 key 时回退服务端环境变量 —— 公开部署等于把付费 API Key 做成开放代理，勿公网暴露带密钥实例。
 - **构建**：`ignoreBuildErrors: true` 会让类型错误直接上线；改动类型后请手动 `tsc --noEmit` 验证。
 - **无测试框架**：`game-engine.ts` 的解析逻辑是引入单元测试的最佳起点。
-- **游戏性缺口**：天数无机制、无每日支出、体力不跨天、`skills` 系统定义了但从未实际解锁、满意度不 gate 任何内容 —— 扩展玩法时这些是主要切入点。
+- **游戏性缺口**：已加入每日 3 次行动上限、每日预生成客人池、娼馆升级（容量）、满意度分档结算、声望、技能解锁、回头客。仍待补：无每日支出、体力不跨天 —— 扩展玩法时这些是主要切入点。
 - **`.idea/` 未加入 `.gitignore`**。
 ```

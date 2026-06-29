@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { X, Trash2 } from 'lucide-react'
 import { getGameSave, saveGameSave, getSettings, saveSettings, clearGameSave } from '@/lib/storage'
+import { generateDailyGuests, getGuestCapacity } from '@/lib/game-engine'
 import { GameSave, AppSettings } from '@/lib/types'
 import { DailyHub } from '@/components/daily-hub'
 import { ServiceScreen } from '@/components/service-screen'
@@ -37,7 +38,22 @@ export default function GamePage() {
   useEffect(() => {
     const s = getGameSave()
     if (!s) { router.replace('/setup'); return }
-    setSave(s)
+    // 回填旧存档缺失的日状态字段（行动次数、当日客人池、等级、声望、回头客）
+    let migrated = s
+    if (
+      s.actionsUsedToday === undefined || s.dailyGuests === undefined ||
+      s.player.level === undefined || s.player.reputation === undefined || s.regulars === undefined
+    ) {
+      migrated = {
+        ...s,
+        player: { ...s.player, level: s.player.level ?? 1, reputation: s.player.reputation ?? 0 },
+        actionsUsedToday: s.actionsUsedToday ?? 0,
+        regulars: s.regulars ?? [],
+        dailyGuests: s.dailyGuests ?? generateDailyGuests(getGuestCapacity(s.player.level), s.player.reputation ?? 0, s.regulars ?? []),
+      }
+      saveGameSave(migrated)
+    }
+    setSave(migrated)
     setSettings(getSettings())
     setLoaded(true)
   }, [router])

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Settings, Coins, Calendar, Store, Sword, ShoppingBag, Heart, Users, X, Send, Loader2, Moon } from 'lucide-react'
+import { Settings, Coins, Calendar, Store, Sword, ShoppingBag, Heart, Users, X, Send, Loader2, Moon, Zap, ArrowUpCircle, Crown, Star } from 'lucide-react'
 import { GameSave, MonstGirl, AppSettings } from '@/lib/types'
 import { ImageDisplay } from '@/components/image-display'
 import { InteractionPanel } from '@/components/interaction-panel'
@@ -9,6 +9,9 @@ import { StatBar } from '@/components/stat-bar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { buildOpeningDialoguePrompt } from '@/lib/prompt-builder'
+import {
+  MAX_ACTIONS_PER_DAY, getGirlCapacity, getGuestCapacity, getUpgradeCost, generateDailyGuests,
+} from '@/lib/game-engine'
 import { getOpeningCache, saveOpeningCache, clearOpeningCache } from '@/lib/storage'
 import { cn } from '@/lib/utils'
 import type { GameTab } from '@/app/game/page'
@@ -132,8 +135,35 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
 
   const advanceDay = () => {
     clearOpeningCache()
-    onSaveChange({ ...save, currentDay: save.currentDay + 1 })
+    onSaveChange({
+      ...save,
+      currentDay: save.currentDay + 1,
+      actionsUsedToday: 0,
+      dailyGuests: generateDailyGuests(getGuestCapacity(player.level), player.reputation ?? 0, save.regulars ?? []),
+    })
   }
+
+  const handleUpgrade = () => {
+    const level = player.level ?? 1
+    const cost = getUpgradeCost(level)
+    if (player.gold < cost) return
+    // 等级提升：魔物娘上限即时生效；每日客人上限自下一天起生效
+    onSaveChange({
+      ...save,
+      player: { ...player, gold: player.gold - cost, level: level + 1 },
+    })
+  }
+
+  // ─── 经营状态派生值 ────────────────────────────────────────────────────────
+  const level = player.level ?? 1
+  const reputation = player.reputation ?? 0
+  const actionsUsed = save.actionsUsedToday ?? 0
+  const actionsLeft = Math.max(0, MAX_ACTIONS_PER_DAY - actionsUsed)
+  const girlCap = getGirlCapacity(level)
+  const guestCount = save.dailyGuests?.length ?? 0
+  const upgradeCost = getUpgradeCost(level)
+  const canUpgrade = player.gold >= upgradeCost
+  const noActionsLeft = actionsLeft <= 0
 
   const sendChat = async () => {
     if (!chatInput.trim()) return
@@ -198,6 +228,39 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
         </Button>
       </header>
 
+      {/* 经营状态条 */}
+      <div className="border-b border-border px-4 py-2 flex items-center gap-3 text-[11px] max-w-2xl mx-auto w-full">
+        <span className={cn('flex items-center gap-1', noActionsLeft ? 'text-rose-400' : 'text-muted-foreground')} title="每天最多 3 次接客/调教">
+          <Zap className="w-3 h-3" />行动 {actionsUsed}/{MAX_ACTIONS_PER_DAY}
+        </span>
+        <span className="flex items-center gap-1 text-muted-foreground" title="魔物娘持有上限（升级提升）">
+          <Users className="w-3 h-3" />{girls.length}/{girlCap}
+        </span>
+        <span className="flex items-center gap-1 text-muted-foreground" title="今日剩余客人">
+          <Store className="w-3 h-3" />客 {guestCount}
+        </span>
+        <span className="flex items-center gap-1 text-pink-300/80" title="声望：由客人满意度累积，提升客人质量与付费">
+          <Star className="w-3 h-3" />声望 {reputation}
+        </span>
+        <div className="flex-1" />
+        <span className="flex items-center gap-1 gold-text font-semibold" title="娼馆等级">
+          <Crown className="w-3 h-3" />Lv.{level}
+        </span>
+        <button
+          onClick={handleUpgrade}
+          disabled={!canUpgrade}
+          title={`升级娼馆：魔物娘上限 ${girlCap}→${girlCap + 1}，每日客人上限 ${getGuestCapacity(level)}→${getGuestCapacity(level + 1)}`}
+          className={cn(
+            'flex items-center gap-1 px-2 py-0.5 rounded-md border transition-colors',
+            canUpgrade
+              ? 'border-amber-400/40 text-amber-400 hover:bg-amber-400/10'
+              : 'border-border text-muted-foreground/50 cursor-not-allowed'
+          )}
+        >
+          <ArrowUpCircle className="w-3 h-3" />升级 {upgradeCost}G
+        </button>
+      </div>
+
       <div className="flex-1 flex flex-col min-h-0 max-w-2xl mx-auto w-full">
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
           {chatLoading && chatMessages.length === 0 && (
@@ -230,20 +293,23 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
 
         {/* Action buttons as bottom tab bar */}
         <div className="px-4 pb-2">
+          {noActionsLeft && (
+            <p className="text-[10px] text-rose-400/80 text-center mb-1.5">今日行动已用尽，点击「结束今天」进入下一天</p>
+          )}
           <div className="grid grid-cols-3 gap-2">
             <ActionButton
               icon={Store}
               label="开张营业"
               color="primary"
               onClick={() => onNavigate('service')}
-              disabled={girls.length === 0}
+              disabled={girls.length === 0 || noActionsLeft || guestCount === 0}
             />
             <ActionButton
               icon={Sword}
               label="调教魔物娘"
               color="rose"
               onClick={() => onNavigate('training')}
-              disabled={girls.length === 0}
+              disabled={girls.length === 0 || noActionsLeft}
             />
             <ActionButton
               icon={ShoppingBag}
@@ -313,6 +379,13 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
                       <StatBar label="好感" value={girl.affection} color="pink" size="sm" />
                       <StatBar label="服从" value={girl.obedience} color="blue" size="sm" />
                       <StatBar label="淫乱" value={girl.lewdness} color="rose" size="sm" />
+                      {girl.skills.length > 0 && (
+                        <div className="flex flex-wrap gap-1 pt-0.5">
+                          {girl.skills.map((s) => (
+                            <Badge key={s} variant="secondary" className="text-[8px] h-3.5 px-1 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">{s}</Badge>
+                          ))}
+                        </div>
+                      )}
                       <Button
                         size="sm"
                         variant="secondary"

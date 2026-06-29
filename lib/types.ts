@@ -147,6 +147,10 @@ export interface Player {
   day: number
   guestPreference: string
   marketPreference: string
+  // 娼馆等级：升级提升魔物娘持有上限与每日客人上限（旧存档缺省视为 1）
+  level?: number
+  // 声望：由客人满意度累积，提升每日客人的预算/质量（旧存档缺省视为 0）
+  reputation?: number
 }
 
 export interface MonstGirl {
@@ -199,6 +203,13 @@ export interface Guest {
   satisfaction: number
   // 关系记忆：key 为魔物娘名字
   memories?: Record<string, GuestGirlMemory>
+  // 该客人的基础付费预算（随声望提升；旧数据缺省按基准值）
+  budget?: number
+  // 在本馆累计被接待的次数（回头客每次回访付费递增）
+  visits?: number
+  // 偏好：开场时若在场魔物娘命中，给予初始满意度加成
+  prefRace?: string   // 偏好种族（命中在场任一魔物娘的种族）
+  prefTrait?: string  // 偏好特征（巨乳/贫乳/丰臀/兽耳…，对魔物娘属性可判定）
 }
 
 export interface ChatMessage {
@@ -236,4 +247,10 @@ export interface GameSave {
   currentDay: number
   phase: GamePhase
   activeSession?: ServiceSession
+  // 当天已进行的行动次数（接客/调教），每天上限 MAX_ACTIONS_PER_DAY（旧存档缺省视为 0）
+  actionsUsedToday?: number
+  // 当天开始时一次性随机生成好的客人池；接待后从池中移除（旧存档缺省回填）
+  dailyGuests?: Guest[]
+  // 回头客池：高满意度服务后沉淀的常客，未来有概率混入每日客人池并带着关系记忆回访
+  regulars?: Guest[]
 }

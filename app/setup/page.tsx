@@ -6,6 +6,7 @@ import { PlayerSetup } from '@/components/player-setup'
 import { GirlCreator } from '@/components/girl-creator'
 import { Player, MonstGirl } from '@/lib/types'
 import { getSettings, saveGameSave } from '@/lib/storage'
+import { generateDailyGuests, getGuestCapacity } from '@/lib/game-engine'
 import { cn } from '@/lib/utils'
 
 type SetupStep = 'player' | 'girl'
@@ -28,7 +29,16 @@ export default function SetupPage() {
 
   const handleGirlComplete = (girl: MonstGirl) => {
     if (!player) return
-    saveGameSave({ player, girls: [girl], currentDay: 1, phase: 'morning' })
+    const startPlayer: Player = { ...player, level: 1, reputation: 0 }
+    saveGameSave({
+      player: startPlayer,
+      girls: [girl],
+      currentDay: 1,
+      phase: 'morning',
+      actionsUsedToday: 0,
+      dailyGuests: generateDailyGuests(getGuestCapacity(1), 0, []),
+      regulars: [],
+    })
     router.push('/game')
   }
 
