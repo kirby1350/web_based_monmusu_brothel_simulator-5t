@@ -17,13 +17,14 @@ import { ChatEngine, ChatEngineHandle } from '@/components/chat-engine'
 import { SuggestionBar } from '@/components/suggestion-bar'
 import {
   buildServiceSystemPrompt, buildOpeningDialoguePrompt, buildMemoryPrompt,
+  buildGuestGenerationPrompt,
 } from '@/lib/prompt-builder'
 import {
   createServiceSession, applyStatDelta, estimateStatDelta, parseStatsFromReply, getGirlDelta,
   calcServiceReward, calcGirlStatGrowth, updateGuestSatisfaction, findEligibleTrainers,
   parseActionsFromReply,
 } from '@/lib/game-engine'
-import { cn } from '@/lib/utils'
+import { cn, parseLooseJson } from '@/lib/utils'
 import { nanoid } from 'nanoid'
 import { GUEST_RACES, GUEST_PERSONALITIES, GUEST_TRAITS } from '@/lib/game-data'
 import {
@@ -129,8 +130,8 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
       const data = await res.json()
       const raw: string = data.content ?? data.text ?? ''
       const match = raw.match(/\{[\s\S]*\}/)
-      if (match) {
-        const parsed = JSON.parse(match[0])
+      const parsed = match ? parseLooseJson<Record<string, any>>(match[0]) : null
+      if (parsed) {
         setGuest({
           id: nanoid(),
           name: parsed.name ?? '神秘客人',
@@ -216,9 +217,11 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
     })()
 
     const suggestionsPromise = mainGirl ? (async () => {
-      const girlDesc = `${mainGirl.name}（${mainGirl.race}），性格：${mainGirl.personality}，服从度：${mainGirl.obedience}/100，淫乱度：${mainGirl.lewdness}/100`
+      const girlDesc = sessionGirls
+        .map((g) => `${g.name}（${g.race}），性格：${g.personality}，服从度：${g.obedience}/100，淫乱度：${g.lewdness}/100`)
+        .join('；')
       const guestDesc = type === 'service' && guest ? `，客人需求：${guest.desires}` : ''
-      const sugPrompt = `为以下${type === 'service' ? '服务' : '调教'}场景生成3个玩家可选的开场行动指令。\n魔物娘：${girlDesc}${guestDesc}\n\n要求：\n- 行动1：玩家/客人主动发起（如主动抚摸、命令脱衣、直接进入等），5-12字\n- 行动2：双方互动（如相互撩拨、眼神挑逗、语言调情等），5-12字\n- 行动3：魔物娘主动发起（如她主动靠近、撒娇求抱、主动解衣等），5-12字\n- 贴合角色性格与服从度\n- 只输出JSON数组：["行动1","行动2","行动3"]`
+      const sugPrompt = `为以下${type === 'service' ? '服务' : '调教'}场景生成3个玩家可选的开场行动指令。\n${sessionGirls.length > 1 ? `参与的魔物娘（共${sessionGirls.length}位）：` : '魔物娘：'}${girlDesc}${guestDesc}\n\n要求：\n- 行动1：玩家/客人主动发起（如主动抚摸、命令脱衣、直接进入等），5-12字\n- 行动2：双方互动（如相互撩拨、眼神挑逗、语言调情等），5-12字\n- 行动3：魔物娘主动发起（如她主动靠近、撒娇求抱、主动解衣等），5-12字\n- 贴合角色性格与服从度\n- 只输出JSON数组：["行动1","行动2","行动3"]`
       try {
         const res = await fetch('/api/chat', {
           method: 'POST',
@@ -229,7 +232,7 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
         const text = ((await res.json()).content ?? '').trim()
         const match = text.match(/\[[\s\S]*?\]/)
         if (!match) return null
-        const arr = JSON.parse(match[0]) as string[]
+        const arr = parseLooseJson<string[]>(match[0])
         if (!Array.isArray(arr) || arr.length < 3) return null
         return [arr[0], arr[1], arr[2]] as [string, string, string]
       } catch { return null }
@@ -356,7 +359,8 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
         const text = ((await res.json()).content ?? '').trim()
         const match = text.match(/\{[\s\S]*?\}/)
         if (!match) return
-        const parsed = JSON.parse(match[0]) as { guestAboutGirl?: string; girlAboutGuest?: string }
+        const parsed = parseLooseJson<{ guestAboutGirl?: string; girlAboutGuest?: string }>(match[0])
+        if (!parsed) return
         newMemories[girl.name] = {
           guestAboutGirl: parsed.guestAboutGirl ?? '',
           girlAboutGuest: parsed.girlAboutGuest ?? '',
@@ -372,7 +376,7 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
     setMemorySaved(true)
   }
 
-  const systemPrompt = session ? buildServiceSystemPrompt(player, { ...session, messages }) : ''
+  const systemPrompt = session ? buildServiceSystemPrompt(player, { ...session, messages }, settings.proseStyle) : ''
 
   // ─── UI ──────────────────────────────────────────────────────────────────────
 

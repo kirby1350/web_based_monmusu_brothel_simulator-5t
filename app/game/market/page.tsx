@@ -33,5 +33,5 @@ export default function MarketPage() {
     )
   }
 
-  return <MarketScreen save={save} settings={settings} onSaveChange={handleSaveChange} />
+  return <MarketScreen save={save} settings={settings} onSaveChange={handleSaveChange} onBack={() => router.replace('/game')} />
 }

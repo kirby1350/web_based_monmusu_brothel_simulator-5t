@@ -1,43 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { CHAT_MODELS } from '@/lib/types'
+import { parseSseToContent } from '@/lib/sse'
 
 export const runtime = 'edge'
 
-/**
- * Parse a raw SSE body (text) into a single concatenated content string.
- * Handles both streaming and non-streaming JSON responses from the upstream API.
- */
-function parseSseToContent(raw: string): string {
-  // If it's a plain JSON object (non-streaming upstream), try that first
-  const trimmed = raw.trim()
-  if (trimmed.startsWith('{')) {
-    try {
-      const parsed = JSON.parse(trimmed)
-      return parsed.choices?.[0]?.message?.content ?? parsed.choices?.[0]?.delta?.content ?? ''
-    } catch {
-      // fall through to SSE parsing
-    }
-  }
-
-  // SSE stream parsing — upstream always returns SSE even when stream=false
-  let content = ''
-  for (const line of raw.split('\n')) {
-    const stripped = line.trim()
-    if (!stripped.startsWith('data:')) continue
-    const data = stripped.slice(5).trim()
-    if (data === '[DONE]') break
-    try {
-      const chunk = JSON.parse(data)
-      const delta =
-        chunk.choices?.[0]?.delta?.content ??
-        chunk.choices?.[0]?.message?.content ??
-        ''
-      content += delta
-    } catch {
-      // skip malformed lines
-    }
-  }
-  return content
+const CHAT_TEMPERATURE = 0.9
+// 给得宽裕：丰富的正文 + 末尾的 STATS/ACTIONS 结构化 JSON 必须都能放下，
+// 否则结构化尾块会被截断，导致 game-engine 无法解析数值。
+const CHAT_MAX_TOKENS = 4096
+const DEFAULT_CHAT_MODEL = 'Apex-Neo-0213-16k'
+const DEFAULT_GROK_MODEL = 'grok-4-latest'
+const GROK_ENDPOINT = 'https://api.x.ai/v1/chat/completions'
+const DZMM_ENDPOINT = 'https://www.gpt4novel.com/api/xiaoshuoai/ext/v1/chat/completions'
+const SSE_HEADERS = {
+  'Content-Type': 'text/event-stream',
+  'Cache-Control': 'no-cache',
+  Connection: 'keep-alive',
 }
 
 export async function POST(req: NextRequest) {
@@ -52,17 +30,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '未配置 Grok API Key' }, { status: 401 })
     }
     try {
-      const response = await fetch('https://api.x.ai/v1/chat/completions', {
+      const response = await fetch(GROK_ENDPOINT, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${key}`,
         },
         body: JSON.stringify({
-          model: model || 'grok-4-latest',
+          model: model || DEFAULT_GROK_MODEL,
           messages,
           stream: streamMode,
-          temperature: 0.9,
+          temperature: CHAT_TEMPERATURE,
         }),
       })
       if (!response.ok) {
@@ -74,9 +52,7 @@ export async function POST(req: NextRequest) {
         const content = parseSseToContent(raw)
         return NextResponse.json({ content })
       }
-      return new NextResponse(response.body, {
-        headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' },
-      })
+      return new NextResponse(response.body, { headers: SSE_HEADERS })
     } catch (e) {
       return NextResponse.json({ error: String(e) }, { status: 500 })
     }
@@ -89,23 +65,20 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const response = await fetch(
-      'https://www.gpt4novel.com/api/xiaoshuoai/ext/v1/chat/completions',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${key}`,
-        },
-        body: JSON.stringify({
-          model: model || 'Apex-Neo-0213-16k',
-          messages,
-          stream: true, // always request streaming; we parse SSE for non-stream callers
-          temperature: 0.9,
-          max_tokens: 2048,
-        }),
-      }
-    )
+    const response = await fetch(DZMM_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${key}`,
+      },
+      body: JSON.stringify({
+        model: model || DEFAULT_CHAT_MODEL,
+        messages,
+        stream: true, // 始终向上游请求流式；非流式调用方由 parseSseToContent 拼回整段
+        temperature: CHAT_TEMPERATURE,
+        max_tokens: CHAT_MAX_TOKENS,
+      }),
+    })
 
     if (!response.ok) {
       const err = await response.text()
@@ -113,15 +86,13 @@ export async function POST(req: NextRequest) {
     }
 
     if (!streamMode) {
-      // Upstream always returns SSE; read full body and extract content
+      // 上游始终返回 SSE；读取完整 body 并抽取 content
       const raw = await response.text()
       const content = parseSseToContent(raw)
       return NextResponse.json({ content })
     }
 
-    return new NextResponse(response.body, {
-      headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' },
-    })
+    return new NextResponse(response.body, { headers: SSE_HEADERS })
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 })
   }

@@ -12,7 +12,7 @@ import { ImageDisplay } from '@/components/image-display'
 import { buildMarketGirlPrompt, buildOpeningDialoguePrompt } from '@/lib/prompt-builder'
 import { GIRL_TEMPLATES, GIRL_TEMPLATE_IMAGES } from '@/lib/game-data'
 import { nanoid } from 'nanoid'
-import { cn } from '@/lib/utils'
+import { cn, parseLooseJson } from '@/lib/utils'
 
 interface MarketScreenProps {
   save: GameSave
@@ -134,7 +134,8 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
       // Parse the accumulated JSON array
       const match = accumulated.match(/\[[\s\S]*\]/)
       if (!match) throw new Error('no array in streamed response')
-      const arr = JSON.parse(match[0]) as Record<string, unknown>[]
+      const arr = parseLooseJson<Record<string, unknown>[]>(match[0])
+      if (!Array.isArray(arr)) throw new Error('invalid array in streamed response')
       const results: MonstGirl[] = arr.slice(0, 3).map((parsed, i) => ({
         id: nanoid(),
         name: (parsed.name as string) ?? `市场女孩${i + 1}`,

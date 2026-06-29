@@ -1,4 +1,5 @@
 import { MonstGirl, Guest, ParticipantStats, ServiceSession, Player } from '@/lib/types'
+import { parseLooseJson } from '@/lib/utils'
 
 // ─── STATS 块解析 ──────────────────────────────────────────────────────────────
 
@@ -28,7 +29,8 @@ export function parseStatsFromReply(text: string): MultiStatsDelta | null {
   const match = text.match(STATS_REGEX)
   if (!match) return null
   try {
-    const obj = JSON.parse(match[1].trim())
+    const obj = parseLooseJson<Record<string, unknown> & { satisfaction?: unknown; girls?: unknown; pleasure?: unknown; stamina?: unknown }>(match[1].trim())
+    if (!obj) return null
     const satisfactionDelta = Math.max(-5, Math.min(15, Number(obj.satisfaction) || 0))
 
     // 新多角色格式
@@ -74,7 +76,7 @@ export function parseActionsFromReply(text: string): [string, string, string] | 
   const match = text.match(ACTIONS_REGEX)
   if (!match) return null
   try {
-    const arr = JSON.parse(match[1]) as string[]
+    const arr = parseLooseJson<string[]>(match[1])
     if (!Array.isArray(arr) || arr.length < 3) return null
     return [arr[0], arr[1], arr[2]]
   } catch {

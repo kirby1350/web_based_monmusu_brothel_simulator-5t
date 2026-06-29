@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { ChatMessage, AppSettings } from '@/lib/types'
 import { stripStatsBlock } from '@/lib/game-engine'
+import { streamChatDeltas } from '@/lib/sse'
 import { cn } from '@/lib/utils'
 
 export interface ChatEngineHandle {
@@ -79,6 +80,9 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
           controller.abort()
         }, 60_000)
 
+        // 声明在 try 之外，catch（中止/超时）也需要读取已接收的内容
+        let full = ''
+
         try {
           const provider = settings.chatModel.startsWith('grok') ? 'grok' : 'default'
           const apiKey =
@@ -103,48 +107,12 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
             throw new Error(`HTTP ${res.status}`)
           }
 
-          const reader = res.body.getReader()
-          const decoder = new TextDecoder()
-          let full = ''
-          let leftover = '' // buffer for incomplete SSE lines across chunks
-
-          while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
-            const chunk = leftover + decoder.decode(value, { stream: true })
-            const lines = chunk.split('\n')
-            // Last element may be an incomplete line — save for next iteration
-            leftover = lines.pop() ?? ''
-            for (const line of lines) {
-              const trimmed = line.trim()
-              if (!trimmed.startsWith('data:')) continue
-              const text = trimmed.slice(5).trim()
-              if (text === '[DONE]') continue
-              try {
-                const parsed = JSON.parse(text)
-                const delta = parsed.choices?.[0]?.delta?.content ?? parsed.content ?? ''
-                if (delta) {
-                  full += delta
-                  const cleanFull = stripStatsBlock(full)
-                  setStreamingText(cleanFull)
-                  onAssistantReply?.(cleanFull)
-                }
-              } catch {
-                // Truly malformed — skip silently, do NOT append raw JSON to output
-              }
-            }
-          }
-          // Flush any remaining leftover line
-          if (leftover.trim().startsWith('data:')) {
-            const text = leftover.trim().slice(5).trim()
-            if (text && text !== '[DONE]') {
-              try {
-                const parsed = JSON.parse(text)
-                const delta = parsed.choices?.[0]?.delta?.content ?? parsed.content ?? ''
-                if (delta) full += delta
-              } catch { /* ignore */ }
-            }
-          }
+          await streamChatDeltas(res, (delta) => {
+            full += delta
+            const cleanFull = stripStatsBlock(full)
+            setStreamingText(cleanFull)
+            onAssistantReply?.(cleanFull)
+          })
 
           if (full) {
             clearTimeout(timeoutId)

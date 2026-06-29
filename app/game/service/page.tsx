@@ -42,6 +42,7 @@ function ServicePageInner() {
       type={type}
       settings={settings}
       onSaveChange={handleSaveChange}
+      onBack={() => router.replace('/game')}
     />
   )
 }

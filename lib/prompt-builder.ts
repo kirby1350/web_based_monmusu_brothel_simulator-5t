@@ -1,4 +1,40 @@
-import { Player, MonstGirl, Guest, ServiceSession, GameSave } from '@/lib/types'
+import { Player, MonstGirl, Guest, ServiceSession, GameSave, ProseStyle } from '@/lib/types'
+
+// ─── 文风控制（去油黑名单常驻 + 可切换文风片段） ───────────────────────────────
+
+// 常驻【文风禁令】：无论何种文风都生效，用来提升质感、避免 AI 套话
+const PROSE_BAN = `【文风禁令（提升质感，避免 AI 套话）】
+1. 严禁以下「油腻套话」，一律改写为具体细节：
+   - 转场拐杖：不知过了多久、就在这时、话音刚落、下一秒、空气仿佛凝固、时间仿佛静止
+   - 烂俗比喻：像断了线的木偶、像一滩烂泥、像受惊的小鹿、像炸毛的小奶猫
+   - 空心强度词：前所未有的、灭顶的（快感）、理智的弦断裂、理智彻底失守、如潮水般袭来
+   - 言情滥腔：邪魅一笑、勾起一抹弧度、磁性的嗓音、低沉沙哑、深邃的眸子、眼底闪过一丝、骨节分明
+2. 高潮、绝顶、瘫软、坏掉等关键画面禁止套用现成比喻，必须用具体身体细节（某部位的动作/收缩/痉挛/体液）或该角色的专属意象（结合其设定/服装/道具）来写。
+3. 每个比喻必须新鲜、贴合情境，不得重复使用同一个喻体。
+4. 允许保留重口行话/梗（肉便器、坏掉、ahegao、子宫凸起、母猪/肉壶等），但靠具体细节制造冲击，而非反复堆同一个标签。`
+
+// 可切换文风片段（与常驻 PROSE_BAN 叠加；standard 为空，只走去油）
+const PROSE_STYLE_PROMPTS: Record<ProseStyle, string> = {
+  standard: '',
+  dense: `【文风：重油堆叠（极致密集感官流）】
+本回合采用「重油堆叠」文风——在**严格遵守上方【文风禁令】黑名单**的前提下，把描写密度推到极致（密集 ≠ 偷懒，堆叠词必须新鲜、具体、贴合角色）：
+1. 形容词链：每个出场的身体部位前，连续堆叠 4 个以上「质感/肥度/油润/温度」修饰词不停顿（肥/厚/脂/油/腻/糯/雪滑/爆硕/沉甸甸…）。
+2. 功能化定语：用该部位的性用途或性史当作长定语（如「榨精专用甬道」「裹屌丝足」「能吞没整根的肥熟乳沟」）。
+3. 通感四件套：每个画面同时调动 质感+温度+气味+声音 中至少三样。
+4. 一部位一招牌喻体（须新鲜、不在同一段重复）：奶=吊钟/奶山，屄=馒头，臀=肉山/磨盘，后庭=螺纹，嘴=章鱼嘴/丁香小舌，脚趾=珍珠。
+5. 自造四字贬抑词当节奏锤：艳畜、母畜、肉壶、雌躯 之类。
+6. 气味轴贯穿全段：雌臭/狐骚/荷尔蒙媚香/油淫香汗，并与具体部位绑定。
+7. 细节闭环：颜色、道具、剧情前后呼应。`,
+}
+
+/** 返回拼接进系统提示词的文风段（常驻禁令 + 当前文风片段） */
+function proseSection(style: ProseStyle = 'standard'): string {
+  const extra = PROSE_STYLE_PROMPTS[style] ? `\n\n${PROSE_STYLE_PROMPTS[style]}` : ''
+  return `\n${PROSE_BAN}${extra}\n`
+}
+
+// JSON 输出场景统一追加：要求结构符号用半角，避免全角导致 JSON.parse 失败
+const JSON_HALFWIDTH_NOTE = '（极重要：JSON 的结构符号 : , " [ ] { } 必须使用半角，严禁全角 ：，「」｛｝ 等；字符串内部的中文描述可正常用中文标点）'
 
 function girlBWH(g: MonstGirl): string {
   if (!g.bust && !g.waist && !g.hip) return ''
@@ -14,7 +50,8 @@ function playerTraitsFull(player: Player): string {
 
 export function buildServiceSystemPrompt(
   player: Player,
-  session: ServiceSession
+  session: ServiceSession,
+  proseStyle: ProseStyle = 'standard'
 ): string {
   const girlDescriptions = session.girls
     .map(
@@ -113,7 +150,7 @@ ${session.girls.map(girl => `- ${girl.name} 的每一句话、呻吟、反应必
 - 特殊淫语（口腔专用）：
   - 口交/深喉/吞精时使用：啾、噜、咕唧、噗、呕、滋、啾噜、噗噜、呕噗、咕啾
   - 例：啾噜啾噜啾❤~！咕唧滋滋❤~！噗呕……咕啾啾❤~
-
+${proseSection(proseStyle)}
 【写作规则】
 1. 以极度沉浸式第三人称叙述，每次回复300-500字
 2. 极度强调肉体激烈碰撞、淫液四溅喷射、子宫被顶撞细节，乳浪翻滚、臀肉颤动、精液灌满视觉冲击
@@ -121,7 +158,7 @@ ${session.girls.map(girl => `- ${girl.name} 的每一句话、呻吟、反应必
 4. 服从度低的魔物娘先挣扎羞耻哭喊，淫乱度高的主动摇臀求内射、夹紧吸吮
 5. 体力归零后描写"彻底被干到失神、子宫痉挛抽搐、潮吹如尿失禁般喷射不止"，仍可继续但状态更虚弱淫乱
 6. 语言极度下流直白，满口鸡巴、小穴、子宫、射精、内射、潮吹等词汇
-7. 结局完全����玩家决定（玩家发送"结束服务"才结算）${STATS_INSTRUCTION}
+7. 结局完全由玩家决定（玩家发送"结束服务"才结算）${STATS_INSTRUCTION}
 
 只输出叙述正文，不要任何说明、标题或额外标记。`
   }
@@ -196,7 +233,7 @@ ${session.girls.map(girl => `- ${girl.name} 的每一句话、呻吟、反应必
 - 特殊淫语（口腔/玩具专用）：
   - 口交/深喉/吞精/玩具插入时使用：啾、噜、咕唧、噗、呕、滋、啾噜、噗噜、呕噗、咕啾
   - 例：啾噜啾噜啾❤~！咕唧滋滋❤~！噗呕……咕啾啾❤~！好粗❤~！
-
+${proseSection(proseStyle)}
 【写作规则】
 1. 以极度沉浸式第三人称叙述，每次回复100-200字
 2. 调教核心：用肉棒、粗大玩具、皮鞭、言语羞辱把魔物娘干到彻底臣服，提升服从度、淫乱度并解锁更下流的侍奉技巧
@@ -213,6 +250,7 @@ ${session.girls.map(girl => `- ${girl.name} 的每一句话、呻吟、反应必
 
 const STATS_INSTRUCTION = `
 7. 每次回复结尾必须附加两行隐藏数据块（数值为整数）：
+（极重要：数据块内的 JSON 必须使用**半角符号** : , " { } [ ]，严禁使用全角符号 ：，｛｝「」“” 等；半角符号仅用于 JSON 结构，字符串内部的中文描述可正常使用中文标点。两行都必须单行完整输出、不得换行或截断。）
 
 第一行：数值块（格式完全照抄，冒号后紧接JSON，不要多余空格）
 <!--STATS:{"girls":{"角色名1":{"pleasure":数值,"stamina":数值},"角色名2":{"pleasure":数值,"stamina":数值}},"satisfaction":数值}-->
@@ -296,11 +334,11 @@ export function buildGuestGenerationPrompt(
   return `你是一个色情角色生成AI。为一款魔物娘娼馆经营游戏生成一个饥渴的客人。
 
 玩家偏好：${preference || '随机'}
-已有客人（避免重���）：${existingGuests.join('、') || '无'}
+已有客人（避免重复）：${existingGuests.join('、') || '无'}
 
-请生成JSON格式的客人信息，字���：
+请生成JSON格式的客人信息，字段：
 {
-  "name": "客人名字（2-4字中文名���",
+  "name": "客人名字（2-4字中文名）",
   "race": "种族职业（例如：肌肉兽人、淫荡精灵）",
   "personality": "一句话色情性格描述",
   "traits": ["性癖1", "性癖2"],
@@ -308,7 +346,7 @@ export function buildGuestGenerationPrompt(
   "imageTags": "英文生图tag，逗号分隔，包含淫荡外貌、勃起特征、色情表情"
 }
 
-只输出JSON，不要其他内容。`
+只输出JSON，不要其他内容。${JSON_HALFWIDTH_NOTE}`
 }
 
 // ─── 市场魔物娘生成提示词 ──────────────────────────────────────────────────────
@@ -344,7 +382,7 @@ export function buildMarketGirlPrompt(preference: string, existingNames: string[
   "price": 市场价格数字(150-1200)
 }
 
-只输出JSON数组 [...] ，不要其他内容。`
+只输出JSON数组 [...] ，不要其他内容。${JSON_HALFWIDTH_NOTE}`
 }
 
 // ─── 建议回复生成提示词 ────────────────────────────────────────────────────────
@@ -364,7 +402,8 @@ export function buildSuggestionPrompt(
 - 每个指令5-15字，直白下流
 - 体现不同玩法风格（温柔抽插、粗暴内射、羞辱玩弄等）
 - 只输出JSON数组：["指令1", "指令2", "指令3"]
-- 不要其他内容`
+- 不要其他内容
+${JSON_HALFWIDTH_NOTE}`
 }
 
 // ─── 开场对话提示词 ────────────────────────────────────────────────────────────
@@ -423,37 +462,47 @@ export function buildOpeningDialoguePrompt(
 - 只输出叙述文本，不要说明或标题`
     }
 
-    case 'service':
+    case 'service': {
       if (!mainGirl) return ''
-      return `你是一个成人互���小说写作引擎。写一段充满感官张力的服务开场白。
+      const serviceGirls = extra?.girl ? [mainGirl] : girls
+      const isMulti = serviceGirls.length > 1
+      const girlBriefs = serviceGirls
+        .map((g) => `- ${g.name}（${g.race}），性格：${g.personality}，好感度：${g.affection}/100，淫乱度：${g.lewdness}/100${girlBWH(g) ? `，三围：${girlBWH(g)}` : ''}`)
+        .join('\n')
+      return `你是一个成人互动小说写作引擎。写一段充满感官张力的服务开场白。
 
 【场景】${player.name}的娼馆私密包间，灯光昏暗柔和，空气中弥漫着淡淡香薰与花香
 【参与魔物娘】${girlNames}
-主要角色：${mainGirl.name}（${mainGirl.race}），性格：${mainGirl.personality}，好感度：${mainGirl.affection}/100，淫乱度：${mainGirl.lewdness}/100${girlBWH(mainGirl) ? `，三围：${girlBWH(mainGirl)}` : ''}
+${isMulti ? `本次共有 ${serviceGirls.length} 位魔物娘一同侍奉同一位客人，全部都要在开场白中登场亮相：\n${girlBriefs}` : `主要角色：\n${girlBriefs}`}
 ${extra?.guest ? `【客人】${extra.guest.name}（${extra.guest.race}），${extra.guest.personality}，需求：${extra.guest.desires}` : ''}
 
 要求：
-- 40-70字，第三人称叙述
+- ${isMulti ? '60-100' : '40-70'}字，第三人称叙述
 - 描写包间环境与人物第一眼的氛围感：客人进入时的神情、魔物娘迎接时的姿态与体态细节
-- 根据好感度与淫乱度调整氛围尺度：
+${isMulti ? '- 每一位魔物娘都必须在开场白中出现，各自有专属的体态/神情/迎接姿态描写，不可只写其中一位或让某位沦为背景\n' : ''}- 根据好感度与淫乱度调整氛围尺度：
   - 好感度高+淫乱度高：主动撩拨、媚眼如丝，暗含肉欲期待
   - 好感度低/淫乱度低：温柔有礼但带一丝局促，眼神试探
 - 不直接描写性行为，保留悬念与紧张感
 - 只输出叙述文本，不要说明或标题`
+    }
 
-    case 'training':
+    case 'training': {
       if (!mainGirl) return ''
+      const trainGirls = extra?.girl ? [mainGirl] : girls
+      const isMulti = trainGirls.length > 1
+      const girlBriefs = trainGirls
+        .map((g) => `- ${g.name}（${g.race}），性格：${g.personality}，好感度：${g.affection}/100，服从度：${g.obedience}/100，淫乱度：${g.lewdness}/100`)
+        .join('\n')
       return `你是一个重口味成人互动小说写作引擎。写一段淫虐调教开场白。
 
 【场景】${player.name}的娼馆调教室，拘束架、皮鞭、润滑液与各种玩具已摆放整齐，空气中弥漫着皮革、精液残留与发情体香的混合气味
 【被调教的魔物娘】${girlNames}
-主要对象：${mainGirl.name}（${mainGirl.race}），性格：${mainGirl.personality}
-好感度：${mainGirl.affection}/100，服从度：${mainGirl.obedience}/100，淫乱度：${mainGirl.lewdness}/100
+${isMulti ? `本次共有 ${trainGirls.length} 位魔物娘一同被调教，全部都要在开场白中登场：\n${girlBriefs}` : `主要对象：\n${girlBriefs}`}
 
 要求：
-- 50-80字，第三人称叙述
+- ${isMulti ? '80-120' : '50-80'}字，第三人称叙述
 - 描写调教室的淫靡氛围（气味、道具、烛光或昏暗灯光）
-- 重点刻画主要魔物娘 ${mainGirl.name} 被固定/准备调教时的身体反应与内心状态，根据三项数值自然调整描写尺度与情绪：
+${isMulti ? `- 每一位魔物娘都必须在开场白中出现，各自有专属的被固定/准备调教的姿态与反应，不可只写其中一位\n` : ''}- ${isMulti ? '分别刻画每位魔物娘' : `重点刻画主要魔物娘 ${mainGirl.name}`} 被固定/准备调教时的身体反应与内心状态，根据三项数值自然调整描写尺度与情绪：
   - 好感度高（70+）：对馆主充满依恋与期待，眼神湿润、主动挺胸或轻微扭动，内心渴望被占有
   - 好感度中（40-69）：紧张中夹杂羞耻与好奇，身体微微发抖但不抗拒
   - 好感度低（<40）：抗拒、害怕或倔强，眼神躲闪、身体紧绷，但仍透露出无法抑制的生理反应
@@ -465,6 +514,7 @@ ${extra?.guest ? `【客人】${extra.guest.name}（${extra.guest.race}），${e
   - 淫乱度低（<40）：几乎无自觉反应，仅因恐惧或刺激而轻微湿润，更多是羞耻与紧张
 - 整体充满即将被彻底干到高潮、淫堕的紧张、期待与征服感，语言直白露骨但聚焦感官与心理描写
 - 只输出叙述文本，不要说明或标题`
+    }
 
     case 'market':
       return `你是一个色情互动小说写作引擎。写一段奴隶市场到达的开场白。
@@ -491,7 +541,7 @@ ${extra?.guest ? `【客人】${extra.guest.name}（${extra.guest.race}），${e
 - 根据好感度与淫乱度自然调整聊天尺度与亲密度：
   - 好感度低（<40）：礼貌、拘谨、略带距离感，偶尔透露出好奇或小心翼翼的试探
   - 好感度中（40-69）：友好、带点害羞或小调皮，可能会轻微脸红或不经意靠近
-  - 好感度高（70+）：亲昵、���暖、偶尔撒娇或轻微调侃，语气更柔软贴近
+  - 好感度高（70+）：亲昵、温暖、偶尔撒娇或轻微调侃，语气更柔软贴近
   - 淫乱度低（<40）：完全避免色情暗示，保持纯日常、可爱或温柔
   - 淫乱度中（40-69）：偶尔带轻微暧昧暗示（如"今天好热呢""身体有点奇怪"），但不直白
   - 淫乱度高（70+）：更开放，可能会不经意说出带性暗示的俏皮话（如尾巴缠人、衣服滑落、身体发烫等），但仍保持日常聊天框架，不直接求欢
@@ -521,8 +571,8 @@ ${extra?.guest ? `【客人】${extra.guest.name}（${extra.guest.race}），${e
 - 开头先描写自己被带进娼馆大厅时的第一印象与感受（例如：看到华丽却淫靡的装饰、闻到其他女孩的味道、看到锁链痕迹或软垫床铺时的心情）
 - 接着描写另一位馆内魔物娘（${welcomer ? welcomer.name : ''}）主动上前欢迎自己：根据那位魔物娘的好感度与性格，表现出不同态度（好感高则热情拥抱/调戏，好感低则好奇观察/轻声问候）${!welcomer ? '\n- 若馆内暂无其他魔物娘，则描写独自打量这座娼馆的孤独与期待' : ''}
 - 然后进行自我介绍：包括外貌（强调三围的诱惑感与身体特征）、性格、背景、当前心情（服从度低时带抗拒与不安但身体已微微发热；服从度中时犹豫好奇；服从度高时顺从甚至主动表达想被调教/侍奉的意愿）
-- 融入淫乱度与性癖：淫乱度低时害羞描述自己敏感部位，淫乱度高时大胆说出发情反应或性癖偏好（轻度色情暗示，如"��的尾巴一碰就湿了""喜欢被粗暴对待"等）
-- 整体氛围温馨暧昧带点肉欲期待，适合成人向���营模拟器，不需极度重口
+- 融入淫乱度与性癖：淫乱度低时害羞描述自己敏感部位，淫乱度高时大胆说出发情反应或性癖偏好（轻度色情暗示，如"我的尾巴一碰就湿了""喜欢被粗暴对待"等）
+- 整体氛围温馨暧昧带点肉欲期待，适合成人向经营模拟器，不需极度重口
 - 只输出 ${mainGirl.name} 说的第一段完整回应文本（包含对场景的感受、对其他魔物娘的反应、自我介绍），不要说明或标题`
     }
 
@@ -551,5 +601,6 @@ export function buildMemoryPrompt(
 ${prevContext}
 第${visitCount}次服务摘要：${sessionSummary}
 
-只输出JSON：{"guestAboutGirl":"...","girlAboutGuest":"..."}`
+只输出JSON：{"guestAboutGirl":"...","girlAboutGuest":"..."}
+${JSON_HALFWIDTH_NOTE}`
 }

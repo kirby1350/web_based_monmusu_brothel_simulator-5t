@@ -13,6 +13,21 @@ export type ImageProvider = 'pixai' | 'tensorart'
 
 export type TensorArtModel = 'wai_nsfw_v16' | 'jankuv6'
 
+// 叙事文风：standard 仅常驻去油约束；dense 在去油黑名单前提下把感官堆叠推到极致
+export type ProseStyle = 'standard' | 'dense'
+
+export const PROSE_STYLE_LABELS: Record<ProseStyle, { label: string; hint: string }> = {
+  standard: { label: '标准', hint: '均衡叙事，仅常驻去油约束' },
+  dense: { label: '重油堆叠', hint: '极致密集的感官堆叠流（仍遵守去油黑名单）' },
+}
+
+// DZMM/gpt4novel v2 模型列表返回的单条模型
+export interface DzmmModel {
+  id: string
+  name: string
+  context_window: number
+}
+
 export interface AppSettings {
   chatModel: string
   imageModel: ImageModel
@@ -20,6 +35,7 @@ export interface AppSettings {
   imageStyleCustom: string
   imageProvider: ImageProvider
   tensorartModel: TensorArtModel
+  proseStyle: ProseStyle
   chatApiKey: string
   grokApiKey: string
   pixaiApiKey: string
@@ -113,6 +129,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   imageStyleCustom: '',
   imageProvider: 'pixai',
   tensorartModel: 'wai_nsfw_v16',
+  proseStyle: 'standard',
   chatApiKey: '',
   grokApiKey: '',
   pixaiApiKey: '',

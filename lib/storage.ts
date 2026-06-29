@@ -18,6 +18,7 @@ export function getSettings(): AppSettings {
     if (!VALID_IMAGE_STYLES.includes(merged.imageStyle)) merged.imageStyle = 'none'
     if (!VALID_IMAGE_MODELS.includes(merged.imageModel)) merged.imageModel = 'haruka_v2'
     if (!VALID_TENSORART_MODELS.includes(merged.tensorartModel)) merged.tensorartModel = 'wai_nsfw_v16'
+    if (merged.proseStyle !== 'standard' && merged.proseStyle !== 'dense') merged.proseStyle = 'standard'
     return merged
   } catch {
     return { ...DEFAULT_SETTINGS }

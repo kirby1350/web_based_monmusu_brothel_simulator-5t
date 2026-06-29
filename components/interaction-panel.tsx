@@ -156,10 +156,10 @@ export function InteractionPanel({ girl, player, settings, onClose, onGirlUpdate
                     <p className="text-xs text-foreground/80 leading-relaxed">{girl.personality}</p>
                   </div>
                 )}
-                {girl.backstory && (
+                {girl.otherDesc && (
                   <div>
                     <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-1">背景</p>
-                    <p className="text-xs text-muted-foreground leading-relaxed">{girl.backstory}</p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{girl.otherDesc}</p>
                   </div>
                 )}
               </div>

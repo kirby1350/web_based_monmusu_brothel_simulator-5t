@@ -6,6 +6,16 @@ __v0_jsx-dev-runtime.ts
 # Common ignores
 node_modules/
 .next/
+.env
 .env*.local
 .DS_Store
 .vercel
+
+# IDE
+.idea/
+.vscode/
+
+# Build artifacts / generated
+*.tsbuildinfo
+next-env.d.ts
+pnpm-workspace.yaml

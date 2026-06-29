@@ -1,20 +1,29 @@
 'use client'
 
-import { useState } from 'react'
-import { Key, Bot, Palette, ChevronDown, ChevronUp, Check } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Key, Bot, Palette, ChevronDown, ChevronUp, Check, RefreshCw, Loader2 } from 'lucide-react'
 import {
   AppSettings,
   CHAT_MODELS,
   IMAGE_MODELS,
   IMAGE_STYLES,
   TENSORART_MODELS,
+  PROSE_STYLE_LABELS,
   ImageStyle,
   ImageModel,
   TensorArtModel,
   ImageProvider,
+  ProseStyle,
+  DzmmModel,
 } from '@/lib/types'
 import { saveSettings } from '@/lib/storage'
 import { cn } from '@/lib/utils'
+
+type ChatModelInfo = (typeof CHAT_MODELS)[number]
+
+const DZMM_GROUP = '在线模型（实时获取）'
+const GROK_MODELS = CHAT_MODELS.filter((m) => m.provider === 'grok')
+const STATIC_DEFAULT_MODELS = CHAT_MODELS.filter((m) => m.provider === 'default')
 
 interface SettingsPanelProps {
   settings: AppSettings
@@ -40,7 +49,7 @@ function FieldLabel({ icon: Icon, children }: { icon?: React.ElementType; childr
 
 function ApiKeyInput({
   label,
-  icon,
+  icon: Icon,
   value,
   onChange,
   placeholder,
@@ -59,7 +68,7 @@ function ApiKeyInput({
   return (
     <div>
       <label className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1.5">
-        {icon && <icon.render className="w-3.5 h-3.5" />}
+        {Icon && <Icon className="w-3.5 h-3.5" />}
         {label}
         {badge}
       </label>
@@ -93,11 +102,51 @@ export function SettingsPanel({ settings, onSettingsChange }: SettingsPanelProps
   const [local, setLocal] = useState<AppSettings>({ ...settings })
   const [saved, setSaved] = useState(false)
   const [activeTab, setActiveTab] = useState<'chat' | 'image'>('chat')
+  const [dzmmModels, setDzmmModels] = useState<DzmmModel[]>([])
+  const [modelsLoading, setModelsLoading] = useState(false)
+  const [modelsError, setModelsError] = useState('')
 
   const update = (patch: Partial<AppSettings>) => {
     setLocal((prev) => ({ ...prev, ...patch }))
     setSaved(false)
   }
+
+  const fetchModels = useCallback(async (apiKey: string) => {
+    setModelsLoading(true)
+    setModelsError('')
+    try {
+      const res = await fetch('/api/models', {
+        headers: apiKey ? { 'x-api-key': apiKey } : {},
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || '获取失败')
+      const list: DzmmModel[] = Array.isArray(data?.data) ? data.data : []
+      setDzmmModels(list)
+    } catch (e) {
+      setModelsError(String(e instanceof Error ? e.message : e))
+    } finally {
+      setModelsLoading(false)
+    }
+  }, [])
+
+  // 面板打开时拉取一次实时模型列表
+  useEffect(() => {
+    fetchModels(local.chatApiKey || '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // 实时模型列表（拉取失败时回退到内置列表），始终追加 Grok
+  const chatModels: ChatModelInfo[] = [
+    ...(dzmmModels.length > 0
+      ? dzmmModels.map((m) => ({
+          value: m.id,
+          label: m.context_window ? `${m.name} · ${Math.round(m.context_window / 1000)}K` : m.name,
+          group: DZMM_GROUP,
+          provider: 'default' as const,
+        }))
+      : STATIC_DEFAULT_MODELS),
+    ...GROK_MODELS,
+  ]
 
   const handleSave = () => {
     saveSettings(local)
@@ -176,11 +225,27 @@ export function SettingsPanel({ settings, onSettingsChange }: SettingsPanelProps
             </section>
 
             <section>
-              <SectionTitle>对话模型</SectionTitle>
+              <div className="flex items-center justify-between mb-3">
+                <SectionTitle>对话模型</SectionTitle>
+                <button
+                  onClick={() => fetchModels(local.chatApiKey || '')}
+                  disabled={modelsLoading}
+                  title="刷新模型列表"
+                  className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary disabled:opacity-40 transition-colors -mt-2"
+                >
+                  {modelsLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                  刷新
+                </button>
+              </div>
+              {modelsError && (
+                <p className="text-[10px] text-rose-400/80 mb-2">
+                  模型列表获取失败（已回退到内置列表）：{modelsError}
+                </p>
+              )}
               <div className="space-y-4">
                 {(() => {
-                  const groups: Record<string, typeof CHAT_MODELS> = {}
-                  CHAT_MODELS.forEach((m) => {
+                  const groups: Record<string, ChatModelInfo[]> = {}
+                  chatModels.forEach((m) => {
                     if (!groups[m.group]) groups[m.group] = []
                     groups[m.group].push(m)
                   })
@@ -213,6 +278,33 @@ export function SettingsPanel({ settings, onSettingsChange }: SettingsPanelProps
                   ))
                 })()}
               </div>
+            </section>
+
+            <section>
+              <SectionTitle>叙事文风</SectionTitle>
+              <div className="grid grid-cols-2 gap-2">
+                {(Object.keys(PROSE_STYLE_LABELS) as ProseStyle[]).map((key) => {
+                  const active = (local.proseStyle ?? 'standard') === key
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => update({ proseStyle: key })}
+                      title={PROSE_STYLE_LABELS[key].hint}
+                      className={cn(
+                        'px-3 py-2.5 rounded-lg border text-xs font-semibold transition-all',
+                        active
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border bg-secondary text-muted-foreground hover:border-primary/40'
+                      )}
+                    >
+                      {PROSE_STYLE_LABELS[key].label}
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="text-[11px] text-muted-foreground/50 mt-1.5">
+                {PROSE_STYLE_LABELS[local.proseStyle ?? 'standard'].hint}；去油约束始终生效
+              </p>
             </section>
           </>
         ) : (
