@@ -16,8 +16,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { MAX_ACTIONS_PER_DAY, getGirlCapacity, getGuestCapacity, getUpgradeCost } from '@/lib/game-engine'
 import { endDay, restGirl, upgradeDorm, getDormInfo, pendingSkillPicks, pickArrivalLeader, arrivalFallbackText, arrivalPromptNote, setBestBed, bannerPath, shortfallText, upgradeChangeText, type FacilityKey } from '@/lib/hub-logic'
 import { SERVICE_ROOM_UPGRADE_COSTS, TRAINING_ROOM_UPGRADE_COSTS, getUpgradeCostFor, getPlaySlots, TRAINING_ROOM_MULT, TRAINING_ROOM_PROP_SLOTS, REST_STAMINA } from '@/lib/catalog'
-import { clearOpeningCache } from '@/lib/storage'
-import { contextImageTags } from '@/lib/prompt-context'
+import { clearOpeningCache, getOpeningCache, saveOpeningCache } from '@/lib/storage'
+import { contextImageTags, hubOpeningPrompt } from '@/lib/prompt-context'
 import { dismissDaySummary } from '@/lib/day-summary'
 import { TUTORIAL_STEPS, isTutorialVisible, advanceTutorial, dismissTutorial } from '@/lib/tutorial'
 import { cn } from '@/lib/utils'
@@ -45,6 +45,28 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
   const [intro, setIntro] = useState<{ girlId: string; speaker: string; text: string; loading: boolean } | null>(null)
 
   // 新买的魔物娘：打开她的魔物娘页，并由好感最高（≥50）的魔物娘或馆主带她入馆
+  // 第 2 天起的开场白：懒加载、按天缓存；模型不可用时静默不显示
+  const [opening, setOpening] = useState<string>(() => { const c = getOpeningCache(); return c && c.day === save.currentDay ? c.text : '' })
+  useEffect(() => {
+    let ignore = false
+    const cache = getOpeningCache()
+    if (cache?.day === save.currentDay) { setOpening(cache.text); return }
+    setOpening('')
+    const timer = setTimeout(async () => {
+      const prompt = await hubOpeningPrompt(save, cache?.day ?? null)
+      if (!prompt || ignore) return
+      try {
+        const apiKey = settings.chatModel.startsWith('grok') ? settings.grokApiKey : settings.chatApiKey
+        const res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], model: settings.chatModel, apiKey, stream: false }) })
+        const text = res.ok ? String((await res.json()).content ?? '').trim() : ''
+        if (text && !ignore) { saveOpeningCache(save.currentDay, text); setOpening(text) }
+      } catch { /* 离线：不显示开场白 */ }
+    }, 800)
+    return () => { ignore = true; clearTimeout(timer) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [save.currentDay])
+
   useEffect(() => {
     if (!newlyPurchasedGirl) return
     const ng = newlyPurchasedGirl
@@ -163,6 +185,8 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
           </div>
         )
       })()}
+
+      {opening && <p className="mx-3 mt-2 text-[11px] italic text-muted-foreground leading-relaxed shrink-0" data-testid="hub-opening">{opening}</p>}
 
       {/* 第一天新手引导（可跳过，进度存档） */}
       {isTutorialVisible(save) && (() => {

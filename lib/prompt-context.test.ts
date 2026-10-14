@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { ChatMessage } from './types'
-import { girlStateCard, guestPrefLine, trimHistory, contextImageTags, trainingContext, houseStateLines, VALID_RACES } from './prompt-context'
+import { girlStateCard, guestPrefLine, trimHistory, contextImageTags, trainingContext, houseStateLines, VALID_RACES, buildStepRecap, hubOpeningPrompt } from './prompt-context'
 import { buildServiceSummary, serviceDetailLine } from './resolve-service'
 import { buildServiceSystemPrompt, buildSuggestionPrompt } from './prompt-builder'
 import { createServiceSession, parseStatsFromReply } from './game-engine'
@@ -81,4 +81,29 @@ test('2/7/8. 调教上下文、馆内近况、建议提示词与种族表', () =
   const sp = buildSuggestionPrompt('service', reply(3), [], { step: '前戏', standardAction: '轻抚阴蒂', desires: '黑丝' })
   assert.ok(!sp.includes('<!--') && sp.includes('标准做法：轻抚阴蒂'))
   assert.ok(VALID_RACES.includes('猫娘') && VALID_RACES.includes('狐娘'))
+})
+
+test('1c. 步骤前情：分数/满分 + 关键动作，当前步骤进行中，≤2 行', () => {
+  const steps = [
+    { label: '迎客', score: 10, max: 14, turns: 2, key: '待客' },
+    { label: '挑逗', score: 8, max: 14, turns: 1, key: '耳朵' },
+    { label: '前戏', score: 0, max: 14, turns: 0, key: '阴蒂' },
+    { label: '正戏', score: 0, max: 14, turns: 3, key: '身侍+乳夹' },
+    { label: '清洗', score: 0, max: 14, turns: 0 },
+  ]
+  const r = buildStepRecap(steps, 3)
+  assert.ok(r.startsWith('【前情】迎客 10/14·待客 → 挑逗 8/14·耳朵'))
+  assert.ok(r.includes('前戏 0/14·阴蒂（跳过）') && r.includes('正戏 进行中（已写 3 回合）'))
+  assert.ok(r.split('\n').length <= 2 && r.length < 120)
+  // 传给 trimHistory 后替代默认前情
+  const msgs: ChatMessage[] = Array.from({ length: 8 }, (_, i) => [{ role: 'user' as const, content: `u${i}` }, { role: 'assistant' as const, content: `a${i}` }]).flat()
+  assert.equal(trimHistory(msgs, 6, r)[0].content, r)
+})
+
+test('1a. 大厅开场白：第 1 天或已缓存当天不请求，第 2 天起带馆内近况', async () => {
+  const save = { player: fxPlayer, girls: [fxGirl({ incident: { kind: '闯祸' as const, text: '偷吃了点心', day: 5 } })], currentDay: 6, phase: 'morning' as const }
+  assert.equal(await hubOpeningPrompt({ ...save, currentDay: 1 }, null), null)
+  assert.equal(await hubOpeningPrompt(save, 6), null)
+  const p = await hubOpeningPrompt(save, 5)
+  assert.ok(p && p.includes('开业第 6 天') && p.includes('【馆内近况】') && p.includes('千雪闯祸'))
 })

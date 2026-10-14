@@ -128,3 +128,22 @@ export function houseStateLines(save: GameSave): string {
 
 /** 8. 合法种族列表：有被动 / 专属 play / 种族敏感带的种族并集 */
 export const VALID_RACES = [...new Set([...Object.keys(RACE_TRAITS), ...Object.keys(RACE_PLAYS), ...Object.keys(RACE_ZONE_NAMES)])]
+
+/** 大厅第 2 天起的开场白：已缓存当天的就不再请求；返回要发给模型的提示词或 null */
+export async function hubOpeningPrompt(save: GameSave, cachedDay: number | null): Promise<string | null> {
+  if (save.currentDay < 2 || cachedDay === save.currentDay) return null
+  const { buildOpeningDialoguePrompt } = await import('./prompt-builder')
+  return buildOpeningDialoguePrompt('game-start', save.player, save.girls, { currentDay: save.currentDay, house: houseStateLines(save) })
+}
+
+export interface RecapStep { label: string; score: number; max: number; turns: number; key?: string }
+
+/** 历史裁剪的前情：每个已走过的步骤写「步骤 分/满·关键动作」，当前步骤标进行中；最多两行 */
+export function buildStepRecap(steps: RecapStep[], currentIndex: number): string {
+  const done = steps.slice(0, currentIndex).map((s) => `${s.label} ${s.score}/${s.max}${s.key ? `·${s.key}` : ''}${s.turns ? '' : '（跳过）'}`)
+  const cur = steps[currentIndex]
+  const parts = [...done, ...(cur ? [`${cur.label} 进行中（已写 ${cur.turns} 回合）`] : [])]
+  const half = Math.ceil(parts.length / 2)
+  const line = parts.length > 3 ? `${parts.slice(0, half).join(' → ')}\n→ ${parts.slice(half).join(' → ')}` : parts.join(' → ')
+  return `【前情】${line}`
+}
