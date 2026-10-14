@@ -12,10 +12,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { GIFT_OPTIONS, canGiveGiftToday, giveGift, pendingSkillPicks } from '@/lib/hub-logic'
-import { COMMON_ZONES, RACE_ZONE_NAMES, RACE_TRAITS, getSensitivityLevel } from '@/lib/catalog'
+import { COMMON_ZONES, RACE_ZONE_NAMES, RACE_TRAITS, RACE_PLAYS, getSensitivityLevel } from '@/lib/catalog'
 import { SkillPicker } from '@/components/skill-picker'
 import { useRecovery } from '@/lib/shop'
-import { RECOVERY_ITEMS } from '@/lib/catalog'
+import { RECOVERY_ITEMS, itemIconPath } from '@/lib/catalog'
+import { ItemIcon } from '@/components/item-icon'
+import { StepActionsEditor } from '@/components/step-actions-editor'
+import { getStepActions } from '@/lib/custom-props'
 import { cn } from '@/lib/utils'
 
 interface GirlSheetProps {
@@ -24,13 +27,15 @@ interface GirlSheetProps {
   settings: AppSettings
   onSaveChange: (save: GameSave) => void
   onClose: () => void
+  /** 新人入馆对话（只在刚买下时传入） */
+  intro?: { speaker: string; text: string; loading: boolean } | null
 }
 
 const LEVEL_COLOR: Record<string, string> = {
   迟钝: 'text-muted-foreground', 普通: 'text-foreground/80', 敏感: 'text-pink-300', 弱点: 'text-rose-400',
 }
 
-export function GirlSheet({ girl, save, settings, onSaveChange, onClose }: GirlSheetProps) {
+export function GirlSheet({ girl, save, settings, onSaveChange, onClose, intro }: GirlSheetProps) {
   const [chatOpen, setChatOpen] = useState(false)
   const [feedback, setFeedback] = useState('')
   const [outfit, setOutfit] = useState(girl.outfit)
@@ -99,6 +104,18 @@ export function GirlSheet({ girl, save, settings, onSaveChange, onClose }: GirlS
           )}
 
           <TabsContent value="overview" className="space-y-4 mt-0">
+            {girl.incident && (
+              <div className="rounded-xl border border-rose-500/40 bg-rose-500/5 p-3 space-y-0.5" data-testid="girl-incident">
+                <p className="text-[11px] text-rose-300">{girl.incident.kind} · 第 {girl.incident.day} 天</p>
+                <p className="text-xs">{girl.name}{girl.incident.text}。去调教里选「惩罚」处理；过夜不处理每晚服从 −3。</p>
+              </div>
+            )}
+            {intro && (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 space-y-1" data-testid="arrival-intro">
+                <p className="text-[11px] text-amber-300">入馆 · {intro.speaker}带路</p>
+                <p className="text-xs leading-relaxed whitespace-pre-wrap">{intro.loading ? '……' : intro.text}</p>
+              </div>
+            )}
             <div className="flex gap-3">
               <div className="w-28 shrink-0 rounded-lg overflow-hidden">
                 <ImageDisplay tags={girl.imageTags} settings={settings} cachedUrl={girl.imageUrl}
@@ -110,9 +127,11 @@ export function GirlSheet({ girl, save, settings, onSaveChange, onClose }: GirlS
                 <StatBar label="淫乱" value={girl.lewdness} color="rose" size="sm" />
                 <StatBar label="体力" value={stamina} color="green" size="sm" />
                 {girl.exhausted && <Badge variant="secondary" className="text-[9px] bg-rose-500/15 text-rose-300">疲惫</Badge>}
-                {RACE_TRAITS[girl.race] && (
-                  <p className="text-[10px] text-muted-foreground">种族特技：<span className="text-amber-300">{RACE_TRAITS[girl.race]}</span>{RACE_ZONE_NAMES[girl.race] && <> · 签名敏感带：<span className="text-pink-300">{RACE_ZONE_NAMES[girl.race]}</span></>}</p>
-                )}
+                {(RACE_TRAITS[girl.race] || RACE_ZONE_NAMES[girl.race]) && (<p className="text-[10px] text-muted-foreground" data-testid="race-trait-line">
+                  {RACE_TRAITS[girl.race] && <>种族天赋：<span className="text-amber-300">{RACE_TRAITS[girl.race]}</span></>}
+                  {RACE_TRAITS[girl.race] && RACE_ZONE_NAMES[girl.race] && ' · '}
+                  {RACE_ZONE_NAMES[girl.race] && <>签名敏感带：<span className="text-pink-300">{RACE_ZONE_NAMES[girl.race]}</span></>}</p>)}
+                  {(RACE_PLAYS[girl.race] ?? []).length > 0 && <p className="text-[10px] text-muted-foreground" data-testid="race-plays">专属 play：<span className="text-amber-300">{RACE_PLAYS[girl.race].map((p) => `${p.name}（${p.rank}）`).join('、')}</span></p>}
               </div>
             </div>
 
@@ -145,8 +164,8 @@ export function GirlSheet({ girl, save, settings, onSaveChange, onClose }: GirlS
                   {RECOVERY_ITEMS.filter((i) => (player.inventory?.[i.id] ?? 0) > 0).map((i) => (
                     <button key={i.id} data-testid={`use-${i.id}`} disabled={girl.itemUsedOnDay === save.currentDay}
                       onClick={() => { const r = useRecovery(save, girl.id, i.id); if (r.ok) onSaveChange(r.save); setFeedback(r.ok ? r.message : r.error) }}
-                      className={cn('rounded-md border border-border px-2 py-1 text-[11px] hover:border-emerald-400/60', girl.itemUsedOnDay === save.currentDay && 'opacity-40 pointer-events-none')}>
-                      {i.name} ×{player.inventory?.[i.id]}
+                      className={cn('rounded-md border border-border pl-1 pr-2 py-1 text-[11px] hover:border-emerald-400/60 inline-flex items-center gap-1.5', girl.itemUsedOnDay === save.currentDay && 'opacity-40 pointer-events-none')}>
+                      <ItemIcon src={itemIconPath('recovery', i.id)} name={i.name} size={20} />{i.name} ×{player.inventory?.[i.id]}
                     </button>
                   ))}
                 </div>
@@ -211,6 +230,9 @@ export function GirlSheet({ girl, save, settings, onSaveChange, onClose }: GirlS
                 </div>
               </div>
             )}
+            <StepActionsEditor title="标准做法（只对她）" testId="girl-step-actions" value={girl.stepActions}
+              placeholders={getStepActions(player)}
+              onSave={(v) => updateGirl({ ...girl, stepActions: v })} />
           </TabsContent>
 
           <TabsContent value="sens" className="space-y-1.5 mt-0">

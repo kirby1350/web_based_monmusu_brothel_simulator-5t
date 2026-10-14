@@ -8,17 +8,19 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ChatEngine, ChatEngineHandle } from '@/components/chat-engine'
 import { SuggestionBar } from '@/components/suggestion-bar'
-import { buildServiceSystemPrompt, buildOpeningDialoguePrompt } from '@/lib/prompt-builder'
+import { getStepActions } from '@/lib/custom-props'
+import { buildServiceSystemPrompt, buildOpeningDialoguePrompt, buildBehaviourLines, stepBehaviour } from '@/lib/prompt-builder'
 import {
   createServiceSession, applyStatDelta, estimateStatDelta, parseStatsFromReply, getGirlDelta,
   updateGuestSatisfaction, parseActionsFromReply, computeInitialSatisfaction,
 } from '@/lib/game-engine'
 import { parseLooseJson, cn } from '@/lib/utils'
-import { OUTFITS, STOCKINGS, getSensitivityLevel } from '@/lib/catalog'
+import { OUTFITS, STOCKINGS, getSensitivityLevel, playIconPath } from '@/lib/catalog'
+import { ItemIcon } from '@/components/item-icon'
 import { SERVICE_STEPS } from '@/lib/resolve-service'
 import {
   initLiveState, recordTurn, nextStep, canChangeOutfit, changeOutfit, insertablePlays, insertPlay,
-  resolveLiveSteps, buildStepContext, STEP_STANDARD_ACTION, type LiveState,
+  resolveLiveSteps, buildStepContext, type LiveState,
 } from '@/lib/live-steps'
 import type { ServicePlan } from '@/components/session-setup'
 
@@ -110,20 +112,22 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish }: Ses
 
   const finish = (state: LiveState) => onFinish({ state, messages })
   const stepDef = SERVICE_STEPS[live.stepIndex]
+  const stepActions = getStepActions(player, girl)
   const preview = resolveLiveSteps(plan, live)
   const currentStep = preview.steps[live.stepIndex]
   const zoneVal = currentStep.zone ? girl.sensitivities?.[currentStep.zone] : undefined
   const outfitName = `${OUTFITS.find((o) => o.id === live.outfit)?.name ?? '常服'}${live.stockings !== 'none' ? ' + ' + STOCKINGS.find((x) => x.id === live.stockings)?.name : ''}`
   const stepContext = buildStepContext({
     stepLabel: stepDef.label,
-    standardAction: STEP_STANDARD_ACTION[live.stepIndex],
+    standardAction: stepActions[live.stepIndex],
     outfitName,
     zoneLabel: currentStep.zone,
     zoneLevel: zoneVal !== undefined ? getSensitivityLevel(zoneVal) : undefined,
     plays: preview.plays.map((p) => p.name),
   })
-  const systemPrompt = buildServiceSystemPrompt(player, { ...session, messages }, settings.proseStyle, stepContext)
-  const shownSuggestions: [string, string, string] = [STEP_STANDARD_ACTION[live.stepIndex], suggestions?.[1] ?? '与她贴身调情', suggestions?.[2] ?? '她主动靠近']
+  const behaviour = buildBehaviourLines(girl.name, stepBehaviour(girl, live.stepIndex, currentStep.zone, currentStep.note, preview.plays.map((p) => p.id)))
+  const systemPrompt = buildServiceSystemPrompt(player, { ...session, messages }, settings.proseStyle, behaviour ? `${stepContext}\n${behaviour}` : stepContext)
+  const shownSuggestions: [string, string, string] = [stepActions[live.stepIndex], suggestions?.[1] ?? '与她贴身调情', suggestions?.[2] ?? '她主动靠近']
   const owned = new Set(wardrobe)
   const outfitOpts = OUTFITS.filter((o) => o.id === 'regular' || owned.has(o.id))
   const stockingOpts = STOCKINGS.filter((x) => x.id === 'none' || owned.has(x.id))
@@ -187,7 +191,13 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish }: Ses
           <button className="underline hover:text-rose-400" onClick={() => finish(live)}>提前结束</button>
         </div>
         <div className="flex gap-1.5">
-          <Button size="sm" className="h-7 text-xs glow-btn" onClick={goNext} data-testid="btn-next-step">
+          <Button size="sm" className="h-7 text-xs glow-btn" data-testid="btn-next-step"
+            onClick={(e) => {
+              // 只认鼠标/触摸点击：焦点留在按钮上时，键盘的 Enter/空格不会误推进步骤
+              if (e.detail === 0) return
+              e.currentTarget.blur()
+              goNext()
+            }}>
             {live.stepIndex === SERVICE_STEPS.length - 1 ? '结束服务' : '下一步'}<ChevronRight className="w-3.5 h-3.5 ml-0.5" />
           </Button>
           {playOpts.length > 0 && (
@@ -204,8 +214,8 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish }: Ses
         {panel === 'play' && (
           <div className="flex flex-wrap gap-1.5">
             {playOpts.map((p) => (
-              <button key={p.id} className="rounded-md border border-border px-2 py-0.5 text-[11px] hover:border-amber-400/60"
-                onClick={() => { setLive((s) => insertPlay(plan, s, p.id)); setPanel('none') }}>{p.source === 'race' ? '种族特技' : p.name}</button>
+              <button key={p.id} className="rounded-md border border-border pl-1 pr-2 py-0.5 text-[11px] hover:border-amber-400/60 inline-flex items-center gap-1"
+                onClick={() => { setLive((s) => insertPlay(plan, s, p.id)); setPanel('none') }}><ItemIcon src={playIconPath(p.id)} name={p.name} size={18} />{p.name}</button>
             ))}
           </div>
         )}
@@ -245,10 +255,12 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish }: Ses
 
 // ─── 调教的亲自上场（仍用旧调教提示词，无步骤条） ──────────────────────────────
 
-export function TrainingScene({ player, girl, directionLabel, settings, onFinish }: {
+export function TrainingScene({ player, girl, directionLabel, extraPrompt, settings, onFinish }: {
   player: Player
   girl: MonstGirl
   directionLabel: string
+  /** 附在提示词末尾（惩罚缘由等） */
+  extraPrompt?: string
   settings: AppSettings
   onFinish: (turns: number, pleasure: number) => void
 }) {
@@ -264,7 +276,7 @@ export function TrainingScene({ player, girl, directionLabel, settings, onFinish
   const [suggestions, setSuggestions] = useState<[string, string, string] | null>(['命令她跪下', '抬起她的下巴', '她低声求饶'])
   const [inputValue, setInputValue] = useState('')
   const chatRef = useRef<ChatEngineHandle>(null)
-  const systemPrompt = buildServiceSystemPrompt(player, { ...session, messages }, settings.proseStyle) + `\n\n【本次调教方向】${directionLabel}`
+  const systemPrompt = buildServiceSystemPrompt(player, { ...session, messages }, settings.proseStyle) + `\n\n【本次调教方向】${directionLabel}` + (extraPrompt ? `\n${extraPrompt}` : '')
 
   const onRaw = useCallback((raw: string) => {
     const a = parseActionsFromReply(raw)
@@ -307,3 +319,4 @@ export function TrainingScene({ player, girl, directionLabel, settings, onFinish
     </div>
   )
 }
+

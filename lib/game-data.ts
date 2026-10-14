@@ -25,7 +25,6 @@ export const RACES: RaceData[] = [
   { name: '鬼娘', tags: 'oni girl, horns, club, japanese demon, red skin', description: '拥有鬼角的力量型少女' },
   { name: '牛娘', tags: 'holstaur, cow ears, cow horns, cow tail, large breasts', description: '丰满温柔的牧场少女' },
   { name: '狼娘', tags: 'wolf girl, wolf ears, wolf tail, feral, fierce', description: '野性凶猛的狼族少女' },
-  { name: '美杜莎', tags: 'medusa, snake hair, snake lower body, petrification, mythological', description: '神话中危险而美丽的存在' },
 ]
 
 // ─── 玩家特性 ──────────────────────────────────────────────────────────────────
@@ -135,7 +134,7 @@ export const GIRL_TEMPLATES: Omit<MonstGirl, 'id' | 'imageUrl'>[] = [
   },
   {
     name: '文香',
-    race: '阿拉克涅',
+    race: '蜘蛛娘',
     age: '23',
     bodyDesc: '黑发长发，蓝色大眼，圆形眼镜，上身丰满，下身为黑色蜘蛛体，皮肤白皙',
     bodyTags: 'arachne, black hair, long hair, blue eyes, glasses, round glasses, pale skin, huge breasts, spider lower body, eight legs',

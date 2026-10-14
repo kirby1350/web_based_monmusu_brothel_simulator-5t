@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { TrainingSetup, type TrainingPlan } from '@/components/session-setup'
 import { TrainingScene } from '@/components/session-scene'
+import { incidentPromptLine } from '@/lib/incidents'
 import { TrainingResultCard } from '@/components/session-result'
 import { resolveTraining, resolveLiveTraining, TRAINING_DIRECTIONS, type TrainingResult } from '@/lib/resolve-training'
 import { applyTrainingToSave } from '@/lib/settle-session'
@@ -44,6 +45,7 @@ export function TrainingFlow({ save, settings, onSaveChange, onBack }: {
       {phase.kind === 'scene' && (
         <TrainingScene player={save.player} girl={phase.plan.girl} settings={settings}
           directionLabel={TRAINING_DIRECTIONS.find((d) => d.key === phase.plan.direction)!.label}
+          extraPrompt={phase.plan.direction === 'punish' ? incidentPromptLine(phase.plan.girl) : undefined}
           onFinish={(turns, pleasure) => settle(phase.plan, 'live', resolveLiveTraining(phase.plan, turns, pleasure))} />
       )}
       {phase.kind === 'result' && (

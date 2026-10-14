@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
     const data = await response.json()
     return NextResponse.json(data)
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 })
+    // 连不上上游（如本机到 gpt4novel 的 TLS 握手失败）：返回空列表，前端回退到内置模型列表
+    return NextResponse.json({ data: [], fallback: true, warning: `无法连接模型服务（${String(e)}）` })
   }
 }

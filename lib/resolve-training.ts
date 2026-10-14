@@ -1,3 +1,7 @@
+import { expandProps, getTemplate } from './custom-props'
+import { canPunish } from './incidents'
+import { PUNISH_EXTRA_OBEDIENCE, PUNISH_EXTRA_M, PUNISH_M_AFFECTION } from './catalog'
+import type { CustomProp } from './types'
 // 调教结算（纯函数）：驯服 / 放权 / 塑形 / 特训 / 敏感开发
 // 基础值 × 调教室倍率；道具、服装是固定小数，不吃倍率；塑形厘米数不吃倍率。
 import type { MonstGirl, OutfitId, SensitivityZone, SkillKey, SkillRank, TrainingDirection } from './types'
@@ -12,14 +16,15 @@ export const TRAINING_DIRECTIONS: { key: TrainingDirection; label: string; hint:
   { key: 'sculpt', label: '塑形', hint: '用一瓶塑形药改三围，淫乱 +1' },
   { key: 'drill', label: '特训', hint: '已选技能进度 +1' },
   { key: 'sensitize', label: '敏感开发', hint: '一条敏感带 +10' },
+  { key: 'punish', label: '惩罚', hint: '驯服效果 + 服从 +3、M 进度 +1；处理掉事件' },
 ]
 
-/** 调教体力消耗（TODO/PLAN 未给数值，暂定 20） */
+/** 调教体力消耗：每场固定 20（道具、种族、调教室都不改体力） */
 export const TRAINING_STAMINA_COST = 20
 /** 「两面」：服从和淫乱都到 70，且已有 M 性或 S 性 */
 export const TWO_SIDED_MIN = 70
 export const TWO_SIDED_KEY = '两面'
-/** 精灵「敏感」：成长 ×1.25，体力消耗 ×1.25 */
+/** 精灵「敏感」：调教成长 ×1.25（体力不变） */
 export const ELF_GROWTH_MULT = 1.25
 
 export interface TrainingInput {
@@ -27,7 +32,8 @@ export interface TrainingInput {
   direction: TrainingDirection
   roomLevel?: number
   skip: boolean
-  props?: string[]            // 勾选的调教道具（须已拥有、不超过槽位，由调用方保证）
+  props?: string[]            // 勾选的调教道具（现成 id 或定制 id；须已拥有、不超过槽位，由调用方保证）
+  customProps?: CustomProp[]  // 馆主的定制道具（按模板映射成现成道具效果）
   outfit?: OutfitId
   potionId?: string           // 塑形
   skill?: SkillKey | typeof TWO_SIDED_KEY  // 特训
@@ -72,7 +78,14 @@ export function canDrillTwoSided(girl: MonstGirl): boolean {
 
 export function resolveTraining(input: TrainingInput): TrainingResult {
   const { girl, direction, skip } = input
-  const props = new Set(input.props ?? [])
+  const props = new Set(expandProps(input.props ?? [], input.customProps))
+  // 定制道具：说明文字用定制名（现成道具也勾上时仍用现成名）
+  const customNames = new Map<string, string>()
+  for (const id of input.props ?? []) {
+    const c = input.customProps?.find((x) => x.id === id)
+    const base = c && getTemplate(c.templateId)?.baseProp
+    if (c && base && !(input.props ?? []).includes(base)) customNames.set(TRAINING_PROPS.find((p) => p.id === base)!.name, c.name)
+  }
   const raceMult = girl.race === '精灵' ? ELF_GROWTH_MULT : 1
   const mult = getTrainingMult(input.roomLevel) * raceMult
   const m = (n: number) => Math.round(n * mult)
@@ -82,22 +95,41 @@ export function resolveTraining(input: TrainingInput): TrainingResult {
   let measurement: TrainingResult['measurement']
   let newRank: SkillRank | undefined
   let becameTwoSided = false
-  let stamina = TRAINING_STAMINA_COST
+  const stamina = TRAINING_STAMINA_COST
   const fail = (error: string): TrainingResult => ({ ok: false, error, delta, staminaCost: 0, girl, notes, summary: error })
 
   switch (direction) {
     case 'tame': {
       let ob = m(6)
       if (skip && girl.obedience < SKIP_OBEDIENCE_MIN) { ob = Math.round(ob * 0.8); notes.push('服从不足 25，跳过的驯服八折') }
-      if (props.has('whip')) { ob += 3; stamina += 10; notes.push('皮鞭：服从 +3，体力 −10') }
+      if (props.has('whip')) { ob += 3; notes.push('皮鞭：服从 +3') }
       if (props.has('rack')) { delta.m += 1; notes.push('拘束架：M 进度 +1') }
       if (input.outfit === 'restraint') { ob += 1; notes.push('拘束衣：服从 +1') }
       delta.obedience = ob; delta.m += m(1); delta.affection = m(1)
       break
     }
+    case 'punish': {
+      if (!canPunish(girl)) return fail('她没有未处理的事件，不能惩罚')
+      // 基础同驯服（乘倍率），额外加成不乘
+      let ob = m(6)
+      if (props.has('whip')) { ob += 3; notes.push('皮鞭：服从 +3') }
+      if (props.has('rack')) { delta.m += 1; notes.push('拘束架：M 进度 +1') }
+      if (input.outfit === 'restraint') { ob += 1; notes.push('拘束衣：服从 +1') }
+      delta.m += m(1); delta.affection = m(1)
+      if (girl.incident) {
+        ob += PUNISH_EXTRA_OBEDIENCE; delta.m += PUNISH_EXTRA_M
+        notes.push(`处理事件「${girl.incident.text}」：服从 +${PUNISH_EXTRA_OBEDIENCE}，M 进度 +${PUNISH_EXTRA_M}`)
+        next.incident = null
+      } else {
+        delta.affection += PUNISH_M_AFFECTION
+        notes.push(`M 性：渴望被惩罚，好感 +${PUNISH_M_AFFECTION}`)
+      }
+      delta.obedience = ob
+      break
+    }
     case 'release': {
       let lw = m(6)
-      if (props.has('massage_table')) { lw += 3; stamina -= 10; notes.push('按摩台：淫乱 +3，体力消耗 −10') }
+      if (props.has('massage_table')) { lw += 3; notes.push('按摩台：淫乱 +3') }
       if (props.has('censer')) { lw += 2; notes.push('香炉：淫乱 +2') }
       if (input.outfit === 'queen') { lw += 1; notes.push('女王装：淫乱 +1') }
       delta.lewdness = lw; delta.s = m(1); delta.affection = m(1)
@@ -161,13 +193,13 @@ export function resolveTraining(input: TrainingInput): TrainingResult {
   // 不对口的道具不生效
   for (const id of props) if (!notes.some((n) => n.startsWith(PROP_NAME(id)))) notes.push(`${PROP_NAME(id)}：方向不对口，无效果`)
 
-  if (girl.race === '精灵') { stamina = Math.round(stamina * ELF_GROWTH_MULT); notes.push('敏感：成长更快，体力掉得更快') }
-  stamina = Math.max(0, stamina)
+  if (girl.race === '精灵') notes.push('敏感：成长 ×1.25')
 
   applyDelta(girl, next, delta)
   next.stamina = Math.max(0, (girl.stamina ?? MAX_STAMINA) - stamina)
   if (next.stamina === 0) next.exhausted = true
   const label = TRAINING_DIRECTIONS.find((d) => d.key === direction)!.label
+  for (let i = 0; i < notes.length; i++) for (const [from, to] of customNames) if (notes[i].startsWith(`${from}：`)) notes[i] = to + notes[i].slice(from.length)
   return { ok: true, delta, measurement, newRank, becameTwoSided, staminaCost: stamina, girl: next, notes, summary: trainingSummary(girl.name, label, delta, measurement, newRank) }
 }
 
@@ -182,7 +214,7 @@ function applyDelta(girl: MonstGirl, next: MonstGirl, delta: TrainingDelta) {
 }
 
 const MAIN_KEY: Record<TrainingDirection, keyof TrainingDelta> = {
-  tame: 'obedience', release: 'lewdness', sculpt: 'lewdness', drill: 'skillProgress', sensitize: 'sensitivity',
+  tame: 'obedience', release: 'lewdness', sculpt: 'lewdness', drill: 'skillProgress', sensitize: 'sensitivity', punish: 'obedience',
 }
 
 /**

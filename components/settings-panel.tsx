@@ -122,6 +122,7 @@ export function SettingsPanel({ settings, onSettingsChange }: SettingsPanelProps
       if (!res.ok) throw new Error(data.error || '获取失败')
       const list: DzmmModel[] = Array.isArray(data?.data) ? data.data : []
       setDzmmModels(list)
+      if (data?.fallback && data.warning) setModelsError(data.warning)
     } catch (e) {
       setModelsError(String(e instanceof Error ? e.message : e))
     } finally {

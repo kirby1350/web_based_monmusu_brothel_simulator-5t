@@ -3,10 +3,13 @@
 // 接客 / 调教共用的三步准备向导（阶段 2 只接了接客分支，调教分支在阶段 5）
 import { useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight, FastForward, Swords } from 'lucide-react'
-import { GameSave, Guest, MonstGirl, OutfitId, StockingId, TrainingDirection, SkillKey, SensitivityZone } from '@/lib/types'
+import { CustomProp, GameSave, Guest, MonstGirl, OutfitId, StockingId, TrainingDirection, SkillKey, SensitivityZone } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { OUTFITS, STOCKINGS, getPlaySlots, getSkillRank, getSensitivityLevel, TRAINING_PROPS, SCULPT_POTIONS, COMMON_ZONES, RACE_ZONE_NAMES, RACE_TRAITS } from '@/lib/catalog'
+import { OUTFITS, STOCKINGS, getPlaySlots, getSkillRank, getSensitivityLevel, TRAINING_PROPS, SCULPT_POTIONS, COMMON_ZONES, RACE_ZONE_NAMES, RACE_TRAITS, itemIconPath, playIconPath } from '@/lib/catalog'
+import { ItemIcon } from '@/components/item-icon'
+import { getTemplate } from '@/lib/custom-props'
+import { canPunish } from '@/lib/incidents'
 import { resolveTraining, getPropSlots, canDrillTwoSided, TRAINING_DIRECTIONS, TWO_SIDED_KEY, type TrainingResult } from '@/lib/resolve-training'
 import { canSkipService, getAvailablePlays, getMainService, scorePlay } from '@/lib/resolve-service'
 import { previewService } from '@/lib/settle-session'
@@ -108,7 +111,7 @@ export function SessionSetup({ save, onSkip, onLive }: SessionSetupProps) {
                 const st = g.stamina ?? 100
                 return (
                   <button key={g.id} onClick={() => setGirlId(g.id)} data-testid={`pick-girl-${g.name}`}
-                    className={cn('w-full text-left rounded-lg border bg-card px-3 py-2 flex items-center gap-3 transition-colors',
+                    className={cn('w-full text-left rounded-lg border bg-card px-3 py-2 flex items-center gap-3 transition-colors select-none [&_*]:pointer-events-none',
                       g.id === girlId ? 'border-amber-400/70' : 'border-border hover:border-primary/50')}>
                     <div className="flex-1 min-w-0 space-y-0.5">
                       <div className="flex items-center gap-1.5">
@@ -136,14 +139,14 @@ export function SessionSetup({ save, onSkip, onLive }: SessionSetupProps) {
               <p className="text-[10px] text-muted-foreground uppercase tracking-widest">主装</p>
               <div className="flex flex-wrap gap-1.5">
                 {outfits.map((o) => (
-                  <Chip key={o.id} active={outfit === o.id} onClick={() => setOutfit(o.id)}
+                  <Chip key={o.id} active={outfit === o.id} onClick={() => setOutfit(o.id)} icon={itemIconPath('outfit', o.id) ?? ''}
                     label={o.name} hint={plan.guest.prefOutfit && o.pref === plan.guest.prefOutfit ? '对口' : undefined} />
                 ))}
               </div>
               <p className="text-[10px] text-muted-foreground uppercase tracking-widest pt-1">丝袜</p>
               <div className="flex flex-wrap gap-1.5">
                 {stockingOpts.map((s) => (
-                  <Chip key={s.id} active={stockings === s.id} onClick={() => setStockings(s.id)}
+                  <Chip key={s.id} active={stockings === s.id} onClick={() => setStockings(s.id)} icon={s.id === 'none' ? undefined : itemIconPath('stocking', s.id)}
                     label={s.name} hint={plan.guest.prefOutfit && s.pref === plan.guest.prefOutfit ? '对口' : undefined} />
                 ))}
               </div>
@@ -158,7 +161,7 @@ export function SessionSetup({ save, onSkip, onLive }: SessionSetupProps) {
                   return (
                     <button key={p.id} onClick={() => setPlays((cur) => on ? cur.filter((x) => x !== p.id) : cur.length < slots ? [...cur, p.id] : cur)}
                       className={cn('w-full flex items-center justify-between rounded-lg border px-3 py-1.5 text-xs', on ? 'border-amber-400/70' : 'border-border')}>
-                      <span>{r.name} <span className="text-muted-foreground text-[10px]">{r.rank}{r.matched ? ' · 对口' : ''}</span></span>
+                      <span className="flex items-center gap-1.5"><ItemIcon src={playIconPath(p.id)} name={r.name} size={20} />{r.name} <span className="text-muted-foreground text-[10px]">{r.rank}{r.matched ? ' · 对口' : ''}</span></span>
                       <span className={r.score < 0 ? 'text-rose-400' : 'gold-text'}>{r.score > 0 ? '+' : ''}{r.score}</span>
                     </button>
                   )
@@ -176,7 +179,8 @@ export function SessionSetup({ save, onSkip, onLive }: SessionSetupProps) {
               <Row label="跳过预计" value={`${preview.skip.tier.label}（满意度 ${preview.skip.satisfaction}）`} />
               <Row label="收入区间" value={`${preview.rewardRange[0]}–${preview.rewardRange[1]} G（跳过 ${preview.skip.reward} G）`} />
               <Row label="体力" value={`跳过 −${preview.skip.staminaCost}；亲自上场 −${preview.liveStamina[0]}～−${preview.liveStamina[1]}（当前 ${plan.girl.stamina ?? 100}）`} />
- <Row label="五步预估" value={preview.skip.steps.map((x) => `${x.label}${x.score}`).join(' · ')} />
+ {preview.skip.matchBonus > 0 && <Row label="跳过匹配加成" value={`+${preview.skip.matchBonus}（${preview.skip.matchParts.join('，')}）`} />}
+              <Row label="五步预估" value={preview.skip.steps.map((x) => `${x.label}${x.score}`).join(' · ')} />
               {preview.skip.raceNotes.length > 0 && <Row label="种族/状态" value={preview.skip.raceNotes.join('；')} />}
               {preview.skip.plays.length > 0 && <Row label="自动 play" value={preview.skip.plays.map((p) => p.name).join('、')} />}
             </div>
@@ -217,10 +221,11 @@ export function SessionSetup({ save, onSkip, onLive }: SessionSetupProps) {
   )
 }
 
-function Chip({ active, onClick, label, hint }: { active: boolean; onClick: () => void; label: string; hint?: string }) {
+function Chip({ active, onClick, label, hint, icon }: { active: boolean; onClick: () => void; label: string; hint?: string; icon?: string }) {
   return (
-    <button onClick={onClick} className={cn('rounded-md border px-2.5 py-1 text-xs transition-colors',
+    <button onClick={onClick} className={cn('rounded-md border px-2.5 py-1 text-xs transition-colors inline-flex items-center gap-1.5', icon !== undefined && 'pl-1',
       active ? 'border-amber-400/70 text-amber-300 bg-amber-400/10' : 'border-border text-foreground/80 hover:border-primary/50')}>
+      {icon !== undefined && <ItemIcon src={icon || undefined} name={label} size={20} />}
       {label}{hint && <span className="ml-1 text-[9px] text-emerald-300">{hint}</span>}
     </button>
   )
@@ -242,6 +247,7 @@ export interface TrainingPlan {
   direction: TrainingDirection
   roomLevel: number
   props: string[]
+  customProps?: CustomProp[]
   outfit: OutfitId
   potionId?: string
   skill?: SkillKey | typeof TWO_SIDED_KEY
@@ -278,7 +284,7 @@ export function TrainingSetup({ save, onSkip, onLive }: TrainingSetupProps) {
   ] : []
   const zones: SensitivityZone[] = girl ? [...COMMON_ZONES, ...(RACE_ZONE_NAMES[girl.race] ? ['种族' as SensitivityZone] : [])] : []
 
-  const plan: TrainingPlan | null = girl ? { girl, direction, roomLevel, props, outfit, potionId, skill, zone } : null
+  const plan: TrainingPlan | null = girl ? { girl, direction, roomLevel, props, customProps: player.customProps ?? [], outfit, potionId, skill, zone } : null
   const preview = plan ? resolveTraining({ ...plan, skip: true }) : null
   const ready = !!preview?.ok
 
@@ -300,7 +306,7 @@ export function TrainingSetup({ save, onSkip, onLive }: TrainingSetupProps) {
             <p className="text-[10px] text-muted-foreground uppercase tracking-widest">调教对象（一场只安排一名）</p>
             {girls.map((g) => (
               <button key={g.id} onClick={() => setGirlId(g.id)} data-testid={`pick-girl-${g.name}`}
-                className={cn('w-full text-left rounded-lg border bg-card px-3 py-2 transition-colors',
+                className={cn('w-full text-left rounded-lg border bg-card px-3 py-2 transition-colors select-none [&_*]:pointer-events-none',
                   g.id === girlId ? 'border-amber-400/70' : 'border-border hover:border-primary/50')}>
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs font-semibold gold-text">{g.name}</span>
@@ -320,11 +326,11 @@ export function TrainingSetup({ save, onSkip, onLive }: TrainingSetupProps) {
             <section className="space-y-2">
               <p className="text-[10px] text-muted-foreground uppercase tracking-widest">方向</p>
               <div className="grid grid-cols-2 gap-1.5">
-                {TRAINING_DIRECTIONS.map((d) => (
+                {TRAINING_DIRECTIONS.filter((d) => d.key !== 'punish' || (girl && canPunish(girl))).map((d) => (
                   <button key={d.key} data-testid={`dir-${d.key}`} onClick={() => setDirection(d.key)}
                     className={cn('rounded-lg border px-2.5 py-1.5 text-left', direction === d.key ? 'border-amber-400/70 bg-amber-400/10' : 'border-border')}>
                     <p className="text-xs">{d.label}</p>
-                    <p className="text-[10px] text-muted-foreground">{d.hint}</p>
+                    <p className="text-[10px] text-muted-foreground">{d.key === 'punish' && girl && !girl.incident ? 'M 性：驯服效果 + 好感 +3' : d.hint}</p>
                   </button>
                 ))}
               </div>
@@ -335,7 +341,7 @@ export function TrainingSetup({ save, onSkip, onLive }: TrainingSetupProps) {
                 <p className="text-[10px] text-muted-foreground uppercase tracking-widest">塑形药（背包）</p>
                 {potions.length === 0 ? <p className="text-[11px] text-rose-400/80">背包里没有塑形药，先去大厅「商店」买。</p> : (
                   <div className="flex flex-wrap gap-1.5">
-                    {potions.map((p) => <Chip key={p.id} active={potionId === p.id} onClick={() => setPotionId(p.id)} label={`${p.name} ×${inv[p.id]}`} />)}
+                    {potions.map((p) => <Chip key={p.id} active={potionId === p.id} onClick={() => setPotionId(p.id)} icon={itemIconPath('sculpt', p.id)} label={`${p.name} ×${inv[p.id]}`} />)}
                   </div>
                 )}
               </section>
@@ -369,12 +375,18 @@ export function TrainingSetup({ save, onSkip, onLive }: TrainingSetupProps) {
             <section className="space-y-2">
               <p className="text-[10px] text-muted-foreground uppercase tracking-widest">道具（调教室 {roomLevel} 级，最多 {slots} 件）</p>
               {slots === 0 ? <p className="text-[11px] text-muted-foreground">一级调教室没有道具槽，升级调教室后可用。</p>
-                : ownedProps.length === 0 ? <p className="text-[11px] text-muted-foreground">还没有调教道具，可在大厅「商店」购买。</p> : (
+                : ownedProps.length === 0 && !(player.customProps ?? []).length ? <p className="text-[11px] text-muted-foreground">还没有调教道具，可在大厅「商店」购买。</p> : (
                 <div className="flex flex-wrap gap-1.5">
                   {ownedProps.map((p) => {
                     const on = props.includes(p.id)
-                    return <Chip key={p.id} active={on} label={p.name}
+                    return <Chip key={p.id} active={on} label={p.name} icon={itemIconPath('prop', p.id)}
                       onClick={() => setProps((cur) => on ? cur.filter((x) => x !== p.id) : cur.length < slots ? [...cur, p.id] : cur)} />
+                  })}
+                  {(player.customProps ?? []).map((c) => {
+                    const on = props.includes(c.id)
+                    const base = getTemplate(c.templateId)?.baseProp
+                    return <Chip key={c.id} active={on} label={c.name} hint="定制" icon={base ? itemIconPath('prop', base) : ''}
+                      onClick={() => setProps((cur) => on ? cur.filter((x) => x !== c.id) : cur.length < slots ? [...cur, c.id] : cur)} />
                   })}
                 </div>
               )}
@@ -384,7 +396,7 @@ export function TrainingSetup({ save, onSkip, onLive }: TrainingSetupProps) {
               <section className="space-y-2">
                 <p className="text-[10px] text-muted-foreground uppercase tracking-widest">服装（调教不加满意度，部分有固定加成）</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {outfits.map((o) => <Chip key={o.id} active={outfit === o.id} onClick={() => setOutfit(o.id)} label={o.name} />)}
+                  {outfits.map((o) => <Chip key={o.id} active={outfit === o.id} onClick={() => setOutfit(o.id)} label={o.name} icon={itemIconPath('outfit', o.id) ?? ''} />)}
                 </div>
               </section>
             )}

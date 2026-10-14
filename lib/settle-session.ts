@@ -1,3 +1,4 @@
+import { serviceFailIncident } from './incidents'
 // 接客结算写档（纯函数）：把 resolveService 的结果落进存档
 import type { GameSave, Guest } from './types'
 import { resolveService, serviceStaminaCost, type ServiceInput, type ServiceResult } from './resolve-service'
@@ -20,6 +21,8 @@ export function previewService(input: Omit<ServiceInput, 'skip'>) {
 
 
 export interface SettleInfo {
+  /** 本场「不满」后新记的接客失败事件 */
+  incident?: import('./types').Incident
   reward: number
   tierLabel: string
   reputationDelta: number
@@ -45,8 +48,9 @@ export function applyServiceToSave(
     regulars = [regular, ...regulars.filter((r) => r.id !== guest.id)].slice(0, 20)
   }
   const appeared = save.appearedToday ?? []
+  const incident = serviceFailIncident(girl, guest, tier.key, save.currentDay, rng)
   return {
-    info: { reward: result.reward, tierLabel: tier.label, reputationDelta: tier.reputationDelta, becameRegular, staminaBefore: before, staminaAfter: after },
+    info: { incident: incident ?? undefined, reward: result.reward, tierLabel: tier.label, reputationDelta: tier.reputationDelta, becameRegular, staminaBefore: before, staminaAfter: after },
     save: {
       ...save,
       player: {
@@ -60,6 +64,7 @@ export function applyServiceToSave(
         stamina: after,
         exhausted: after === 0 ? true : g.exhausted,
         affection: Math.min(100, g.affection + result.affectionDelta),
+        ...(incident ? { incident } : {}),
       }),
       actionsUsedToday: Math.min(MAX_ACTIONS_PER_DAY, (save.actionsUsedToday ?? 0) + 1),
       appearedToday: appeared.includes(girlId) ? appeared : [...appeared, girlId],

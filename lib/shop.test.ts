@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import type { GameSave, Guest, MonstGirl } from './types'
 import {
   buyRecovery, buySculpt, buyWardrobe, buyTrainingProp, useRecovery, upgradeServiceRoom, upgradeTrainingRoom,
-  sculptPrice, vigorOnShelf, shelfRecoveryItems,
+  sculptPrice, shelfRecoveryItems,
 } from './shop'
 import { resolveService } from './resolve-service'
 import { previewService } from './settle-session'
@@ -61,14 +61,9 @@ test('恢复药：进背包，每人每天一瓶，热餐 +30，魔女效果 ×1
   assert.equal(wu.save.girls[0].stamina, 65)
 })
 
-test('精力药约三成天数上架，同一天结果固定', () => {
-  let n = 0; for (let d = 1; d <= 1000; d++) if (vigorOnShelf(d)) n++
-  assert.ok(n > 200 && n < 400, `got ${n}`)
-  assert.equal(vigorOnShelf(7), vigorOnShelf(7))
-  const day = [...Array(100).keys()].find((d) => !vigorOnShelf(d))!
-  const s = { ...save(), currentDay: day }
-  assert.equal(shelfRecoveryItems(day).some((i) => i.id === 'vigor_potion'), false)
-  assert.equal(buyRecovery(s, 'vigor_potion').ok, false)
+test('恢复药（含精力药）每天都在货架上', () => {
+  for (const d of [1, 2, 3, 50, 999]) assert.ok(shelfRecoveryItems(d).some((i) => i.id === 'vigor_potion'))
+  const r = buyRecovery({ ...save(), currentDay: 7 }, 'vigor_potion'); assert.ok(r.ok)
 })
 
 test('塑形药起步 180，该项每改过一次再贵 80；进背包', () => {

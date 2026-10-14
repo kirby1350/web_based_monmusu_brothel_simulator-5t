@@ -633,13 +633,13 @@ function fallbackGirl(index: number): MonstGirl {
   return { id: nanoid(), ...templates[index % templates.length] }
 }
 
-/** 市场卡片：种族特技名与签名敏感带 */
+/** 市场卡片：种族天赋名与签名敏感带 */
 function RaceTraitLine({ race }: { race: string }) {
   if (!RACE_TRAITS[race] && !RACE_ZONE_NAMES[race]) return null
   return (
     <p className="text-[10px] text-amber-300/80">
-      {RACE_TRAITS[race] && <>特技「{RACE_TRAITS[race]}」</>}
-      {RACE_ZONE_NAMES[race] && <> · 敏感带「{RACE_ZONE_NAMES[race]}」</>}
+      {RACE_TRAITS[race] && <>天赋「{RACE_TRAITS[race]}」</>}
+      {RACE_ZONE_NAMES[race] && <>{RACE_TRAITS[race] ? ' · ' : ''}敏感带「{RACE_ZONE_NAMES[race]}」</>}
     </p>
   )
 }

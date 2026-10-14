@@ -1,7 +1,7 @@
 // 接客结算（纯函数）：五步标准流程 + 额外 play → 满意度 / 档位 / 收入 / 体力
 import type { Guest, MonstGirl, OutfitId, SensitivityZone, ServingSkill, SkillRank, StockingId } from './types'
 import {
-  GREET_HOSTING_SCORE, STEP_SCORE, STEP_MAX, PLAY_SCORE, PLAYS, PlayDef, WRONG_SIDE_PLAY_PENALTY,
+  GREET_HOSTING_SCORE, STEP_SCORE, STEP_MAX, PLAY_SCORE, PLAYS, RACE_PLAYS, SKIP_MATCH_BONUS, racePlayMatched, PlayDef, WRONG_SIDE_PLAY_PENALTY,
   OUTFITS, STOCKINGS, RACE_TRAITS, getPlaySlots, getGuestProfile, getSkillRank, getInclination,
   getSensitivityLevel, SENSITIVITY_STEP_MOD, SENSITIVITY_STAMINA_MOD, SKIP_SERVICE_STAMINA,
   SKIP_OBEDIENCE_MIN, DRAGON_SKIP_OBEDIENCE_MULT, ANAL_UNLOCK,
@@ -50,6 +50,9 @@ export interface ServiceResult {
   staminaExtra: number
   staminaMult: number
   staminaRefund: number
+  /** 跳过结算的匹配加成（已算进 satisfaction；亲自上场为 0） */
+  matchBonus: number
+  matchParts: string[]
   /** 种族特技带来的满意度加成（已算进 satisfaction） */
   satisfactionBonus: number
   raceNotes: string[]
@@ -105,13 +108,13 @@ export function getMainService(guest: Guest): '口侍' | '胸侍' | '身侍' {
 
 // ─── play ─────────────────────────────────────────────────────────────────────
 
-/** 她能选的 play（已会技能 / M·S / 种族特技），正戏占用的主类型除外 */
+/** 她能选的 play（已会技能 / M·S / 本种族专属 play），正戏占用的主类型除外 */
 export function getAvailablePlays(girl: MonstGirl, guest: Guest): PlayDef[] {
   const main = getMainService(guest)
   const inc = getInclination(girl)
-  return PLAYS.filter((p) => {
+  return [...PLAYS, ...(RACE_PLAYS[girl.race] ?? [])].filter((p) => {
     if (p.source === main) return false
-    if (p.source === 'race') return !!RACE_TRAITS[girl.race]
+    if (p.source === 'race') return p.race === girl.race
     if (p.source === 'M性') return inc === '两面' || (inc === 'M' && !!getSkillRank(girl, 'M性'))
     if (p.source === 'S性') return inc === '两面' || (inc === 'S' && !!getSkillRank(girl, 'S性'))
     if (p.id === 'paizuri' && (girl.bust ?? 0) < 80) return false
@@ -133,10 +136,8 @@ export function scorePlay(girl: MonstGirl, guest: Guest, play: PlayDef): PlayRes
     score = wrongSide ? WRONG_SIDE_PLAY_PENALTY : matched ? PLAY_SCORE[rank] : Math.floor(PLAY_SCORE[rank] / 2)
   } else {
     if (play.source === 'race') {
-      rank = '熟练'
-      matched = profile.service === '种族'
-        // 拉米亚「缠缚」、蜘蛛娘「丝线」：对口拘束、支配（想施虐的客人）；不和 M 性叠成两份
-        || ((girl.race === '拉米亚' || girl.race === '蜘蛛娘') && profile.kind === 'M' && !getSkillRank(girl, 'M性'))
+      rank = play.rank ?? '熟练'
+      matched = racePlayMatched(play, guest)
     } else {
       rank = getSkillRank(girl, play.source) ?? '初学'
       matched = profile.service === play.source || profile.secondary.includes(play.source as ServingSkill)
@@ -146,7 +147,7 @@ export function scorePlay(girl: MonstGirl, guest: Guest, play: PlayDef): PlayRes
     if (play.id === 'positions') score += hipBonus(girl) + (girl.race === '哈比' && matched ? 2 : 0)
   }
   if (score > 0) score += zoneMod(girl, play.zone)
-  const name = play.source === 'race' ? (RACE_TRAITS[girl.race] ?? play.name) : play.name
+  const name = play.name
   return { id: play.id, name, score, matched, rank, zone: play.zone }
 }
 
@@ -220,7 +221,19 @@ export function resolveService(input: ServiceInput): ServiceResult {
   // 黑暗精灵「夜习」：当天第 2、3 场额外满意度 +5
   const satisfactionBonus = girl.race === '黑暗精灵' && (input.sessionIndexToday ?? 0) >= 1 ? 5 : 0
   if (satisfactionBonus) raceNotes.push('夜习：满意度 +5')
-  const satisfaction = Math.max(0, Math.min(100, standardScore + playScore + satisfactionBonus))
+  // 跳过结算的匹配加成：主类型、play、服装三个维度可叠加（亲自上场不加）
+  const matchParts: string[] = []
+  let matchBonus = 0
+  if (skip) {
+    if (getSkillRank(girl, main)) { matchBonus += SKIP_MATCH_BONUS.service; matchParts.push(`主类型 +${SKIP_MATCH_BONUS.service}`) }
+    const mp = Math.min(SKIP_MATCH_BONUS.maxPlays, plays.filter((p) => p.matched && p.score > 0).length)
+    if (mp) { matchBonus += mp * SKIP_MATCH_BONUS.play; matchParts.push(`对口 play ×${mp} +${mp * SKIP_MATCH_BONUS.play}`) }
+    if (outfitMatched) { matchBonus += SKIP_MATCH_BONUS.outfit; matchParts.push(`服装 +${SKIP_MATCH_BONUS.outfit}`) }
+    // PLAN.md 阶段 0 验收：一级房、常服、无 play 的跳过不超过 70——只有主类型加成时不越过 70
+    if (!mp && !outfitMatched) matchBonus = Math.max(0, Math.min(matchBonus, 70 - (standardScore + playScore + satisfactionBonus)))
+    if (!matchBonus) matchParts.length = 0
+  }
+  const satisfaction = Math.max(0, Math.min(100, standardScore + playScore + satisfactionBonus + matchBonus))
   const tier = getSatisfactionTier(satisfaction)
   const reward = serviceReward(guest, girl, satisfaction)
 
@@ -237,7 +250,6 @@ export function resolveService(input: ServiceInput): ServiceResult {
   let staminaExtra = top ? SENSITIVITY_STAMINA_MOD[top] : 0
   let staminaMult = 1
   if (girl.race === '兔娘' && (input.girlSessionsToday ?? 0) >= 1) { staminaMult *= 0.75; raceNotes.push('持久：第二场体力消耗 ×0.75') }
-  if (girl.race === '精灵') { staminaMult *= 1.25; raceNotes.push('敏感：体力消耗 ×1.25') }
   if ((girl.race === '鬼娘' || girl.race === '狼娘') && main !== '身侍') { staminaExtra -= 10; raceNotes.push(`${girl.race === '鬼娘' ? '怪力' : '野性'}：体力消耗 −10`) }
   const staminaRefund = girl.race === '吸血鬼' && tier.payMult >= 1.3 ? 15 : 0
   if (staminaRefund) raceNotes.push('反哺：满意后返还 15 体力')
@@ -247,7 +259,7 @@ export function resolveService(input: ServiceInput): ServiceResult {
     canSkip: canSkipService(girl),
     steps, standardScore, plays, playScore, outfitMatched,
     satisfaction, tier, reward, staminaCost,
-    staminaExtra, staminaMult, staminaRefund, satisfactionBonus, raceNotes,
+    staminaExtra, staminaMult, staminaRefund, satisfactionBonus, matchBonus, matchParts, raceNotes,
     affectionDelta: 1,
     summary: buildServiceSummary(girl.name, guest.name, tier.key, plays.length),
   }

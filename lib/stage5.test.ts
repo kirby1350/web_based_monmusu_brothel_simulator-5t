@@ -5,7 +5,7 @@ import { resolveTraining, resolveLiveTraining, canDrillTwoSided } from './resolv
 import { resolveService, getAvailablePlays, scorePlay } from './resolve-service'
 import { applyTrainingToSave } from './settle-session'
 import { sculptPrice } from './shop'
-import { PLAYS } from './catalog'
+import { PLAYS, RACE_PLAYS } from './catalog'
 
 const girl = (o: Partial<MonstGirl> = {}): MonstGirl => ({
   id: 'a', name: 'A', race: '人类', age: '', bodyDesc: '', bodyTags: '', bust: 85, waist: 62, hip: 88,
@@ -63,9 +63,10 @@ test('敏感开发：耳朵 30→40（耳羽 +4），到 40 即「敏感」，�
 test('道具与服装只加成对口方向，不吃倍率', () => {
   const g = girl()
   assert.equal(resolveTraining({ girl: g, direction: 'tame', skip: true, props: ['whip'] }).delta.obedience, 9)
-  assert.equal(resolveTraining({ girl: g, direction: 'tame', skip: true, props: ['whip'] }).staminaCost, 30)
+  assert.equal(resolveTraining({ girl: g, direction: 'tame', skip: true, props: ['whip'] }).staminaCost, 20)
   assert.equal(resolveTraining({ girl: g, direction: 'tame', skip: true, roomLevel: 4, props: ['whip'], outfit: 'restraint' }).delta.obedience, 16)
-  assert.equal(resolveTraining({ girl: g, direction: 'release', skip: true, props: ['massage_table'] }).staminaCost, 10)
+  assert.equal(resolveTraining({ girl: g, direction: 'release', skip: true, props: ['massage_table'] }).staminaCost, 20)
+  assert.equal(resolveTraining({ girl: girl({ race: '精灵' }), direction: 'tame', skip: true, roomLevel: 4, props: ['whip'] }).staminaCost, 20)
   assert.equal(resolveTraining({ girl: g, direction: 'release', skip: true, props: ['whip'] }).delta.lewdness, 6)
   assert.equal(resolveTraining({ girl: g, direction: 'sensitize', zone: '小穴', skip: true, outfit: 'crotchless' }).delta.sensitivity, 12)
   assert.equal(resolveTraining({ girl: g, direction: 'tame', skip: true, props: ['rack'] }).delta.m, 2)
@@ -98,8 +99,8 @@ test('种族特技', () => {
   assert.equal(base('狐娘').steps[0].score, base('人类').steps[0].score + 2)
   // 兔娘持久：当天第二场体力 ×0.75
   assert.equal(base('兔娘', {}, {}, { girlSessionsToday: 1 }).staminaCost, 30)
-  // 精灵：体力 ×1.25
-  assert.equal(base('精灵').staminaCost, 50)
+  // 精灵：接客体力不再 ×1.25
+  assert.equal(base('精灵').staminaCost, 40)
   // 黑暗精灵夜习：第 2 场 +5
   assert.equal(base('黑暗精灵', {}, {}, { sessionIndexToday: 1 }).satisfaction, base('黑暗精灵').satisfaction + 5)
   // 狼娘/鬼娘：正戏身侍 +2
@@ -118,7 +119,7 @@ test('种族特技', () => {
   assert.equal(base('吸血鬼', hi, {}, room).staminaCost, 25)
   // 拉米亚：想施虐客人时种族 play 对口
   const lamia = girl({ race: '拉米亚' })
-  const race = PLAYS.find((p) => p.id === 'race')!
+  const race = RACE_PLAYS['拉米亚'].find((p) => p.name === '缠绕')!
   assert.equal(scorePlay(lamia, guest({ desires: '想把高傲的魔物娘彻底操服' }), race).matched, true)
   // 兽耳偏好：猫娘迎客 +2
   assert.equal(base('猫娘', {}, { prefTrait: '兽耳' }).steps[0].score, base('猫娘').steps[0].score + 2)

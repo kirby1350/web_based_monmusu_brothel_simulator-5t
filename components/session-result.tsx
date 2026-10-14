@@ -2,11 +2,15 @@
 
 // 结算卡：五步得分 / play / 服装 / 体力 / 成长，没有 play 时不画空段
 import { useState } from 'react'
-import { Loader2, Star, PenLine, Brush } from 'lucide-react'
+import { Loader2, Star, PenLine, Brush, BookmarkPlus } from 'lucide-react'
+import { buildMemoryPrompt } from '@/lib/prompt-builder'
+import { mergeGirlMemory } from '@/lib/hub-logic'
+import { saveGuest } from '@/lib/storage'
 import { ImageDisplay } from '@/components/image-display'
 import { AppSettings, Guest, MonstGirl, OutfitId, StockingId } from '@/lib/types'
 import { Button } from '@/components/ui/button'
-import { OUTFITS, STOCKINGS, getSensitivityLevel } from '@/lib/catalog'
+import { OUTFITS, STOCKINGS, getSensitivityLevel, itemIconPath, playIconPath } from '@/lib/catalog'
+import { ItemIcon } from '@/components/item-icon'
 import type { TrainingResult } from '@/lib/resolve-training'
 import type { ServiceResult } from '@/lib/resolve-service'
 import type { SettleInfo } from '@/lib/settle-session'
@@ -21,10 +25,39 @@ interface SessionResultProps {
   result: ServiceResult
   info: SettleInfo
   settings: AppSettings
+  /** 亲自上场的对话摘录，用于生成记忆 */
+  transcript?: string
+  /** 写入关系记忆后回调（同步回头客池） */
+  onSaveRegular?: (guest: Guest) => void
   onBack: () => void
 }
 
-export function SessionResult({ mode, girl, guest, outfit, stockings, result, info, settings, onBack }: SessionResultProps) {
+export function SessionResult({ mode, girl, guest, outfit, stockings, result, info, settings, transcript, onSaveRegular, onBack }: SessionResultProps) {
+  const [memState, setMemState] = useState<'idle' | 'saving' | 'saved'>('idle')
+  // 「保存为常客」：生成双方印象写入关系记忆（对话 API 不通时用本地摘要）
+  const saveRegular = async () => {
+    setMemState('saving')
+    const summary = `${result.summary}；评价「${result.tier.label}」${transcript ? `；对话摘录：${transcript.slice(-600)}` : ''}`
+    let parsed: { guestAboutGirl?: string; girlAboutGuest?: string } = {
+      guestAboutGirl: `${girl.name}这次让我${result.satisfaction >= 70 ? '很满足' : result.satisfaction >= 40 ? '还算满意' : '有点失望'}。`,
+      girlAboutGuest: `${guest.name}是个${guest.personality || '普通'}的客人。`,
+    }
+    try {
+      const apiKey = settings.chatModel.startsWith('grok') ? settings.grokApiKey : settings.chatApiKey
+      const res = await fetch('/api/chat', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: [{ role: 'user', content: buildMemoryPrompt(guest, girl, summary, guest.memories?.[girl.name]) }], model: settings.chatModel, apiKey, stream: false }),
+      })
+      if (res.ok) {
+        const m = ((await res.json()).content ?? '').match(/\{[\s\S]*\}/)
+        if (m) { const j = JSON.parse(m[0]); if (j.guestAboutGirl || j.girlAboutGuest) parsed = j }
+      }
+    } catch { /* 用本地摘要 */ }
+    const updated: Guest = { ...guest, memories: mergeGirlMemory(guest.memories, girl.name, parsed) }
+    saveGuest(updated)
+    onSaveRegular?.(updated)
+    setMemState('saved')
+  }
   const [extra, setExtra] = useState('')
   const [loading, setLoading] = useState(false)
   const [redraw, setRedraw] = useState(false)
@@ -67,11 +100,13 @@ export function SessionResult({ mode, girl, guest, outfit, stockings, result, in
           <span className="text-muted-foreground">满意度</span>
           <span className="text-sm font-semibold text-amber-400" data-testid="result-satisfaction">{result.satisfaction} / 100（{result.tier.label}）</span>
         </div>
+        {result.matchBonus > 0 && <p className="text-[11px] text-emerald-300" data-testid="result-match-bonus">匹配加成 +{result.matchBonus}（{result.matchParts.join('，')}）</p>}
         <div className="flex justify-between"><span className="text-muted-foreground">收入</span><span className="gold-text font-semibold" data-testid="result-gold">+{info.reward} G</span></div>
         {info.reputationDelta !== 0 && (
           <div className="flex justify-between"><span className="text-muted-foreground">声望</span>
             <span className={info.reputationDelta > 0 ? 'text-pink-300' : 'text-rose-400'}>{info.reputationDelta > 0 ? '+' : ''}{info.reputationDelta}</span></div>
         )}
+        {info.incident && <p className="text-rose-300" data-testid="result-incident">{girl.name}记下一条事件：{info.incident.kind}（可在调教里「惩罚」）</p>}
         {info.becameRegular && <p className="flex items-center gap-1 text-emerald-400"><Star className="w-3.5 h-3.5" />「{guest.name}」成为了回头客</p>}
 
         <Section title={`五步得分 ${result.standardScore} / 70`}>
@@ -88,7 +123,7 @@ export function SessionResult({ mode, girl, guest, outfit, stockings, result, in
           <Section title={`追加 play ${result.playScore > 0 ? '+' : ''}${result.playScore}`}>
             {result.plays.map((p) => (
               <div key={p.id} className="flex justify-between">
-                <span>{p.name} <span className="text-muted-foreground text-[10px]">{p.rank}{p.matched ? ' · 对口' : ''}</span></span>
+                <span className="flex items-center gap-1.5"><ItemIcon src={playIconPath(p.id)} name={p.name} size={18} />{p.name} <span className="text-muted-foreground text-[10px]">{p.rank}{p.matched ? ' · 对口' : ''}</span></span>
                 <span className={cn('tabular-nums', p.score < 0 ? 'text-rose-400' : 'gold-text')}>{p.score > 0 ? '+' : ''}{p.score}</span>
               </div>
             ))}
@@ -96,6 +131,10 @@ export function SessionResult({ mode, girl, guest, outfit, stockings, result, in
         )}
 
         <Section title="服装">
+          <div className="flex gap-1.5 mb-1">
+            <ItemIcon src={itemIconPath('outfit', outfit)} name={OUTFITS.find((o) => o.id === outfit)?.name ?? '?'} size={28} />
+            {stockings !== 'none' && <ItemIcon src={itemIconPath('stocking', stockings)} name={STOCKINGS.find((s) => s.id === stockings)?.name ?? '?'} size={28} />}
+          </div>
           <p>{OUTFITS.find((o) => o.id === outfit)?.name}{stockings !== 'none' ? ` + ${STOCKINGS.find((s) => s.id === stockings)?.name}` : ''}
             {guest.prefOutfit ? (result.outfitMatched ? <span className="text-emerald-300">（对上「{guest.prefOutfit}」）</span> : <span className="text-muted-foreground">（客人想要「{guest.prefOutfit}」）</span>) : null}</p>
         </Section>
@@ -128,6 +167,11 @@ export function SessionResult({ mode, girl, guest, outfit, stockings, result, in
           {loading ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />生成中…</> : <><PenLine className="w-3.5 h-3.5 mr-1.5" />补一段</>}
         </Button>
       )}
+      <Button variant="outline" size="sm" className="w-full h-9 text-xs" onClick={saveRegular} disabled={memState !== 'idle'} data-testid="btn-save-regular">
+        {memState === 'saving' ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />记录中…</>
+          : memState === 'saved' ? <><BookmarkPlus className="w-3.5 h-3.5 mr-1.5" />已保存为常客</>
+          : <><BookmarkPlus className="w-3.5 h-3.5 mr-1.5" />保存为常客</>}
+      </Button>
       <Button className="w-full h-10 glow-btn" onClick={onBack} data-testid="btn-back-hub">返回大厅</Button>
     </div>
   )
