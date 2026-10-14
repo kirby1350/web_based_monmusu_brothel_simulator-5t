@@ -207,6 +207,7 @@ export interface MonstGirl {
   skillProgress?: Partial<Record<SkillKey, number>> // 特训进度
   sensitivities?: Partial<Record<SensitivityZone, number>> // 六条共通带 + 种族带，0–100
   sculptCounts?: { bust: number; waist: number; hip: number } // 各项塑形次数（涨价）
+  itemUsedOnDay?: number                        // 当天已用过恢复药（每人每天一瓶）
   // 图片缓存
   imageTags: string
   imageUrl?: string

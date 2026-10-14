@@ -171,15 +171,15 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish }: Ses
         <div className="flex gap-1">
           {SERVICE_STEPS.map((st, i) => (
             <div key={st.key} data-testid={`step-${st.key}`} data-state={i < live.stepIndex ? 'done' : i === live.stepIndex ? 'current' : 'todo'}
-              className={cn('flex-1 rounded-md border px-1 py-1 text-center text-[11px] transition-colors',
-                i === live.stepIndex ? 'border-amber-400/70 text-amber-300 bg-amber-400/10'
-                  : i < live.stepIndex ? 'border-border text-foreground/70 bg-secondary/30' : 'border-border/50 text-muted-foreground/50')}>
+              className={cn('flex-1 rounded-md border px-1 py-1 text-center text-xs transition-colors',
+                i === live.stepIndex ? 'border-amber-400/70 text-amber-300 bg-amber-400/10 font-semibold'
+                  : i < live.stepIndex ? 'border-border text-foreground/85 bg-secondary/40' : 'border-border text-foreground/60 bg-secondary/10')}>
               {i < live.stepIndex && <Check className="w-3 h-3 inline mr-0.5" />}{st.label}
-              <span className="block text-[9px] tabular-nums opacity-80">{i <= live.stepIndex ? preview.steps[i].score : '–'}/14</span>
+              <span className="block text-[11px] tabular-nums opacity-90">{i <= live.stepIndex ? preview.steps[i].score : '–'}/14</span>
             </div>
           ))}
         </div>
-        <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+        <div className="flex items-center gap-3 text-[11px] text-foreground/75 flex-wrap">
           <span data-testid="live-stamina">体力 {Math.max(0, (girl.stamina ?? 100) - preview.staminaCost)}（−{preview.staminaCost}）</span>
           <span data-testid="live-satisfaction">满意度 {preview.satisfaction}（{preview.tier.label}）</span>
           <span data-testid="live-outfit">服装 {outfitName}</span>

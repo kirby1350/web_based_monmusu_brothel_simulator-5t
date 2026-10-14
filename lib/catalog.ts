@@ -56,20 +56,20 @@ export function getPlaySlots(roomLevel?: number): number {
 
 // ─── 衣橱 ─────────────────────────────────────────────────────────────────────
 
-export interface OutfitDef { id: OutfitId; name: string; price: number; pref: OutfitPref | null }
+export interface OutfitDef { id: OutfitId; name: string; price: number; pref: OutfitPref | null; tags?: string }
 export const OUTFITS: OutfitDef[] = [
   { id: 'regular', name: '常服', price: 0, pref: null },
-  { id: 'maid', name: '女仆装', price: 200, pref: '制服' },
-  { id: 'kimono', name: '和服', price: 200, pref: '和服' },
-  { id: 'crotchless', name: '开裆装', price: 180, pref: '暴露' },
-  { id: 'restraint', name: '拘束衣', price: 240, pref: '想施虐的客人' },
-  { id: 'queen', name: '女王装', price: 240, pref: '想被榨的客人' },
+  { id: 'maid', name: '女仆装', price: 200, pref: '制服', tags: 'maid outfit, maid headdress, apron, frills' },
+  { id: 'kimono', name: '和服', price: 200, pref: '和服', tags: 'kimono, obi, japanese clothes' },
+  { id: 'crotchless', name: '开裆装', price: 180, pref: '暴露', tags: 'crotchless, revealing clothes, lingerie' },
+  { id: 'restraint', name: '拘束衣', price: 240, pref: '想施虐的客人', tags: 'straitjacket, bondage outfit, leather straps' },
+  { id: 'queen', name: '女王装', price: 240, pref: '想被榨的客人', tags: 'dominatrix, latex, thigh boots, corset' },
 ]
-export interface StockingDef { id: StockingId; name: string; price: number; pref: OutfitPref | null }
+export interface StockingDef { id: StockingId; name: string; price: number; pref: OutfitPref | null; tags?: string }
 export const STOCKINGS: StockingDef[] = [
   { id: 'none', name: '不加', price: 0, pref: null },
-  { id: 'black', name: '黑丝', price: 120, pref: '黑丝' },
-  { id: 'white', name: '白丝', price: 120, pref: '白丝' },
+  { id: 'black', name: '黑丝', price: 120, pref: '黑丝', tags: 'black pantyhose' },
+  { id: 'white', name: '白丝', price: 120, pref: '白丝', tags: 'white pantyhose' },
 ]
 export const OUTFIT_PREFS: OutfitPref[] = ['制服', '和服', '黑丝', '白丝', '暴露', '想施虐的客人', '想被榨的客人']
 

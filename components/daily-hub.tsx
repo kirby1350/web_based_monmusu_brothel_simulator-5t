@@ -6,12 +6,14 @@ import { GameSave, MonstGirl, AppSettings } from '@/lib/types'
 import { ImageDisplay } from '@/components/image-display'
 import { GirlSheet } from '@/components/girl-sheet'
 import { SkillPicker } from '@/components/skill-picker'
+import { ShopPanel } from '@/components/shop-panel'
+import { upgradeServiceRoom, upgradeTrainingRoom } from '@/lib/shop'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { MAX_ACTIONS_PER_DAY, getGirlCapacity, getGuestCapacity, getUpgradeCost } from '@/lib/game-engine'
 import { endDay, restGirl, upgradeDorm, getDormInfo, pendingSkillPicks } from '@/lib/hub-logic'
-import { SERVICE_ROOM_UPGRADE_COSTS, TRAINING_ROOM_UPGRADE_COSTS, getUpgradeCostFor, getPlaySlots, TRAINING_ROOM_MULT, REST_STAMINA } from '@/lib/catalog'
+import { SERVICE_ROOM_UPGRADE_COSTS, TRAINING_ROOM_UPGRADE_COSTS, getUpgradeCostFor, getPlaySlots, TRAINING_ROOM_MULT, TRAINING_ROOM_PROP_SLOTS, REST_STAMINA } from '@/lib/catalog'
 import { clearOpeningCache } from '@/lib/storage'
 import { cn } from '@/lib/utils'
 import type { GameTab } from '@/app/game/page'
@@ -62,6 +64,10 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
   }
   const handleDorm = () => {
     const r = upgradeDorm(save)
+    if (r.ok) { onSaveChange(r.save); flash(r.message) } else flash(r.error)
+  }
+  const handleRoom = (kind: 'service' | 'training') => {
+    const r = kind === 'service' ? upgradeServiceRoom(save) : upgradeTrainingRoom(save)
     if (r.ok) { onSaveChange(r.save); flash(r.message) } else flash(r.error)
   }
   const handleRest = (girlId: string) => {
@@ -182,19 +188,16 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
               desc={`每晚体力 +${dorm.nightly}${dorm.clearsExhaustion ? '，解除疲惫' : ''}${dorm.bestBedBonus ? `，指定一人再 +${dorm.bestBedBonus}` : ''}`}
               cost={dorm.upgradeCost} gold={player.gold} onUpgrade={handleDorm} testId="upgrade-dorm" />
             <FacilityCard icon={DoorOpen} title="服务房间" level={roomLv} desc={`额外 play 槽 ${getPlaySlots(roomLv)}`}
-              cost={roomCost} gold={player.gold} locked testId="upgrade-room" />
-            <FacilityCard icon={Sword} title="调教室" level={trainLv} desc={`收益倍率 ×${TRAINING_ROOM_MULT[trainLv - 1]}`}
-              cost={trainCost} gold={player.gold} locked testId="upgrade-training" />
+              cost={roomCost} gold={player.gold} onUpgrade={() => handleRoom('service')} testId="upgrade-room" />
+            <FacilityCard icon={Sword} title="调教室" level={trainLv} desc={`收益倍率 ×${TRAINING_ROOM_MULT[trainLv - 1]} · 道具槽 ${TRAINING_ROOM_PROP_SLOTS[trainLv - 1]}`}
+              cost={trainCost} gold={player.gold} onUpgrade={() => handleRoom('training')} testId="upgrade-training" />
             <Button variant="outline" size="sm" className="col-span-2 h-8 text-xs" onClick={() => onNavigate('market')}>
               <ShoppingBag className="w-3.5 h-3.5 mr-1.5" />前往奴隶市场
             </Button>
           </TabsContent>
 
-          <TabsContent value="shop" className="space-y-2 mt-0">
-            <p className="text-xs text-muted-foreground">恢复药、塑形药、衣橱和调教道具即将上架。</p>
-            <Button variant="outline" size="sm" className="w-full h-8 text-xs" onClick={() => onNavigate('market')}>
-              <ShoppingBag className="w-3.5 h-3.5 mr-1.5" />前往奴隶市场
-            </Button>
+          <TabsContent value="shop" className="mt-0">
+            <ShopPanel save={save} onSaveChange={onSaveChange} onOpenMarket={() => onNavigate('market')} />
           </TabsContent>
         </div>
       </Tabs>

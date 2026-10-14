@@ -2,7 +2,8 @@
 
 // 结算卡：五步得分 / play / 服装 / 体力 / 成长，没有 play 时不画空段
 import { useState } from 'react'
-import { Loader2, Star, PenLine } from 'lucide-react'
+import { Loader2, Star, PenLine, Brush } from 'lucide-react'
+import { ImageDisplay } from '@/components/image-display'
 import { AppSettings, Guest, MonstGirl, OutfitId, StockingId } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { OUTFITS, STOCKINGS } from '@/lib/catalog'
@@ -25,6 +26,14 @@ interface SessionResultProps {
 export function SessionResult({ mode, girl, guest, outfit, stockings, result, info, settings, onBack }: SessionResultProps) {
   const [extra, setExtra] = useState('')
   const [loading, setLoading] = useState(false)
+  const [redraw, setRedraw] = useState(false)
+  const outfitDef = OUTFITS.find((o) => o.id === outfit)
+  const stockingDef = STOCKINGS.find((x) => x.id === stockings)
+  const newOutfitTags = [outfitDef?.tags, stockingDef?.tags].filter(Boolean).join(', ')
+  // 只有换了衣橱里的衣服才有新标签可重绘（常服用她自己的标签）
+  const redrawTags = newOutfitTags
+    ? (girl.outfitTags && girl.imageTags.includes(girl.outfitTags) ? girl.imageTags.replace(girl.outfitTags, newOutfitTags) : `${girl.imageTags}, ${newOutfitTags}`)
+    : ''
 
   // 「补一段」：可选地调用现有 /api/chat 生成一段长文
   const writeMore = async () => {
@@ -89,6 +98,18 @@ export function SessionResult({ mode, girl, guest, outfit, stockings, result, in
           <p>{OUTFITS.find((o) => o.id === outfit)?.name}{stockings !== 'none' ? ` + ${STOCKINGS.find((s) => s.id === stockings)?.name}` : ''}
             {guest.prefOutfit ? (result.outfitMatched ? <span className="text-emerald-300">（对上「{guest.prefOutfit}」）</span> : <span className="text-muted-foreground">（客人想要「{guest.prefOutfit}」）</span>) : null}</p>
         </Section>
+
+        {redrawTags && (
+          <div className="pt-1">
+            {redraw ? (
+              <ImageDisplay tags={redrawTags} settings={settings} alt={girl.name} autoGenerate className="w-32 mx-auto" />
+            ) : (
+              <Button variant="outline" size="sm" className="h-7 text-[11px]" onClick={() => setRedraw(true)}>
+                <Brush className="w-3 h-3 mr-1" />按新标签重绘（可选，不重绘也已结算）
+              </Button>
+            )}
+          </div>
+        )}
 
         <Section title="体力">
           <p data-testid="result-stamina">{girl.name}：{info.staminaBefore} → {info.staminaAfter}（−{result.staminaCost}）</p>
