@@ -1,5 +1,7 @@
 'use client'
 
+import { trimHistory } from '@/lib/prompt-context'
+
 import {
   useState,
   useRef,
@@ -95,7 +97,8 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
             body: JSON.stringify({
               messages: [
                 { role: 'system', content: systemPrompt },
-                ...next,
+                // 只改发送内容：旧回复去掉隐藏数据块、保留最近 6 轮（界面与存档里的历史不变）
+                ...trimHistory(next),
               ],
               model: settings.chatModel,
               apiKey,
