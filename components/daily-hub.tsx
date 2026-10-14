@@ -109,8 +109,9 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
           {girls.map((g) => {
             const st = g.stamina ?? 100
             return (
-              <button key={g.id} data-testid={`girl-${g.name}`} onClick={() => restPicking ? handleRest(g.id) : setOpenGirlId(g.id)}
-                className={cn('w-16 shrink-0 rounded-lg border bg-card p-1 text-left transition-colors',
+              <div key={g.id} role="button" tabIndex={0} data-testid={`girl-${g.name}`} onClick={() => restPicking ? handleRest(g.id) : setOpenGirlId(g.id)}
+                onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); if (restPicking) { handleRest(g.id) } else { setOpenGirlId(g.id) } } }}
+                className={cn('w-16 shrink-0 rounded-lg border bg-card p-1 text-left transition-colors cursor-pointer',
                   restPicking ? 'border-emerald-400/60 hover:bg-emerald-400/10' : 'border-border hover:border-primary/50')}>
                 <div className="relative w-full aspect-square rounded-md overflow-hidden">
                   <ImageDisplay tags={g.imageTags} settings={settings} cachedUrl={g.imageUrl}
@@ -124,7 +125,7 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
                   <div className={cn('h-full', st >= 50 ? 'bg-emerald-400' : st >= 25 ? 'bg-amber-400' : 'bg-rose-500')} style={{ width: `${st}%` }} />
                 </div>
                 <p className="text-[9px] text-muted-foreground" data-testid={`stamina-${g.name}`}>体力 {st}</p>
-              </button>
+              </div>
             )
           })}
         </div>
