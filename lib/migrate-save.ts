@@ -13,6 +13,7 @@ export function migratePlayer(p: Player): Player {
     wardrobe: p.wardrobe ?? [],
     inventory: p.inventory ?? {},
     ownedTrainingProps: p.ownedTrainingProps ?? [],
+    customProps: p.customProps ?? [],
   }
 }
 

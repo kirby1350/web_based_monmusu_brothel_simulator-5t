@@ -3,11 +3,12 @@
 // 接客 / 调教共用的三步准备向导（阶段 2 只接了接客分支，调教分支在阶段 5）
 import { useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight, FastForward, Swords } from 'lucide-react'
-import { GameSave, Guest, MonstGirl, OutfitId, StockingId, TrainingDirection, SkillKey, SensitivityZone } from '@/lib/types'
+import { CustomProp, GameSave, Guest, MonstGirl, OutfitId, StockingId, TrainingDirection, SkillKey, SensitivityZone } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { OUTFITS, STOCKINGS, getPlaySlots, getSkillRank, getSensitivityLevel, TRAINING_PROPS, SCULPT_POTIONS, COMMON_ZONES, RACE_ZONE_NAMES, RACE_TRAITS, itemIconPath } from '@/lib/catalog'
 import { ItemIcon } from '@/components/item-icon'
+import { getTemplate } from '@/lib/custom-props'
 import { resolveTraining, getPropSlots, canDrillTwoSided, TRAINING_DIRECTIONS, TWO_SIDED_KEY, type TrainingResult } from '@/lib/resolve-training'
 import { canSkipService, getAvailablePlays, getMainService, scorePlay } from '@/lib/resolve-service'
 import { previewService } from '@/lib/settle-session'
@@ -244,6 +245,7 @@ export interface TrainingPlan {
   direction: TrainingDirection
   roomLevel: number
   props: string[]
+  customProps?: CustomProp[]
   outfit: OutfitId
   potionId?: string
   skill?: SkillKey | typeof TWO_SIDED_KEY
@@ -280,7 +282,7 @@ export function TrainingSetup({ save, onSkip, onLive }: TrainingSetupProps) {
   ] : []
   const zones: SensitivityZone[] = girl ? [...COMMON_ZONES, ...(RACE_ZONE_NAMES[girl.race] ? ['种族' as SensitivityZone] : [])] : []
 
-  const plan: TrainingPlan | null = girl ? { girl, direction, roomLevel, props, outfit, potionId, skill, zone } : null
+  const plan: TrainingPlan | null = girl ? { girl, direction, roomLevel, props, customProps: player.customProps ?? [], outfit, potionId, skill, zone } : null
   const preview = plan ? resolveTraining({ ...plan, skip: true }) : null
   const ready = !!preview?.ok
 
@@ -371,12 +373,18 @@ export function TrainingSetup({ save, onSkip, onLive }: TrainingSetupProps) {
             <section className="space-y-2">
               <p className="text-[10px] text-muted-foreground uppercase tracking-widest">道具（调教室 {roomLevel} 级，最多 {slots} 件）</p>
               {slots === 0 ? <p className="text-[11px] text-muted-foreground">一级调教室没有道具槽，升级调教室后可用。</p>
-                : ownedProps.length === 0 ? <p className="text-[11px] text-muted-foreground">还没有调教道具，可在大厅「商店」购买。</p> : (
+                : ownedProps.length === 0 && !(player.customProps ?? []).length ? <p className="text-[11px] text-muted-foreground">还没有调教道具，可在大厅「商店」购买。</p> : (
                 <div className="flex flex-wrap gap-1.5">
                   {ownedProps.map((p) => {
                     const on = props.includes(p.id)
                     return <Chip key={p.id} active={on} label={p.name} icon={itemIconPath('prop', p.id)}
                       onClick={() => setProps((cur) => on ? cur.filter((x) => x !== p.id) : cur.length < slots ? [...cur, p.id] : cur)} />
+                  })}
+                  {(player.customProps ?? []).map((c) => {
+                    const on = props.includes(c.id)
+                    const base = getTemplate(c.templateId)?.baseProp
+                    return <Chip key={c.id} active={on} label={c.name} hint="定制" icon={base ? itemIconPath('prop', base) : ''}
+                      onClick={() => setProps((cur) => on ? cur.filter((x) => x !== c.id) : cur.length < slots ? [...cur, c.id] : cur)} />
                   })}
                 </div>
               )}

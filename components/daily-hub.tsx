@@ -5,6 +5,8 @@ import { Settings, Coins, Calendar, Store, Sword, ShoppingBag, Moon, Zap, Crown,
 import { GameSave, MonstGirl, AppSettings } from '@/lib/types'
 import { ImageDisplay } from '@/components/image-display'
 import { GirlSheet } from '@/components/girl-sheet'
+import { StepActionsEditor } from '@/components/step-actions-editor'
+import { getStepActions } from '@/lib/custom-props'
 import { SkillPicker } from '@/components/skill-picker'
 import { ShopPanel } from '@/components/shop-panel'
 import { upgradeServiceRoom, upgradeTrainingRoom } from '@/lib/shop'
@@ -234,6 +236,9 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
             <Button variant="outline" size="sm" className="col-span-2 h-8 text-xs" onClick={() => onNavigate('market')}>
               <ShoppingBag className="w-3.5 h-3.5 mr-1.5" />前往奴隶市场
             </Button>
+            <StepActionsEditor title="标准做法（全馆）" testId="hub-step-actions" value={player.stepActions}
+              placeholders={getStepActions()}
+              onSave={(v) => { onSaveChange({ ...save, player: { ...player, stepActions: v } }); flash(v ? '已更新全馆标准做法' : '全馆标准做法已恢复默认') }} />
           </TabsContent>
 
           <TabsContent value="shop" className="mt-0">

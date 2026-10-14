@@ -17,6 +17,8 @@ import { SkillPicker } from '@/components/skill-picker'
 import { useRecovery } from '@/lib/shop'
 import { RECOVERY_ITEMS, itemIconPath } from '@/lib/catalog'
 import { ItemIcon } from '@/components/item-icon'
+import { StepActionsEditor } from '@/components/step-actions-editor'
+import { getStepActions } from '@/lib/custom-props'
 import { cn } from '@/lib/utils'
 
 interface GirlSheetProps {
@@ -220,6 +222,9 @@ export function GirlSheet({ girl, save, settings, onSaveChange, onClose, intro }
                 </div>
               </div>
             )}
+            <StepActionsEditor title="标准做法（只对她）" testId="girl-step-actions" value={girl.stepActions}
+              placeholders={getStepActions(player)}
+              onSave={(v) => updateGirl({ ...girl, stepActions: v })} />
           </TabsContent>
 
           <TabsContent value="sens" className="space-y-1.5 mt-0">

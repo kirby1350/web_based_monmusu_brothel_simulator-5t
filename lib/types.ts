@@ -173,6 +173,8 @@ export interface Player {
   wardrobe?: string[]         // 已购衣橱 id（主装与丝袜；常服自带，不记入）
   inventory?: Record<string, number> // 道具 id → 数量（恢复药 / 塑形药）
   ownedTrainingProps?: string[]      // 已购调教道具 id
+  customProps?: CustomProp[]         // 定制调教道具（全馆最多 6 件）
+  stepActions?: string[]             // 五步「标准做法」馆主自定义（长度 5，空串=默认）
   giftGivenOnDay?: number     // 当天已送礼（全馆每天一次）
 }
 
@@ -201,6 +203,7 @@ export interface MonstGirl {
   // ─── 新结算字段（全部可选，旧存档由 migrate-save 回填） ───
   stamina?: number                              // 体力 0–100，跨天保留
   exhausted?: boolean                           // 疲惫
+  stepActions?: string[]             // 五步「标准做法」按魔物娘覆盖（优先于馆主）
   skillRanks?: Partial<Record<SkillKey, SkillRank>> // 服侍技能 / M性 / S性 → 档位
   inclination?: Inclination                     // 无 / M / S / 两面
   msProgress?: { m: number; s: number }         // 驯服积累 M、放权积累 S
@@ -294,3 +297,6 @@ export interface GameSave {
   // 今天已出场（接客/调教/休息）的魔物娘 id，结束今天时清空
   appearedToday?: string[]
 }
+
+/** 定制调教道具：名字、描述自填，效果来自固定模板 */
+export interface CustomProp { id: string; name: string; desc: string; templateId: string }

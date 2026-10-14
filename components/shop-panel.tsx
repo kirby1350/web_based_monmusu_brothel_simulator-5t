@@ -7,6 +7,8 @@ import { GameSave } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { OUTFITS, STOCKINGS, SCULPT_POTIONS, TRAINING_PROPS, itemIconPath } from '@/lib/catalog'
 import { ItemIcon } from '@/components/item-icon'
+import { CUSTOM_PROP_TEMPLATES, MAX_CUSTOM_PROPS, CUSTOM_PROP_NAME_MAX, CUSTOM_PROP_DESC_MAX } from '@/lib/catalog'
+import { createCustomProp, customPropPrice, getTemplate } from '@/lib/custom-props'
 import {
   shelfRecoveryItems, sculptPrice, buyRecovery, buySculpt, buyWardrobe, buyTrainingProp, type ShopResult,
 } from '@/lib/shop'
@@ -67,6 +69,8 @@ export function ShopPanel({ save, onSaveChange, onOpenMarket }: ShopPanelProps) 
         ))}
       </Section>
 
+      <CustomPropForm save={save} onResult={run} />
+
       <Button variant="outline" size="sm" className="w-full h-8 text-xs" onClick={onOpenMarket}>
         <ShoppingBag className="w-3.5 h-3.5 mr-1.5" />前往奴隶市场
       </Button>
@@ -109,5 +113,55 @@ function Item({ icon, name, desc, price, gold, owned, done, onBuy, testId }: {
         {done ? '已拥有' : `${price} G`}
       </button>
     </div>
+  )
+}
+
+/** 「定制」：名字 + 描述 + 效果模板，预览价格 */
+function CustomPropForm({ save, onResult }: { save: GameSave; onResult: (r: ShopResult) => void }) {
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState('')
+  const [desc, setDesc] = useState('')
+  const [tpl, setTpl] = useState(CUSTOM_PROP_TEMPLATES[0].id)
+  const list = save.player.customProps ?? []
+  const price = customPropPrice(tpl) ?? 0
+  const full = list.length >= MAX_CUSTOM_PROPS
+  const submit = () => {
+    const r = createCustomProp(save, { name, desc, templateId: tpl })
+    onResult(r)
+    if (r.ok) { setName(''); setDesc('') }
+  }
+  return (
+    <section className="space-y-1.5" data-testid="custom-props">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-xs font-semibold gold-text">定制调教道具 <span className="text-[10px] text-muted-foreground font-normal">{list.length}/{MAX_CUSTOM_PROPS}</span></p>
+        <button className="text-[10px] text-amber-400 underline" onClick={() => setOpen(!open)} data-testid="custom-toggle">{open ? '收起' : '定制'}</button>
+      </div>
+      {list.map((c) => (
+        <div key={c.id} className="flex items-center gap-2 rounded-lg border border-border bg-card px-2.5 py-1.5">
+          <ItemIcon src={`/icons/prop/${getTemplate(c.templateId)?.baseProp}.webp`} name={c.name} size={24} />
+          <div className="min-w-0">
+            <p className="text-xs">{c.name} <span className="text-[9px] text-emerald-300">定制</span></p>
+            <p className="text-[10px] text-muted-foreground truncate">{getTemplate(c.templateId)?.label}{c.desc ? ` · ${c.desc}` : ''}</p>
+          </div>
+        </div>
+      ))}
+      {open && (
+        <div className="rounded-lg border border-amber-400/30 bg-card p-2.5 space-y-1.5">
+          <input data-testid="custom-name" value={name} maxLength={CUSTOM_PROP_NAME_MAX} onChange={(e) => setName(e.target.value)} placeholder={`名字（≤${CUSTOM_PROP_NAME_MAX} 字）`}
+            className="w-full rounded-md border border-border bg-background px-2 py-1 text-xs" />
+          <input data-testid="custom-desc" value={desc} maxLength={CUSTOM_PROP_DESC_MAX} onChange={(e) => setDesc(e.target.value)} placeholder={`描述（可空，≤${CUSTOM_PROP_DESC_MAX} 字）`}
+            className="w-full rounded-md border border-border bg-background px-2 py-1 text-xs" />
+          <select data-testid="custom-template" value={tpl} onChange={(e) => setTpl(e.target.value)}
+            className="w-full rounded-md border border-border bg-background px-1.5 py-1 text-[11px]">
+            {CUSTOM_PROP_TEMPLATES.map((t) => <option key={t.id} value={t.id}>{t.label} · {customPropPrice(t.id)}G</option>)}
+          </select>
+          <button data-testid="custom-buy" disabled={full || !name.trim() || save.player.gold < price} onClick={submit}
+            className={cn('w-full text-[11px] rounded-md border px-2 py-1',
+              !full && name.trim() && save.player.gold >= price ? 'border-amber-400/40 text-amber-400 hover:bg-amber-400/10' : 'border-border text-muted-foreground/60 cursor-not-allowed')}>
+            {full ? `已达上限 ${MAX_CUSTOM_PROPS} 件` : save.player.gold < price ? `${price} G（还差 ${price - save.player.gold}G）` : `定制 ${price} G`}
+          </button>
+        </div>
+      )}
+    </section>
   )
 }

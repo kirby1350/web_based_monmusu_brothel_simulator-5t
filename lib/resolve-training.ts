@@ -1,3 +1,5 @@
+import { expandProps } from './custom-props'
+import type { CustomProp } from './types'
 // 调教结算（纯函数）：驯服 / 放权 / 塑形 / 特训 / 敏感开发
 // 基础值 × 调教室倍率；道具、服装是固定小数，不吃倍率；塑形厘米数不吃倍率。
 import type { MonstGirl, OutfitId, SensitivityZone, SkillKey, SkillRank, TrainingDirection } from './types'
@@ -27,7 +29,8 @@ export interface TrainingInput {
   direction: TrainingDirection
   roomLevel?: number
   skip: boolean
-  props?: string[]            // 勾选的调教道具（须已拥有、不超过槽位，由调用方保证）
+  props?: string[]            // 勾选的调教道具（现成 id 或定制 id；须已拥有、不超过槽位，由调用方保证）
+  customProps?: CustomProp[]  // 馆主的定制道具（按模板映射成现成道具效果）
   outfit?: OutfitId
   potionId?: string           // 塑形
   skill?: SkillKey | typeof TWO_SIDED_KEY  // 特训
@@ -72,7 +75,7 @@ export function canDrillTwoSided(girl: MonstGirl): boolean {
 
 export function resolveTraining(input: TrainingInput): TrainingResult {
   const { girl, direction, skip } = input
-  const props = new Set(input.props ?? [])
+  const props = new Set(expandProps(input.props ?? [], input.customProps))
   const raceMult = girl.race === '精灵' ? ELF_GROWTH_MULT : 1
   const mult = getTrainingMult(input.roomLevel) * raceMult
   const m = (n: number) => Math.round(n * mult)

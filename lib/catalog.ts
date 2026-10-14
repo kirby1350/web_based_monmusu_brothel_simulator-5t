@@ -236,3 +236,22 @@ export function itemIconPath(category: IconCategory, id: string): string | undef
   if (id === 'none') return undefined
   return `/icons/${category}/${id}.webp`
 }
+
+// ─── 定制调教道具：效果只从固定模板里选；每个模板等同一件现成道具（不改体力） ───
+
+export interface CustomPropTemplate { id: string; label: string; baseProp: string; tier: 'tame' | 'release' | 'sculpt' | 'drill' | 'sensitize' }
+export const CUSTOM_PROP_TEMPLATES: CustomPropTemplate[] = [
+  { id: 'tpl_obedience', label: '驯服：服从 +3（同皮鞭）', baseProp: 'whip', tier: 'tame' },
+  { id: 'tpl_m', label: '驯服：M 进度 +1（同拘束架）', baseProp: 'rack', tier: 'tame' },
+  { id: 'tpl_lewd3', label: '放权：淫乱 +3（同按摩台）', baseProp: 'massage_table', tier: 'release' },
+  { id: 'tpl_lewd2', label: '放权/塑形：淫乱 +2（同香炉）', baseProp: 'censer', tier: 'release' },
+  { id: 'tpl_cm', label: '塑形：胸围或臀围多 1 厘米（同塑形架）', baseProp: 'sculpt_frame', tier: 'sculpt' },
+  { id: 'tpl_progress', label: '特训：进度 +1（同练习镜）', baseProp: 'mirror', tier: 'drill' },
+  ...TRAINING_PROPS.filter((p) => p.zone).map((p) => ({
+    id: `tpl_zone_${p.zone}`, label: `敏感开发：${p.zone === '种族' ? '种族敏感带' : p.zone}对口 +4（同${p.name}）`, baseProp: p.id, tier: 'sensitize' as const,
+  })),
+]
+export const MAX_CUSTOM_PROPS = 6
+export const CUSTOM_PROP_NAME_MAX = 8
+export const CUSTOM_PROP_DESC_MAX = 30
+export const STEP_ACTION_MAX = 20
