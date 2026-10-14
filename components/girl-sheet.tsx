@@ -107,7 +107,7 @@ export function GirlSheet({ girl, save, settings, onSaveChange, onClose, intro }
             {girl.incident && (
               <div className="rounded-xl border border-rose-500/40 bg-rose-500/5 p-3 space-y-0.5" data-testid="girl-incident">
                 <p className="text-[11px] text-rose-300">{girl.incident.kind} · 第 {girl.incident.day} 天</p>
-                <p className="text-xs">{girl.name}{girl.incident.text}。去调教里选「惩罚」处理；过夜不处理每晚好感 −3。</p>
+                <p className="text-xs">{girl.name}{girl.incident.text}。去调教里选「惩罚」处理；过夜不处理每晚服从 −3。</p>
               </div>
             )}
             {intro && (

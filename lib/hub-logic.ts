@@ -98,7 +98,7 @@ export function endDay(save: GameSave, rng: () => number = Math.random): GameSav
     stamina: clampStamina((g.stamina ?? MAX_STAMINA) + nightlyRecovery(save, g)),
     exhausted: dorm.clearsExhaustion ? false : g.exhausted,
   }))
-  // 事件：过夜未处理扣好感；再按概率随机一人闯祸（记在新的一天）
+  // 事件：过夜未处理扣服从；再按概率随机一人闯祸（记在新的一天）
   const girls = nightlyIncidents(rested, save.currentDay + 1, rng)
   return {
     ...save,

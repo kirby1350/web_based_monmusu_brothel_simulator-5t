@@ -42,16 +42,16 @@ test('结算写入事件：不满 + 注入随机数', () => {
   assert.equal(none.save.girls[0].incident ?? null, null)
 })
 
-test('闯祸按注入随机数触发；过夜未处理好感 −3（新闯祸当晚不扣）', () => {
-  const gs = [girl({ id: 'a', affection: 20, incident: inc }), girl({ id: 'b', name: 'B', affection: 20 })]
+test('闯祸按注入随机数触发；过夜未处理服从 −3、好感不变（新闯祸当晚不扣）', () => {
+  const gs = [girl({ id: 'a', affection: 20, obedience: 40, incident: inc }), girl({ id: 'b', name: 'B', affection: 20, obedience: 40 })]
   const quiet = nightlyIncidents(gs, 4, () => 0.9)
-  assert.equal(quiet[0].affection, 17); assert.equal(quiet[1].incident, undefined)
+  assert.equal(quiet[0].obedience, 37); assert.equal(quiet[0].affection, 20); assert.equal(quiet[1].obedience, 40); assert.equal(quiet[1].incident, undefined)
   const loud = nightlyIncidents(gs, 4, seq(0.1, 0, 0))
-  assert.equal(loud[1].incident?.kind, '闯祸'); assert.equal(loud[1].affection, 20)
+  assert.equal(loud[1].incident?.kind, '闯祸'); assert.equal(loud[1].obedience, 40)
   assert.ok(INCIDENT_TEMPLATES.includes(loud[1].incident!.text))
   assert.equal(loud[0].incident, inc)
   const d = endDay(save(gs), () => 0.9)
-  assert.equal(d.girls[0].affection, 17); assert.equal(d.currentDay, 4)
+  assert.equal(d.girls[0].obedience, 37); assert.equal(d.girls[0].affection, 20); assert.equal(d.currentDay, 4)
 })
 
 test('没有事件且不是 M 性熟练：不能惩罚', () => {

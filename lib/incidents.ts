@@ -1,7 +1,7 @@
 // 阶段 10：事件生成与惩罚资格（纯函数，随机数可注入）
 import type { GameSave, Guest, Incident, MonstGirl } from './types'
 import {
-  INCIDENT_TEMPLATES, SERVICE_FAIL_INCIDENT_CHANCE, DAILY_MISCHIEF_CHANCE, INCIDENT_OVERNIGHT_AFFECTION, getSkillRank,
+  INCIDENT_TEMPLATES, SERVICE_FAIL_INCIDENT_CHANCE, DAILY_MISCHIEF_CHANCE, INCIDENT_OVERNIGHT_OBEDIENCE, getSkillRank,
 } from './catalog'
 
 type Rng = () => number
@@ -13,9 +13,9 @@ export function serviceFailIncident(girl: MonstGirl, guest: Guest, tierKey: stri
   return { kind: '接客失败', text: `没能让客人${guest.name}满意，惹恼了对方`, day }
 }
 
-/** 每天结束：先对过夜未处理的事件扣好感，再按概率随机一人闯祸 */
+/** 每天结束：先对过夜未处理的事件扣服从（好感不变），再按概率随机一人闯祸 */
 export function nightlyIncidents(girls: MonstGirl[], day: number, rng: Rng = Math.random): MonstGirl[] {
-  const after = girls.map((g) => (g.incident ? { ...g, affection: Math.max(0, g.affection - INCIDENT_OVERNIGHT_AFFECTION) } : g))
+  const after = girls.map((g) => (g.incident ? { ...g, obedience: Math.max(0, g.obedience - INCIDENT_OVERNIGHT_OBEDIENCE) } : g))
   if (rng() >= DAILY_MISCHIEF_CHANCE) return after
   const free = after.filter((g) => !g.incident)
   if (!free.length) return after
