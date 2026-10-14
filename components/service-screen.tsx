@@ -305,6 +305,8 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
         reputation: applyReputationDelta(player.reputation, reputationDelta),
       },
       actionsUsedToday: (save.actionsUsedToday ?? 0) + 1,
+      // 大厅横条显示「已出场」
+      appearedToday: Array.from(new Set([...(save.appearedToday ?? []), ...session.girls.map((g) => g.id)])),
       // 服务场景：把已接待客人移出今日客人池
       dailyGuests: servedGuest
         ? (save.dailyGuests ?? []).filter((g) => g.id !== servedGuest.id)
