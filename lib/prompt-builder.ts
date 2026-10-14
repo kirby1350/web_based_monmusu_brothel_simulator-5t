@@ -120,6 +120,16 @@ function playerTraitsFull(player: Player): string {
 export function buildServiceSystemPrompt(
   player: Player,
   session: ServiceSession,
+  proseStyle: ProseStyle = 'standard',
+  stepContext?: string
+): string {
+  if (stepContext) return buildServiceSystemPromptBase(player, session, proseStyle) + '\n\n' + stepContext
+  return buildServiceSystemPromptBase(player, session, proseStyle)
+}
+
+function buildServiceSystemPromptBase(
+  player: Player,
+  session: ServiceSession,
   proseStyle: ProseStyle = 'standard'
 ): string {
   // 重油堆叠需要更多篇幅来铺密度，故 dense 模式下提高字数上限

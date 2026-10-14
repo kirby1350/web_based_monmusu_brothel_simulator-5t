@@ -10,7 +10,8 @@ import { SessionSetup, type ServicePlan } from '@/components/session-setup'
 import { SessionScene } from '@/components/session-scene'
 import { SessionResult } from '@/components/session-result'
 import { resolveService, type ServiceResult } from '@/lib/resolve-service'
-import { applyServiceToSave, resolveLiveService, type SettleInfo } from '@/lib/settle-session'
+import { applyServiceToSave, type SettleInfo } from '@/lib/settle-session'
+import { resolveLiveSteps } from '@/lib/live-steps'
 
 interface ServiceFlowProps {
   save: GameSave
@@ -55,10 +56,10 @@ export function ServiceFlow({ save, settings, onSaveChange, onBack }: ServiceFlo
       {phase.kind === 'scene' && (
         <SessionScene
           player={save.player}
-          girl={phase.plan.girl}
-          guest={phase.plan.guest}
+          plan={phase.plan}
+          wardrobe={save.player.wardrobe ?? []}
           settings={settings}
-          onFinish={({ turnCount }) => settle(phase.plan, 'live', resolveLiveService(phase.plan, turnCount))}
+          onFinish={({ state }) => settle({ ...phase.plan, outfit: state.outfit, stockings: state.stockings }, 'live', resolveLiveSteps(phase.plan, state))}
         />
       )}
       {phase.kind === 'result' && (

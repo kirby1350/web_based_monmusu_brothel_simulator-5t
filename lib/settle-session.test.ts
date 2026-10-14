@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { GameSave, Guest, MonstGirl } from './types'
 import { resolveService } from './resolve-service'
-import { applyServiceToSave, resolveLiveService, previewService } from './settle-session'
+import { applyServiceToSave, previewService } from './settle-session'
 
 const girl: MonstGirl = {
   id: 'a', name: 'A', race: '猫娘', age: '', bodyDesc: '', bodyTags: '', bust: 85, waist: 62, hip: 88,
@@ -34,16 +34,6 @@ test('体力不会掉到负数，归零时疲惫', () => {
   const { save: s } = applyServiceToSave({ ...save, girls: [{ ...girl, stamina: 10 }] }, 'a', guest, r)
   assert.equal(s.girls[0].stamina, 0)
   assert.equal(s.girls[0].exhausted, true)
-})
-
-test('亲自上场：走完五步等于非跳过公式，速战 −25、长场 −55；提前结束低于跳过', () => {
-  const full = resolveLiveService({ girl, guest }, 5)
-  assert.equal(full.satisfaction, resolveService({ girl, guest, skip: false }).satisfaction)
-  assert.equal(resolveLiveService({ girl, guest }, 3).staminaCost, 25)
-  assert.equal(full.staminaCost, 55)
-  const early = resolveLiveService({ girl, guest }, 2)
-  assert.ok(early.satisfaction < resolveService({ girl, guest, skip: true }).satisfaction)
-  assert.equal(early.steps[2].score, 0)
 })
 
 test('预览给出收入区间和体力', () => {

@@ -2,11 +2,10 @@
 
 // 亲自上场的对话场景（阶段 2：整段搬自旧 service-screen，阶段 3 再改成步骤条）
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { CheckCircle, Loader2, Send, ChevronRight } from 'lucide-react'
-import { MonstGirl, Guest, ChatMessage, ServiceSession, AppSettings, Player } from '@/lib/types'
+import { Loader2, Send, ChevronRight, Shirt, Plus, Check } from 'lucide-react'
+import { MonstGirl, Guest, ChatMessage, ServiceSession, AppSettings, Player, OutfitId, StockingId } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { StatBar } from '@/components/stat-bar'
 import { ChatEngine, ChatEngineHandle } from '@/components/chat-engine'
 import { SuggestionBar } from '@/components/suggestion-bar'
 import { buildServiceSystemPrompt, buildOpeningDialoguePrompt } from '@/lib/prompt-builder'
@@ -14,22 +13,32 @@ import {
   createServiceSession, applyStatDelta, estimateStatDelta, parseStatsFromReply, getGirlDelta,
   updateGuestSatisfaction, parseActionsFromReply, computeInitialSatisfaction,
 } from '@/lib/game-engine'
-import { parseLooseJson } from '@/lib/utils'
+import { parseLooseJson, cn } from '@/lib/utils'
+import { OUTFITS, STOCKINGS, getSensitivityLevel } from '@/lib/catalog'
+import { SERVICE_STEPS } from '@/lib/resolve-service'
+import {
+  initLiveState, recordTurn, nextStep, canChangeOutfit, changeOutfit, insertablePlays, insertPlay,
+  resolveLiveSteps, buildStepContext, STEP_STANDARD_ACTION, type LiveState,
+} from '@/lib/live-steps'
+import type { ServicePlan } from '@/components/session-setup'
 
 export interface SceneOutcome {
-  turnCount: number
+  state: LiveState
   messages: ChatMessage[]
 }
 
 interface SessionSceneProps {
   player: Player
-  girl: MonstGirl
-  guest: Guest
+  plan: ServicePlan
+  wardrobe: string[]
   settings: AppSettings
   onFinish: (outcome: SceneOutcome) => void
 }
 
-export function SessionScene({ player, girl, guest, settings, onFinish }: SessionSceneProps) {
+export function SessionScene({ player, plan, wardrobe, settings, onFinish }: SessionSceneProps) {
+  const { girl, guest } = plan
+  const [live, setLive] = useState<LiveState>(() => initLiveState(plan))
+  const [panel, setPanel] = useState<'none' | 'outfit' | 'play'>('none')
   const [phase, setPhase] = useState<'opening' | 'active'>('opening')
   const [session, setSession] = useState<ServiceSession>(() =>
     createServiceSession('service', [girl], { guest: { ...guest, satisfaction: computeInitialSatisfaction(guest, [girl]) } }))
@@ -99,9 +108,38 @@ export function SessionScene({ player, girl, guest, settings, onFinish }: Sessio
     })
   }, [girl.id, girl.name])
 
-  const finish = () => onFinish({ turnCount: messages.filter((m) => m.role === 'user').length, messages })
-  const systemPrompt = buildServiceSystemPrompt(player, { ...session, messages }, settings.proseStyle)
-  const stats = session.girlsStats[girl.id]
+  const finish = (state: LiveState) => onFinish({ state, messages })
+  const stepDef = SERVICE_STEPS[live.stepIndex]
+  const preview = resolveLiveSteps(plan, live)
+  const currentStep = preview.steps[live.stepIndex]
+  const zoneVal = currentStep.zone ? girl.sensitivities?.[currentStep.zone] : undefined
+  const outfitName = `${OUTFITS.find((o) => o.id === live.outfit)?.name ?? '常服'}${live.stockings !== 'none' ? ' + ' + STOCKINGS.find((x) => x.id === live.stockings)?.name : ''}`
+  const stepContext = buildStepContext({
+    stepLabel: stepDef.label,
+    standardAction: STEP_STANDARD_ACTION[live.stepIndex],
+    outfitName,
+    zoneLabel: currentStep.zone,
+    zoneLevel: zoneVal !== undefined ? getSensitivityLevel(zoneVal) : undefined,
+    plays: preview.plays.map((p) => p.name),
+  })
+  const systemPrompt = buildServiceSystemPrompt(player, { ...session, messages }, settings.proseStyle, stepContext)
+  const shownSuggestions: [string, string, string] = [STEP_STANDARD_ACTION[live.stepIndex], suggestions?.[1] ?? '与她贴身调情', suggestions?.[2] ?? '她主动靠近']
+  const owned = new Set(wardrobe)
+  const outfitOpts = OUTFITS.filter((o) => o.id === 'regular' || owned.has(o.id))
+  const stockingOpts = STOCKINGS.filter((x) => x.id === 'none' || owned.has(x.id))
+  const playOpts = insertablePlays(plan, live)
+  const send = (text: string) => {
+    if (!text.trim() || live.finished) return
+    setLive((s) => recordTurn(s))
+    chatRef.current?.sendMessage(text.trim())
+    setInputValue('')
+  }
+  const goNext = () => {
+    const n = nextStep(live)
+    setPanel('none')
+    if (n.finished) finish(n)
+    else setLive(n)
+  }
 
   if (phase === 'opening') {
     return (
@@ -127,62 +165,76 @@ export function SessionScene({ player, girl, guest, settings, onFinish }: Sessio
   }
 
   return (
-    <div className="flex flex-1 min-h-0">
-      <div className="w-48 border-r border-border flex flex-col overflow-y-auto shrink-0">
-        <div className="p-3 space-y-3">
-          <div className="bg-secondary/20 rounded-lg overflow-hidden">
-            {girl.imageUrl && (
-              <div className="w-full aspect-[3/2] overflow-hidden">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={girl.imageUrl} alt={girl.name} className="w-full h-full object-cover object-top" />
-              </div>
-            )}
-            <div className="p-2.5 space-y-1.5">
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-semibold gold-text">{girl.name}</span>
-                <Badge variant="secondary" className="text-[8px] h-3.5 px-1">{girl.race}</Badge>
-              </div>
-              {stats && (
-                <>
-                  <StatBar label="快感" value={stats.pleasure} color="pink" size="sm" />
-                  <StatBar label="体力" value={stats.stamina} color="blue" size="sm" />
-                </>
-              )}
+    <div className="flex flex-col flex-1 min-h-0">
+      {/* 顶部步骤条 */}
+      <div className="border-b border-border px-3 pt-2 pb-1.5 shrink-0 space-y-1.5" data-testid="step-bar">
+        <div className="flex gap-1">
+          {SERVICE_STEPS.map((st, i) => (
+            <div key={st.key} data-testid={`step-${st.key}`} data-state={i < live.stepIndex ? 'done' : i === live.stepIndex ? 'current' : 'todo'}
+              className={cn('flex-1 rounded-md border px-1 py-1 text-center text-[11px] transition-colors',
+                i === live.stepIndex ? 'border-amber-400/70 text-amber-300 bg-amber-400/10'
+                  : i < live.stepIndex ? 'border-border text-foreground/70 bg-secondary/30' : 'border-border/50 text-muted-foreground/50')}>
+              {i < live.stepIndex && <Check className="w-3 h-3 inline mr-0.5" />}{st.label}
+              <span className="block text-[9px] tabular-nums opacity-80">{i <= live.stepIndex ? preview.steps[i].score : '–'}/14</span>
             </div>
-          </div>
-          {session.guest && session.guestStats && (
-            <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-2.5 space-y-1.5">
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-semibold text-amber-400">{session.guest.name}</span>
-                <Badge variant="secondary" className="text-[8px] h-3.5 px-1">客</Badge>
-              </div>
-              <StatBar label="快感" value={session.guestStats.pleasure} color="gold" size="sm" />
-              <StatBar label="体力" value={session.guestStats.stamina} color="green" size="sm" />
-            </div>
+          ))}
+        </div>
+        <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+          <span data-testid="live-stamina">体力 {Math.max(0, (girl.stamina ?? 100) - preview.staminaCost)}（−{preview.staminaCost}）</span>
+          <span data-testid="live-satisfaction">满意度 {preview.satisfaction}（{preview.tier.label}）</span>
+          <span data-testid="live-outfit">服装 {outfitName}</span>
+          <span className="flex-1" />
+          <button className="underline hover:text-rose-400" onClick={() => finish(live)}>提前结束</button>
+        </div>
+        <div className="flex gap-1.5">
+          <Button size="sm" className="h-7 text-xs glow-btn" onClick={goNext} data-testid="btn-next-step">
+            {live.stepIndex === SERVICE_STEPS.length - 1 ? '结束服务' : '下一步'}<ChevronRight className="w-3.5 h-3.5 ml-0.5" />
+          </Button>
+          {playOpts.length > 0 && (
+            <Button size="sm" variant="secondary" className="h-7 text-xs" onClick={() => setPanel(panel === 'play' ? 'none' : 'play')} data-testid="btn-insert-play">
+              <Plus className="w-3.5 h-3.5 mr-0.5" />插入 play
+            </Button>
+          )}
+          {canChangeOutfit(live) && (
+            <Button size="sm" variant="secondary" className="h-7 text-xs" onClick={() => setPanel(panel === 'outfit' ? 'none' : 'outfit')} data-testid="btn-change-outfit">
+              <Shirt className="w-3.5 h-3.5 mr-0.5" />换装（体力 −5）
+            </Button>
           )}
         </div>
-        <div className="mt-auto p-3 border-t border-border">
-          <Button variant="outline" size="sm" className="w-full h-9 text-xs border-rose-500/30 text-rose-400 hover:bg-rose-500/10" onClick={finish}>
-            <CheckCircle className="w-3.5 h-3.5 mr-1.5" />结束服务
-          </Button>
-        </div>
+        {panel === 'play' && (
+          <div className="flex flex-wrap gap-1.5">
+            {playOpts.map((p) => (
+              <button key={p.id} className="rounded-md border border-border px-2 py-0.5 text-[11px] hover:border-amber-400/60"
+                onClick={() => { setLive((s) => insertPlay(plan, s, p.id)); setPanel('none') }}>{p.source === 'race' ? '种族特技' : p.name}</button>
+            ))}
+          </div>
+        )}
+        {panel === 'outfit' && (
+          <div className="flex flex-wrap gap-1.5 items-center">
+            {outfitOpts.flatMap((o) => stockingOpts.map((x) => ({ o, x }))).filter(({ o, x }) => o.id !== live.outfit || x.id !== live.stockings).map(({ o, x }) => (
+              <button key={o.id + x.id} className="rounded-md border border-border px-2 py-0.5 text-[11px] hover:border-amber-400/60"
+                onClick={() => { setLive((s) => changeOutfit(s, o.id as OutfitId, x.id as StockingId)); setPanel('none') }}>
+                {o.name}{x.id !== 'none' ? ' + ' + x.name : ''}{guest.prefOutfit && (o.pref === guest.prefOutfit || x.pref === guest.prefOutfit) ? ' · 对口' : ''}
+              </button>
+            ))}
+            {outfitOpts.length === 1 && stockingOpts.length === 1 && <span className="text-[10px] text-muted-foreground">衣橱里只有常服，没有可换的衣服</span>}
+          </div>
+        )}
       </div>
-      <div className="flex-1 flex flex-col min-w-0">
+
+      {/* 对话区 */}
+      <div className="flex-1 flex flex-col min-h-0">
         <ChatEngine ref={chatRef} systemPrompt={systemPrompt} messages={messages} onMessagesChange={setMessages}
           settings={settings} onRawStreamComplete={handleRawReply} showInput={false} className="flex-1 min-h-0" />
-        <SuggestionBar suggestions={suggestions} onSelect={(t) => setInputValue(t)} />
+        <SuggestionBar suggestions={shownSuggestions} onSelect={(t) => setInputValue(t)} />
         <div className="border-t border-border px-3 pb-3 pt-2 flex gap-2 items-end">
-          <textarea value={inputValue} onChange={(e) => setInputValue(e.target.value)}
+          <textarea value={inputValue} onChange={(e) => setInputValue(e.target.value)} data-testid="scene-input"
             className="flex-1 min-h-[56px] max-h-[100px] resize-none bg-input border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-            placeholder="描述你的行动…（Enter 发送，Shift+Enter 换行）"
+            placeholder={`「${stepDef.label}」：描述你的行动…（Enter 发送）`}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                if (inputValue.trim()) { chatRef.current?.sendMessage(inputValue.trim()); setInputValue('') }
-              }
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(inputValue) }
             }} />
-          <Button size="icon" className="h-9 w-9 shrink-0 glow-btn" disabled={!inputValue.trim()}
-            onClick={() => { chatRef.current?.sendMessage(inputValue.trim()); setInputValue('') }}>
+          <Button size="icon" className="h-9 w-9 shrink-0 glow-btn" disabled={!inputValue.trim()} onClick={() => send(inputValue)} data-testid="scene-send">
             <Send className="w-3.5 h-3.5" />
           </Button>
         </div>
