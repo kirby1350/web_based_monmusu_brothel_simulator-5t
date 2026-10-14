@@ -18,6 +18,7 @@ import { endDay, restGirl, upgradeDorm, getDormInfo, pendingSkillPicks, pickArri
 import { SERVICE_ROOM_UPGRADE_COSTS, TRAINING_ROOM_UPGRADE_COSTS, getUpgradeCostFor, getPlaySlots, TRAINING_ROOM_MULT, TRAINING_ROOM_PROP_SLOTS, REST_STAMINA } from '@/lib/catalog'
 import { clearOpeningCache } from '@/lib/storage'
 import { contextImageTags } from '@/lib/prompt-context'
+import { dismissDaySummary } from '@/lib/day-summary'
 import { TUTORIAL_STEPS, isTutorialVisible, advanceTutorial, dismissTutorial } from '@/lib/tutorial'
 import { cn } from '@/lib/utils'
 import type { GameTab } from '@/app/game/page'
@@ -137,6 +138,31 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
           <Settings className="w-4 h-4" />
         </Button>
       </header>
+
+      {/* 昨日小结（结束今天后弹出，关闭即清空） */}
+      {save.lastDaySummary && (() => {
+        const d = save.lastDaySummary
+        const sign = (n: number) => (n > 0 ? `+${n}` : `${n}`)
+        return (
+          <div className="absolute inset-0 z-30 bg-black/60 flex items-start justify-center pt-16 px-4" data-testid="day-summary" onClick={() => onSaveChange(dismissDaySummary(save))}>
+            <div className="w-full max-w-sm rounded-xl border border-border bg-card p-4 space-y-2 text-xs" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold gold-text">第 {d.day} 天小结</span>
+                <span className="text-muted-foreground">声望 {sign(d.repDelta)}</span>
+              </div>
+              <p>收入 <span className="gold-text font-semibold">{d.income} G</span>{d.spent ? <span className="text-muted-foreground">　支出 {d.spent} G</span> : null}</p>
+              <p>接客 {Object.values(d.tiers).reduce((a, b) => a + b, 0)} 场{Object.keys(d.tiers).length ? '：' + Object.entries(d.tiers).map(([k, v]) => `${k}×${v}`).join('、') : ''}</p>
+              {d.best && <p>最佳：{d.best.girl}（{d.best.sat}，{d.best.guest}）</p>}
+              {d.regulars.length > 0 && <p>回头客：{d.regulars.map((r) => `${r.guest}${r.rolled ? '✔' : `（${r.sat}，差一点）`}`).join('、')}</p>}
+              {d.incidents.length > 0 && <p className="text-rose-300">事件：{d.incidents.map((x) => `${x.girl}${x.kind}·${x.text}`).join('；')}</p>}
+              {d.stats.length > 0 && <p className="text-muted-foreground">{d.stats.map((x) => `${x.girl} ${[x.ob && `服${sign(x.ob)}`, x.lw && `淫${sign(x.lw)}`, x.aff && `好${sign(x.aff)}`].filter(Boolean).join(' ')}`).join('｜')}</p>}
+              <div className="flex justify-end pt-1">
+                <button className="text-primary font-semibold" data-testid="day-summary-close" onClick={() => onSaveChange(dismissDaySummary(save))}>知道了</button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* 第一天新手引导（可跳过，进度存档） */}
       {isTutorialVisible(save) && (() => {

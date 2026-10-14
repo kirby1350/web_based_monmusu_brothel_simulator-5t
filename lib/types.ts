@@ -308,6 +308,10 @@ export interface GameSave {
   saveVersion?: number
   // 第一天新手引导：当前步骤（0 起），关闭/跳过后 dismissed=true
   tutorial?: { step: number; dismissed: boolean }
+  // 当天账本（结束今天时生成小结后重开）
+  dayLog?: import('./day-summary').DayLog
+  // 上一天的小结，大厅弹卡展示，关闭即置 null
+  lastDaySummary?: import('./day-summary').DaySummary | null
 }
 
 /** 定制调教道具：名字、描述自填，效果来自固定模板 */
