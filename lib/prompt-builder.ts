@@ -1,5 +1,5 @@
 import { Player, MonstGirl, Guest, ServiceSession, GameSave, ProseStyle } from '@/lib/types'
-import { PLAYS, getSensitivityLevel, getSkillRank } from '@/lib/catalog'
+import { ALL_PLAYS as PLAYS, getSensitivityLevel, getSkillRank } from '@/lib/catalog'
 
 // ─── 文风控制（去油黑名单常驻 + 可切换文风片段） ───────────────────────────────
 

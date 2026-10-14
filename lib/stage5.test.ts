@@ -5,7 +5,7 @@ import { resolveTraining, resolveLiveTraining, canDrillTwoSided } from './resolv
 import { resolveService, getAvailablePlays, scorePlay } from './resolve-service'
 import { applyTrainingToSave } from './settle-session'
 import { sculptPrice } from './shop'
-import { PLAYS } from './catalog'
+import { PLAYS, RACE_PLAYS } from './catalog'
 
 const girl = (o: Partial<MonstGirl> = {}): MonstGirl => ({
   id: 'a', name: 'A', race: '人类', age: '', bodyDesc: '', bodyTags: '', bust: 85, waist: 62, hip: 88,
@@ -119,7 +119,7 @@ test('种族特技', () => {
   assert.equal(base('吸血鬼', hi, {}, room).staminaCost, 25)
   // 拉米亚：想施虐客人时种族 play 对口
   const lamia = girl({ race: '拉米亚' })
-  const race = PLAYS.find((p) => p.id === 'race')!
+  const race = RACE_PLAYS['拉米亚'].find((p) => p.name === '缠绕')!
   assert.equal(scorePlay(lamia, guest({ desires: '想把高傲的魔物娘彻底操服' }), race).matched, true)
   // 兽耳偏好：猫娘迎客 +2
   assert.equal(base('猫娘', {}, { prefTrait: '兽耳' }).steps[0].score, base('猫娘').steps[0].score + 2)

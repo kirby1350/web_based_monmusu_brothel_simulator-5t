@@ -1,7 +1,7 @@
 // 接客结算（纯函数）：五步标准流程 + 额外 play → 满意度 / 档位 / 收入 / 体力
 import type { Guest, MonstGirl, OutfitId, SensitivityZone, ServingSkill, SkillRank, StockingId } from './types'
 import {
-  GREET_HOSTING_SCORE, STEP_SCORE, STEP_MAX, PLAY_SCORE, PLAYS, PlayDef, WRONG_SIDE_PLAY_PENALTY,
+  GREET_HOSTING_SCORE, STEP_SCORE, STEP_MAX, PLAY_SCORE, PLAYS, RACE_PLAYS, racePlayMatched, PlayDef, WRONG_SIDE_PLAY_PENALTY,
   OUTFITS, STOCKINGS, RACE_TRAITS, getPlaySlots, getGuestProfile, getSkillRank, getInclination,
   getSensitivityLevel, SENSITIVITY_STEP_MOD, SENSITIVITY_STAMINA_MOD, SKIP_SERVICE_STAMINA,
   SKIP_OBEDIENCE_MIN, DRAGON_SKIP_OBEDIENCE_MULT, ANAL_UNLOCK,
@@ -109,9 +109,9 @@ export function getMainService(guest: Guest): '口侍' | '胸侍' | '身侍' {
 export function getAvailablePlays(girl: MonstGirl, guest: Guest): PlayDef[] {
   const main = getMainService(guest)
   const inc = getInclination(girl)
-  return PLAYS.filter((p) => {
+  return [...PLAYS, ...(RACE_PLAYS[girl.race] ?? [])].filter((p) => {
     if (p.source === main) return false
-    if (p.source === 'race') return !!RACE_TRAITS[girl.race]
+    if (p.source === 'race') return p.race === girl.race
     if (p.source === 'M性') return inc === '两面' || (inc === 'M' && !!getSkillRank(girl, 'M性'))
     if (p.source === 'S性') return inc === '两面' || (inc === 'S' && !!getSkillRank(girl, 'S性'))
     if (p.id === 'paizuri' && (girl.bust ?? 0) < 80) return false
@@ -133,10 +133,8 @@ export function scorePlay(girl: MonstGirl, guest: Guest, play: PlayDef): PlayRes
     score = wrongSide ? WRONG_SIDE_PLAY_PENALTY : matched ? PLAY_SCORE[rank] : Math.floor(PLAY_SCORE[rank] / 2)
   } else {
     if (play.source === 'race') {
-      rank = '熟练'
-      matched = profile.service === '种族'
-        // 拉米亚「缠缚」、蜘蛛娘「丝线」：对口拘束、支配（想施虐的客人）；不和 M 性叠成两份
-        || ((girl.race === '拉米亚' || girl.race === '蜘蛛娘') && profile.kind === 'M' && !getSkillRank(girl, 'M性'))
+      rank = play.rank ?? '熟练'
+      matched = racePlayMatched(play, guest)
     } else {
       rank = getSkillRank(girl, play.source) ?? '初学'
       matched = profile.service === play.source || profile.secondary.includes(play.source as ServingSkill)
@@ -146,7 +144,7 @@ export function scorePlay(girl: MonstGirl, guest: Guest, play: PlayDef): PlayRes
     if (play.id === 'positions') score += hipBonus(girl) + (girl.race === '哈比' && matched ? 2 : 0)
   }
   if (score > 0) score += zoneMod(girl, play.zone)
-  const name = play.source === 'race' ? (RACE_TRAITS[girl.race] ?? play.name) : play.name
+  const name = play.name
   return { id: play.id, name, score, matched, rank, zone: play.zone }
 }
 

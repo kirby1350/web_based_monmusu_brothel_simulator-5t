@@ -18,7 +18,7 @@ export function migratePlayer(p: Player): Player {
 }
 
 /** 旧种族名 → 目录种族名 */
-export const RACE_RENAMES: Record<string, string> = { 阿拉克涅: '蜘蛛娘' }
+export const RACE_RENAMES: Record<string, string> = { 阿拉克涅: '蜘蛛娘', 美杜莎: '拉米亚' }
 
 export function migrateGirl(raw: MonstGirl): MonstGirl {
   const g = RACE_RENAMES[raw.race] ? { ...raw, race: RACE_RENAMES[raw.race] } : raw
@@ -43,6 +43,8 @@ export function migrateGuest(guest: Guest): Guest {
     desireKind: guest.desireKind ?? profile.kind,
     desireService: guest.desireService ?? profile.service,
     prefOutfit: guest.prefOutfit === undefined ? null : guest.prefOutfit,
+    ...(guest.prefRace && RACE_RENAMES[guest.prefRace] ? { prefRace: RACE_RENAMES[guest.prefRace] } : {}),
+    ...(RACE_RENAMES[guest.race] ? { race: RACE_RENAMES[guest.race] } : {}),
   }
 }
 

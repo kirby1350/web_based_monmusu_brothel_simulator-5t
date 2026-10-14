@@ -29,11 +29,16 @@ export const SKILL_PROGRESS_PER_RANK = 2
 
 // ─── 额外 play ────────────────────────────────────────────────────────────────
 
+export interface PlayMatch { services?: DesireService[]; kinds?: DesireKind[]; keywords?: string[] }
 export interface PlayDef {
   id: string
   name: string
   source: SkillKey | 'race'
   zone?: SensitivityZone
+  /** 种族专属 play：所属种族、固定计分档、对口条件（任一命中即对口） */
+  race?: string
+  rank?: SkillRank
+  match?: PlayMatch
 }
 
 export const PLAYS: PlayDef[] = [
@@ -44,8 +49,45 @@ export const PLAYS: PlayDef[] = [
   { id: 'lewd_dance', name: '色气舞蹈', source: '待客' },
   { id: 'endure', name: '承受调教', source: 'M性' },
   { id: 'drain', name: '主导榨取', source: 'S性' },
-  { id: 'race', name: '种族特技', source: 'race', zone: '种族' },
 ]
+
+// 种族专属 play（阶段 9 确认表）：只要是她的种族就能选，不用先学
+const rp = (race: string, id: string, name: string, rank: SkillRank, zone: SensitivityZone | undefined, match: PlayMatch): PlayDef =>
+  ({ id: `race_${id}`, name, source: 'race', race, rank, zone, match })
+export const RACE_PLAYS: Record<string, PlayDef[]> = {
+  猫娘: [rp('猫娘', 'cat_lick', '猫舌舔舐', '熟练', '唇舌', { services: ['口侍'], keywords: ['尾巴', '兽耳'] }),
+    rp('猫娘', 'cat_tail', '尾巴缠弄', '熟练', '种族', { services: ['种族'] })],
+  犬娘: [rp('犬娘', 'dog_beg', '撒娇讨好', '初学', '种族', { kinds: ['中性'], services: ['待客'] }),
+    rp('犬娘', 'dog_obey', '忠犬服从', '熟练', '种族', { kinds: ['M'] })],
+  狐娘: [rp('狐娘', 'fox_tails', '九尾抚弄', '熟练', '种族', { services: ['种族'] }),
+    rp('狐娘', 'fox_illusion', '魅惑幻术', '熟练', '耳朵', { kinds: ['S'] })],
+  兔娘: [rp('兔娘', 'bunny_ride', '持久骑乘', '熟练', '小穴', { services: ['身侍'], keywords: ['长时间'] })],
+  史莱姆: [rp('史莱姆', 'slime_wrap', '包覆', '熟练', '种族', { kinds: ['中性'], services: ['身侍'] }),
+    rp('史莱姆', 'slime_inner', '体内按摩', '初学', '种族', { services: ['手技'], keywords: ['灌满'] })],
+  拉米亚: [rp('拉米亚', 'lamia_coil', '缠绕', '熟练', '种族', { kinds: ['M'] }),
+    rp('拉米亚', 'lamia_gaze', '石化凝视', '熟练', '种族', { kinds: ['M'] }),
+    rp('拉米亚', 'lamia_hair', '蛇发缠绕', '初学', '种族', { kinds: ['中性'], keywords: ['尾巴'] })],
+  哈比: [rp('哈比', 'harpy_wing', '羽翼抚触', '熟练', '种族', { kinds: ['中性'], services: ['待客'] }),
+    rp('哈比', 'harpy_air', '空中体位', '熟练', '小穴', { services: ['身侍'] })],
+  蜘蛛娘: [rp('蜘蛛娘', 'spider_bind', '丝线束缚', '熟练', '种族', { kinds: ['M'] })],
+  龙娘: [rp('龙娘', 'dragon_press', '龙威压制', '精通', '种族', { kinds: ['S'] })],
+  精灵: [rp('精灵', 'elf_whisper', '精灵低语', '熟练', '耳朵', { kinds: ['中性'], services: ['待客'] })],
+  黑暗精灵: [rp('黑暗精灵', 'drow_night', '暗夜侍奉', '熟练', '耳朵', { kinds: ['S'], keywords: ['痴女'] })],
+  吸血鬼: [rp('吸血鬼', 'vamp_kiss', '吸血之吻', '熟练', '唇舌', { kinds: ['S'] })],
+  魔女: [rp('魔女', 'witch_crest', '淫纹魔法', '熟练', undefined, { kinds: ['中性', 'S'] })],
+  鬼娘: [rp('鬼娘', 'oni_press', '怪力压制', '熟练', '种族', { kinds: ['S'], keywords: ['粗暴'] })],
+  牛娘: [rp('牛娘', 'cow_milk', '乳汁侍奉', '熟练', '种族', { services: ['胸侍'], keywords: ['乳交'] })],
+  狼娘: [rp('狼娘', 'wolf_wild', '野性交合', '熟练', '种族', { kinds: ['M'], keywords: ['操服'] })],
+}
+export const ALL_PLAYS: PlayDef[] = [...PLAYS, ...Object.values(RACE_PLAYS).flat()]
+
+/** 种族专属 play 对口：主需求、M/S 倾向、需求关键词任一命中 */
+export function racePlayMatched(play: PlayDef, guest: Guest): boolean {
+  const m = play.match
+  if (!m) return false
+  const p = getGuestProfile(guest)
+  return !!(m.services?.includes(p.service) || m.kinds?.includes(p.kind) || m.keywords?.some((k) => (guest.desires ?? '').includes(k)))
+}
 
 /** 服务房间等级 → 额外 play 槽 */
 export const SERVICE_ROOM_PLAY_SLOTS = [0, 1, 2, 3]
@@ -150,7 +192,7 @@ export const DRAGON_SKIP_OBEDIENCE_MULT = 0.7
 export const COMMON_ZONES: SensitivityZone[] = ['耳朵', '阴蒂', '唇舌', '乳房', '小穴', '后庭']
 export const RACE_ZONE_NAMES: Record<string, string> = {
   猫娘: '尾根', 犬娘: '尾根', 狐娘: '尾根', 狼娘: '尾根', 兔娘: '尾根',
-  牛娘: '乳根', 龙娘: '角根', 蜘蛛娘: '丝腺', 拉米亚: '鳞交界', 美杜莎: '鳞交界',
+  牛娘: '乳根', 龙娘: '角根', 蜘蛛娘: '丝腺', 拉米亚: '鳞交界',
   哈比: '翼膜', 史莱姆: '核', 鬼娘: '角',
 }
 export const SENSITIVITY_DEFAULT = 30

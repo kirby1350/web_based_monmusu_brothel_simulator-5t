@@ -25,7 +25,6 @@ export const RACES: RaceData[] = [
   { name: '鬼娘', tags: 'oni girl, horns, club, japanese demon, red skin', description: '拥有鬼角的力量型少女' },
   { name: '牛娘', tags: 'holstaur, cow ears, cow horns, cow tail, large breasts', description: '丰满温柔的牧场少女' },
   { name: '狼娘', tags: 'wolf girl, wolf ears, wolf tail, feral, fierce', description: '野性凶猛的狼族少女' },
-  { name: '美杜莎', tags: 'medusa, snake hair, snake lower body, petrification, mythological', description: '神话中危险而美丽的存在' },
 ]
 
 // ─── 玩家特性 ──────────────────────────────────────────────────────────────────
