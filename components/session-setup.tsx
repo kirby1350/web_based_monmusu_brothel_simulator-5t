@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { OUTFITS, STOCKINGS, getPlaySlots, getSkillRank, getSensitivityLevel, TRAINING_PROPS, SCULPT_POTIONS, COMMON_ZONES, RACE_ZONE_NAMES, RACE_TRAITS, itemIconPath } from '@/lib/catalog'
 import { ItemIcon } from '@/components/item-icon'
 import { getTemplate } from '@/lib/custom-props'
+import { canPunish } from '@/lib/incidents'
 import { resolveTraining, getPropSlots, canDrillTwoSided, TRAINING_DIRECTIONS, TWO_SIDED_KEY, type TrainingResult } from '@/lib/resolve-training'
 import { canSkipService, getAvailablePlays, getMainService, scorePlay } from '@/lib/resolve-service'
 import { previewService } from '@/lib/settle-session'
@@ -324,11 +325,11 @@ export function TrainingSetup({ save, onSkip, onLive }: TrainingSetupProps) {
             <section className="space-y-2">
               <p className="text-[10px] text-muted-foreground uppercase tracking-widest">方向</p>
               <div className="grid grid-cols-2 gap-1.5">
-                {TRAINING_DIRECTIONS.map((d) => (
+                {TRAINING_DIRECTIONS.filter((d) => d.key !== 'punish' || (girl && canPunish(girl))).map((d) => (
                   <button key={d.key} data-testid={`dir-${d.key}`} onClick={() => setDirection(d.key)}
                     className={cn('rounded-lg border px-2.5 py-1.5 text-left', direction === d.key ? 'border-amber-400/70 bg-amber-400/10' : 'border-border')}>
                     <p className="text-xs">{d.label}</p>
-                    <p className="text-[10px] text-muted-foreground">{d.hint}</p>
+                    <p className="text-[10px] text-muted-foreground">{d.key === 'punish' && girl && !girl.incident ? 'M 性：驯服效果 + 好感 +3' : d.hint}</p>
                   </button>
                 ))}
               </div>

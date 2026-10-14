@@ -155,6 +155,7 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
                     alt={g.name} className="w-full h-full object-cover" />
                   {appeared.has(g.id) && <span className="absolute top-0 right-0 text-[8px] bg-black/70 text-amber-300 px-1 rounded-bl">已出场</span>}
                   {pendingSkillPicks(g) > 0 && <span className="absolute top-0.5 left-0.5 w-2 h-2 rounded-full bg-amber-400" />}
+                  {g.incident && <span data-testid={`incident-mark-${g.name}`} title={`${g.incident.kind}：${g.incident.text}`} className="absolute bottom-0 left-0 text-[8px] bg-rose-600/85 text-white px-1 rounded-tr">{g.incident.kind === '闯祸' ? '闯祸' : '失败'}</span>}
                 </div>
                 <p className="text-[10px] truncate mt-0.5 gold-text">{g.name}</p>
                 <div className="h-1 rounded-full bg-secondary overflow-hidden" title={`体力 ${st}`}>

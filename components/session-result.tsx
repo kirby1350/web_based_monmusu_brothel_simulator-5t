@@ -105,6 +105,7 @@ export function SessionResult({ mode, girl, guest, outfit, stockings, result, in
           <div className="flex justify-between"><span className="text-muted-foreground">声望</span>
             <span className={info.reputationDelta > 0 ? 'text-pink-300' : 'text-rose-400'}>{info.reputationDelta > 0 ? '+' : ''}{info.reputationDelta}</span></div>
         )}
+        {info.incident && <p className="text-rose-300" data-testid="result-incident">{girl.name}记下一条事件：{info.incident.kind}（可在调教里「惩罚」）</p>}
         {info.becameRegular && <p className="flex items-center gap-1 text-emerald-400"><Star className="w-3.5 h-3.5" />「{guest.name}」成为了回头客</p>}
 
         <Section title={`五步得分 ${result.standardScore} / 70`}>

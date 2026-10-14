@@ -104,6 +104,12 @@ export function GirlSheet({ girl, save, settings, onSaveChange, onClose, intro }
           )}
 
           <TabsContent value="overview" className="space-y-4 mt-0">
+            {girl.incident && (
+              <div className="rounded-xl border border-rose-500/40 bg-rose-500/5 p-3 space-y-0.5" data-testid="girl-incident">
+                <p className="text-[11px] text-rose-300">{girl.incident.kind} · 第 {girl.incident.day} 天</p>
+                <p className="text-xs">{girl.name}{girl.incident.text}。去调教里选「惩罚」处理；过夜不处理每晚好感 −3。</p>
+              </div>
+            )}
             {intro && (
               <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 space-y-1" data-testid="arrival-intro">
                 <p className="text-[11px] text-amber-300">入馆 · {intro.speaker}带路</p>

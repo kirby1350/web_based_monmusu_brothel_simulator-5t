@@ -1,4 +1,6 @@
 import { expandProps, getTemplate } from './custom-props'
+import { canPunish } from './incidents'
+import { PUNISH_EXTRA_OBEDIENCE, PUNISH_EXTRA_M, PUNISH_M_AFFECTION } from './catalog'
 import type { CustomProp } from './types'
 // 调教结算（纯函数）：驯服 / 放权 / 塑形 / 特训 / 敏感开发
 // 基础值 × 调教室倍率；道具、服装是固定小数，不吃倍率；塑形厘米数不吃倍率。
@@ -14,6 +16,7 @@ export const TRAINING_DIRECTIONS: { key: TrainingDirection; label: string; hint:
   { key: 'sculpt', label: '塑形', hint: '用一瓶塑形药改三围，淫乱 +1' },
   { key: 'drill', label: '特训', hint: '已选技能进度 +1' },
   { key: 'sensitize', label: '敏感开发', hint: '一条敏感带 +10' },
+  { key: 'punish', label: '惩罚', hint: '驯服效果 + 服从 +3、M 进度 +1；处理掉事件' },
 ]
 
 /** 调教体力消耗：每场固定 20（道具、种族、调教室都不改体力） */
@@ -105,6 +108,25 @@ export function resolveTraining(input: TrainingInput): TrainingResult {
       delta.obedience = ob; delta.m += m(1); delta.affection = m(1)
       break
     }
+    case 'punish': {
+      if (!canPunish(girl)) return fail('她没有未处理的事件，不能惩罚')
+      // 基础同驯服（乘倍率），额外加成不乘
+      let ob = m(6)
+      if (props.has('whip')) { ob += 3; notes.push('皮鞭：服从 +3') }
+      if (props.has('rack')) { delta.m += 1; notes.push('拘束架：M 进度 +1') }
+      if (input.outfit === 'restraint') { ob += 1; notes.push('拘束衣：服从 +1') }
+      delta.m += m(1); delta.affection = m(1)
+      if (girl.incident) {
+        ob += PUNISH_EXTRA_OBEDIENCE; delta.m += PUNISH_EXTRA_M
+        notes.push(`处理事件「${girl.incident.text}」：服从 +${PUNISH_EXTRA_OBEDIENCE}，M 进度 +${PUNISH_EXTRA_M}`)
+        next.incident = null
+      } else {
+        delta.affection += PUNISH_M_AFFECTION
+        notes.push(`M 性：渴望被惩罚，好感 +${PUNISH_M_AFFECTION}`)
+      }
+      delta.obedience = ob
+      break
+    }
     case 'release': {
       let lw = m(6)
       if (props.has('massage_table')) { lw += 3; notes.push('按摩台：淫乱 +3') }
@@ -192,7 +214,7 @@ function applyDelta(girl: MonstGirl, next: MonstGirl, delta: TrainingDelta) {
 }
 
 const MAIN_KEY: Record<TrainingDirection, keyof TrainingDelta> = {
-  tame: 'obedience', release: 'lewdness', sculpt: 'lewdness', drill: 'skillProgress', sensitize: 'sensitivity',
+  tame: 'obedience', release: 'lewdness', sculpt: 'lewdness', drill: 'skillProgress', sensitize: 'sensitivity', punish: 'obedience',
 }
 
 /**

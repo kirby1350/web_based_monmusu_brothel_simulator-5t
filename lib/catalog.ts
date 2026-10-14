@@ -298,3 +298,15 @@ export const MAX_CUSTOM_PROPS = 6
 export const CUSTOM_PROP_NAME_MAX = 8
 export const CUSTOM_PROP_DESC_MAX = 30
 export const STEP_ACTION_MAX = 20
+
+// ─── 阶段 10：事件与惩罚（数值待确认） ───────────────────────────────────────
+
+export const INCIDENT_TEMPLATES: string[] = [
+  '打碎了客人的酒杯', '偷懒被抓到', '和别的魔物娘吵架', '偷吃了厨房的点心', '把客人的外套弄脏了', '迟到了半个时辰',
+]
+export const SERVICE_FAIL_INCIDENT_CHANCE = 0.5
+export const DAILY_MISCHIEF_CHANCE = 0.15
+export const PUNISH_EXTRA_OBEDIENCE = 3
+export const PUNISH_EXTRA_M = 1
+export const PUNISH_M_AFFECTION = 3
+export const INCIDENT_OVERNIGHT_AFFECTION = 3

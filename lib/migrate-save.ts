@@ -25,6 +25,7 @@ export function migrateGirl(raw: MonstGirl): MonstGirl {
   return {
     ...g,
     skills: g.skills ?? [],
+    incident: g.incident ?? null,
     stamina: g.stamina ?? 100,
     exhausted: g.exhausted ?? false,
     skillRanks: g.skillRanks ?? {},

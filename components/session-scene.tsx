@@ -254,10 +254,12 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish }: Ses
 
 // ─── 调教的亲自上场（仍用旧调教提示词，无步骤条） ──────────────────────────────
 
-export function TrainingScene({ player, girl, directionLabel, settings, onFinish }: {
+export function TrainingScene({ player, girl, directionLabel, extraPrompt, settings, onFinish }: {
   player: Player
   girl: MonstGirl
   directionLabel: string
+  /** 附在提示词末尾（惩罚缘由等） */
+  extraPrompt?: string
   settings: AppSettings
   onFinish: (turns: number, pleasure: number) => void
 }) {
@@ -273,7 +275,7 @@ export function TrainingScene({ player, girl, directionLabel, settings, onFinish
   const [suggestions, setSuggestions] = useState<[string, string, string] | null>(['命令她跪下', '抬起她的下巴', '她低声求饶'])
   const [inputValue, setInputValue] = useState('')
   const chatRef = useRef<ChatEngineHandle>(null)
-  const systemPrompt = buildServiceSystemPrompt(player, { ...session, messages }, settings.proseStyle) + `\n\n【本次调教方向】${directionLabel}`
+  const systemPrompt = buildServiceSystemPrompt(player, { ...session, messages }, settings.proseStyle) + `\n\n【本次调教方向】${directionLabel}` + (extraPrompt ? `\n${extraPrompt}` : '')
 
   const onRaw = useCallback((raw: string) => {
     const a = parseActionsFromReply(raw)

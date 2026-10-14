@@ -4,6 +4,7 @@ import {
   DORM_LEVELS, DORM_UPGRADE_COSTS, MAX_STAMINA, REST_STAMINA, MAX_SERVING_SKILLS,
   SKILL_PICK_THRESHOLDS, getUpgradeCostFor, getPlaySlots, TRAINING_ROOM_MULT, TRAINING_ROOM_PROP_SLOTS,
 } from './catalog'
+import { nightlyIncidents } from './incidents'
 import { MAX_ACTIONS_PER_DAY, generateDailyGuests, getGuestCapacity, getGirlCapacity } from './game-engine'
 
 export type HubResult = { ok: true; save: GameSave; message: string } | { ok: false; error: string }
@@ -90,13 +91,15 @@ export function nightlyRecovery(save: GameSave, girl: MonstGirl): number {
 
 // ─── 结束今天：宿舍回复、行动归零、刷新客人池 ─────────────────────────────────
 
-export function endDay(save: GameSave): GameSave {
+export function endDay(save: GameSave, rng: () => number = Math.random): GameSave {
   const dorm = getDormInfo(save.player.dormLevel)
-  const girls = save.girls.map((g) => ({
+  const rested = save.girls.map((g) => ({
     ...g,
     stamina: clampStamina((g.stamina ?? MAX_STAMINA) + nightlyRecovery(save, g)),
     exhausted: dorm.clearsExhaustion ? false : g.exhausted,
   }))
+  // 事件：过夜未处理扣好感；再按概率随机一人闯祸（记在新的一天）
+  const girls = nightlyIncidents(rested, save.currentDay + 1, rng)
   return {
     ...save,
     currentDay: save.currentDay + 1,
