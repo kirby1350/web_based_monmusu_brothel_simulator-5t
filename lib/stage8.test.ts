@@ -85,3 +85,13 @@ test('旧档迁移补 customProps，幂等，照常结算', () => {
   assert.deepEqual(migrateSave(m), m)
   assert.equal(resolveTraining({ girl: m.girls[0], direction: 'tame', skip: true, customProps: m.player.customProps }).ok, true)
 })
+
+test('定制道具的加成说明用定制名', () => {
+  const cp: CustomProp = { id: 'c', name: '金镜', desc: '', templateId: 'tpl_progress' }
+  const r = resolveTraining({ girl: girl(), direction: 'drill', skill: '口侍', skip: true, roomLevel: 2, props: ['c'], customProps: [cp] })
+  assert.ok(r.notes.includes('金镜：进度 +1'), r.notes.join('|'))
+  assert.ok(!r.notes.some((n) => n.startsWith('练习镜')))
+  const z: CustomProp = { id: 'z', name: '狐尾刷', desc: '', templateId: 'tpl_zone_耳朵' }
+  const r2 = resolveTraining({ girl: girl(), direction: 'sensitize', zone: '耳朵', skip: true, roomLevel: 2, props: ['z'], customProps: [z] })
+  assert.ok(r2.notes.includes('狐尾刷：对口 +4'), r2.notes.join('|'))
+})

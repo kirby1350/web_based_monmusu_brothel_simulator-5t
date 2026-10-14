@@ -1,4 +1,4 @@
-import { expandProps } from './custom-props'
+import { expandProps, getTemplate } from './custom-props'
 import type { CustomProp } from './types'
 // 调教结算（纯函数）：驯服 / 放权 / 塑形 / 特训 / 敏感开发
 // 基础值 × 调教室倍率；道具、服装是固定小数，不吃倍率；塑形厘米数不吃倍率。
@@ -76,6 +76,13 @@ export function canDrillTwoSided(girl: MonstGirl): boolean {
 export function resolveTraining(input: TrainingInput): TrainingResult {
   const { girl, direction, skip } = input
   const props = new Set(expandProps(input.props ?? [], input.customProps))
+  // 定制道具：说明文字用定制名（现成道具也勾上时仍用现成名）
+  const customNames = new Map<string, string>()
+  for (const id of input.props ?? []) {
+    const c = input.customProps?.find((x) => x.id === id)
+    const base = c && getTemplate(c.templateId)?.baseProp
+    if (c && base && !(input.props ?? []).includes(base)) customNames.set(TRAINING_PROPS.find((p) => p.id === base)!.name, c.name)
+  }
   const raceMult = girl.race === '精灵' ? ELF_GROWTH_MULT : 1
   const mult = getTrainingMult(input.roomLevel) * raceMult
   const m = (n: number) => Math.round(n * mult)
@@ -170,6 +177,7 @@ export function resolveTraining(input: TrainingInput): TrainingResult {
   next.stamina = Math.max(0, (girl.stamina ?? MAX_STAMINA) - stamina)
   if (next.stamina === 0) next.exhausted = true
   const label = TRAINING_DIRECTIONS.find((d) => d.key === direction)!.label
+  for (let i = 0; i < notes.length; i++) for (const [from, to] of customNames) if (notes[i].startsWith(`${from}：`)) notes[i] = to + notes[i].slice(from.length)
   return { ok: true, delta, measurement, newRank, becameTwoSided, staminaCost: stamina, girl: next, notes, summary: trainingSummary(girl.name, label, delta, measurement, newRank) }
 }
 

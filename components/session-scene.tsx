@@ -190,7 +190,13 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish }: Ses
           <button className="underline hover:text-rose-400" onClick={() => finish(live)}>提前结束</button>
         </div>
         <div className="flex gap-1.5">
-          <Button size="sm" className="h-7 text-xs glow-btn" onClick={goNext} data-testid="btn-next-step">
+          <Button size="sm" className="h-7 text-xs glow-btn" data-testid="btn-next-step"
+            onClick={(e) => {
+              // 只认鼠标/触摸点击：焦点留在按钮上时，键盘的 Enter/空格不会误推进步骤
+              if (e.detail === 0) return
+              e.currentTarget.blur()
+              goNext()
+            }}>
             {live.stepIndex === SERVICE_STEPS.length - 1 ? '结束服务' : '下一步'}<ChevronRight className="w-3.5 h-3.5 ml-0.5" />
           </Button>
           {playOpts.length > 0 && (
