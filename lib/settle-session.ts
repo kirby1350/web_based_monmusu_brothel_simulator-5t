@@ -50,7 +50,7 @@ export function applyServiceToSave(
   }
   const appeared = save.appearedToday ?? []
   const incident = serviceFailIncident(girl, guest, tier.key, save.currentDay, rng)
-  const logged = logService(save, { girl: girl.name, guest: guest.name, tier: tier.label, sat: result.satisfaction, pay: result.reward, regular: becameRegular })
+  const logged = logService(save, { girl: girl.name, guest: guest.name, tier: tier.label, sat: result.satisfaction, pay: result.reward, regular: becameRegular, rep: applyReputationDelta(save.player.reputation, tier.reputationDelta) - (save.player.reputation ?? 0) })
   return {
     info: { incident: incident ?? undefined, reward: result.reward, tierLabel: tier.label, reputationDelta: tier.reputationDelta, becameRegular, staminaBefore: before, staminaAfter: after },
     save: {

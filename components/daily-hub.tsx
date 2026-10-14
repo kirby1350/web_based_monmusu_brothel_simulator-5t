@@ -53,15 +53,18 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
     if (cache?.day === save.currentDay) { setOpening(cache.text); return }
     setOpening('')
     const timer = setTimeout(async () => {
-      const prompt = await hubOpeningPrompt(save, cache?.day ?? null)
-      if (!prompt || ignore) return
       try {
+        const prompt = await hubOpeningPrompt(save, cache?.day ?? null)
+        if (!prompt || ignore) return
         const apiKey = settings.chatModel.startsWith('grok') ? settings.grokApiKey : settings.chatApiKey
         const res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], model: settings.chatModel, apiKey, stream: false }) })
-        const text = res.ok ? String((await res.json()).content ?? '').trim() : ''
-        if (text && !ignore) { saveOpeningCache(save.currentDay, text); setOpening(text) }
-      } catch { /* 离线：不显示开场白 */ }
+        const data = res.ok ? await res.json().catch(() => null) : null
+        const text = String(data?.content ?? '').trim()
+        // 失败也记一笔空缓存：当天不再重试，避免每次回大厅都报一次 500
+        saveOpeningCache(save.currentDay, text)
+        if (text && !ignore) setOpening(text)
+      } catch { saveOpeningCache(save.currentDay, '') /* 离线：静默不显示开场白 */ }
     }, 800)
     return () => { ignore = true; clearTimeout(timer) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -176,7 +179,8 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
               <p>接客 {Object.values(d.tiers).reduce((a, b) => a + b, 0)} 场{Object.keys(d.tiers).length ? '：' + Object.entries(d.tiers).map(([k, v]) => `${k}×${v}`).join('、') : ''}</p>
               {d.best && <p>最佳：{d.best.girl}（{d.best.sat}，{d.best.guest}）</p>}
               {d.regulars.length > 0 && <p>回头客：{d.regulars.map((r) => `${r.guest}${r.rolled ? '✔' : `（${r.sat}，差一点）`}`).join('、')}</p>}
-              {d.incidents.length > 0 && <p className="text-rose-300">事件：{d.incidents.map((x) => `${x.girl}${x.kind}·${x.text}`).join('；')}</p>}
+              {d.incidents.length > 0 && <p className="text-rose-300">事件：{d.incidents.map((x) => `${x.status === '已处理' ? '✔已处理 ' : ''}${x.girl}${x.kind}·${x.text}`).join('；')}</p>}
+              {!!d.unresolved && <p className="text-rose-300/70">仍有 {d.unresolved} 件旧事件未处理</p>}
               {d.stats.length > 0 && <p className="text-muted-foreground">{d.stats.map((x) => `${x.girl} ${[x.ob && `服${sign(x.ob)}`, x.lw && `淫${sign(x.lw)}`, x.aff && `好${sign(x.aff)}`].filter(Boolean).join(' ')}`).join('｜')}</p>}
               <div className="flex justify-end pt-1">
                 <button className="text-primary font-semibold" data-testid="day-summary-close" onClick={() => onSaveChange(dismissDaySummary(save))}>知道了</button>

@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { GameSave } from './types'
-import { migrateSave } from './migrate-save'
+import { migrateSave, importSaveJson } from './migrate-save'
 import { endDay } from './hub-logic'
 import { applyServiceToSave, applyTrainingToSave } from './settle-session'
 import { resolveService } from './resolve-service'
@@ -39,4 +39,39 @@ test('没接客的一天也有小结；夜间事件会列出', () => {
   assert.equal(n.lastDaySummary?.income, 0)
   assert.equal(n.lastDaySummary?.incidents.length, 1)
   assert.equal(n.lastDaySummary?.best, undefined)
+})
+
+test('声望变化 = 当天各场实际变动之和；导入/改档跳变不算；截断按实际', () => {
+  let s = start()
+  const bad = fxGuest({ id: 'z', name: '路德', prefRace: '龙娘', prefTrait: '贫乳', prefOutfit: '制服' })
+  const r = resolveService({ girl: { ...s.girls[0], obedience: 0, lewdness: 0, skillRanks: {}, stamina: 5 }, guest: bad, skip: false, roomLevel: 1 })
+  const forced = { ...r, tier: { ...r.tier, key: 'unsatisfied' as const, label: '不满', reputationDelta: -2, regularChance: 0, payMult: 0.5 } }
+  s = applyServiceToSave(s, 'qx', bad, forced, () => 0.99).save
+  assert.equal(endDay(s, () => 0.99).lastDaySummary?.repDelta, -2)
+  // 声望 1 时 −2 只实际掉 1
+  let low: GameSave = { ...start(), player: { ...start().player, reputation: 1 } }
+  low = applyServiceToSave(low, 'qx', bad, forced, () => 0.99).save
+  assert.equal(endDay(low, () => 0.99).lastDaySummary?.repDelta, -1)
+  // 导入一个声望 75 的存档：当天账本重开，小结不会显示 +75
+  const imp = importSaveJson(JSON.stringify({ ...start(), player: { ...start().player, reputation: 75 } }))
+  assert.ok('save' in imp)
+  if ('save' in imp) assert.equal(endDay(imp.save, () => 0.99).lastDaySummary?.repDelta, 0)
+  // 旧存档没有账本：迁移时补上，不把总值当变化
+  const { dayLog: _x, ...noLog } = start()
+  assert.equal(endDay(migrateSave(noLog as GameSave), () => 0.99).lastDaySummary?.repDelta, 0)
+})
+
+test('事件只列当天新出/已处理的，旧事件只合成一行计数', () => {
+  const old = { kind: '接客失败' as const, text: '没能让客人路德满意', day: 6 }
+  let s = migrateSave({ ...start(), currentDay: 7, girls: [fxGirl({ incident: old }), fxGirl({ id: 'b', name: '娜露梅亚', race: '精灵', incident: { kind: '闯祸', text: '偷懒被抓到', day: 5 } })] })
+  // 当天处理掉娜露梅亚的事件
+  s = { ...s, girls: s.girls.map((g) => (g.id === 'b' ? { ...g, incident: null } : g)) }
+  const d = endDay(s, () => 0.99).lastDaySummary!
+  assert.equal(d.unresolved, 1)
+  assert.ok(!d.incidents.some((x) => x.text === old.text))
+  assert.deepEqual(d.incidents.map((x) => [x.girl, x.status]), [['娜露梅亚', '已处理']])
+  // 夜里新闯祸算「新」
+  const s2 = migrateSave({ ...start(), currentDay: 7 })
+  const d2 = endDay(s2, () => 0.1).lastDaySummary!
+  assert.equal(d2.incidents.length, 1); assert.equal(d2.incidents[0].status, '新'); assert.equal(d2.unresolved, 0)
 })
