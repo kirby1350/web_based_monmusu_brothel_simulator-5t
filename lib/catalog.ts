@@ -227,3 +227,12 @@ export function getSkillRank(girl: MonstGirl, skill: SkillKey): SkillRank | unde
 export function getInclination(girl: MonstGirl): Inclination {
   return girl.inclination ?? '无'
 }
+
+// ─── 道具图标（静态文件 public/icons/<类别>/<id>.webp；缺图时组件退回文字徽章） ───
+
+export type IconCategory = 'outfit' | 'stocking' | 'recovery' | 'sculpt' | 'prop'
+
+export function itemIconPath(category: IconCategory, id: string): string | undefined {
+  if (id === 'none') return undefined
+  return `/icons/${category}/${id}.webp`
+}

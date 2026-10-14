@@ -9,7 +9,8 @@ import { saveGuest } from '@/lib/storage'
 import { ImageDisplay } from '@/components/image-display'
 import { AppSettings, Guest, MonstGirl, OutfitId, StockingId } from '@/lib/types'
 import { Button } from '@/components/ui/button'
-import { OUTFITS, STOCKINGS, getSensitivityLevel } from '@/lib/catalog'
+import { OUTFITS, STOCKINGS, getSensitivityLevel, itemIconPath } from '@/lib/catalog'
+import { ItemIcon } from '@/components/item-icon'
 import type { TrainingResult } from '@/lib/resolve-training'
 import type { ServiceResult } from '@/lib/resolve-service'
 import type { SettleInfo } from '@/lib/settle-session'
@@ -128,6 +129,10 @@ export function SessionResult({ mode, girl, guest, outfit, stockings, result, in
         )}
 
         <Section title="服装">
+          <div className="flex gap-1.5 mb-1">
+            <ItemIcon src={itemIconPath('outfit', outfit)} name={OUTFITS.find((o) => o.id === outfit)?.name ?? '?'} size={28} />
+            {stockings !== 'none' && <ItemIcon src={itemIconPath('stocking', stockings)} name={STOCKINGS.find((s) => s.id === stockings)?.name ?? '?'} size={28} />}
+          </div>
           <p>{OUTFITS.find((o) => o.id === outfit)?.name}{stockings !== 'none' ? ` + ${STOCKINGS.find((s) => s.id === stockings)?.name}` : ''}
             {guest.prefOutfit ? (result.outfitMatched ? <span className="text-emerald-300">（对上「{guest.prefOutfit}」）</span> : <span className="text-muted-foreground">（客人想要「{guest.prefOutfit}」）</span>) : null}</p>
         </Section>

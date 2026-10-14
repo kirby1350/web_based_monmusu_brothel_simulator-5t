@@ -6,7 +6,8 @@ import { ChevronLeft, ChevronRight, FastForward, Swords } from 'lucide-react'
 import { GameSave, Guest, MonstGirl, OutfitId, StockingId, TrainingDirection, SkillKey, SensitivityZone } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { OUTFITS, STOCKINGS, getPlaySlots, getSkillRank, getSensitivityLevel, TRAINING_PROPS, SCULPT_POTIONS, COMMON_ZONES, RACE_ZONE_NAMES, RACE_TRAITS } from '@/lib/catalog'
+import { OUTFITS, STOCKINGS, getPlaySlots, getSkillRank, getSensitivityLevel, TRAINING_PROPS, SCULPT_POTIONS, COMMON_ZONES, RACE_ZONE_NAMES, RACE_TRAITS, itemIconPath } from '@/lib/catalog'
+import { ItemIcon } from '@/components/item-icon'
 import { resolveTraining, getPropSlots, canDrillTwoSided, TRAINING_DIRECTIONS, TWO_SIDED_KEY, type TrainingResult } from '@/lib/resolve-training'
 import { canSkipService, getAvailablePlays, getMainService, scorePlay } from '@/lib/resolve-service'
 import { previewService } from '@/lib/settle-session'
@@ -136,14 +137,14 @@ export function SessionSetup({ save, onSkip, onLive }: SessionSetupProps) {
               <p className="text-[10px] text-muted-foreground uppercase tracking-widest">主装</p>
               <div className="flex flex-wrap gap-1.5">
                 {outfits.map((o) => (
-                  <Chip key={o.id} active={outfit === o.id} onClick={() => setOutfit(o.id)}
+                  <Chip key={o.id} active={outfit === o.id} onClick={() => setOutfit(o.id)} icon={itemIconPath('outfit', o.id) ?? ''}
                     label={o.name} hint={plan.guest.prefOutfit && o.pref === plan.guest.prefOutfit ? '对口' : undefined} />
                 ))}
               </div>
               <p className="text-[10px] text-muted-foreground uppercase tracking-widest pt-1">丝袜</p>
               <div className="flex flex-wrap gap-1.5">
                 {stockingOpts.map((s) => (
-                  <Chip key={s.id} active={stockings === s.id} onClick={() => setStockings(s.id)}
+                  <Chip key={s.id} active={stockings === s.id} onClick={() => setStockings(s.id)} icon={s.id === 'none' ? undefined : itemIconPath('stocking', s.id)}
                     label={s.name} hint={plan.guest.prefOutfit && s.pref === plan.guest.prefOutfit ? '对口' : undefined} />
                 ))}
               </div>
@@ -217,10 +218,11 @@ export function SessionSetup({ save, onSkip, onLive }: SessionSetupProps) {
   )
 }
 
-function Chip({ active, onClick, label, hint }: { active: boolean; onClick: () => void; label: string; hint?: string }) {
+function Chip({ active, onClick, label, hint, icon }: { active: boolean; onClick: () => void; label: string; hint?: string; icon?: string }) {
   return (
-    <button onClick={onClick} className={cn('rounded-md border px-2.5 py-1 text-xs transition-colors',
+    <button onClick={onClick} className={cn('rounded-md border px-2.5 py-1 text-xs transition-colors inline-flex items-center gap-1.5', icon !== undefined && 'pl-1',
       active ? 'border-amber-400/70 text-amber-300 bg-amber-400/10' : 'border-border text-foreground/80 hover:border-primary/50')}>
+      {icon !== undefined && <ItemIcon src={icon || undefined} name={label} size={20} />}
       {label}{hint && <span className="ml-1 text-[9px] text-emerald-300">{hint}</span>}
     </button>
   )
@@ -335,7 +337,7 @@ export function TrainingSetup({ save, onSkip, onLive }: TrainingSetupProps) {
                 <p className="text-[10px] text-muted-foreground uppercase tracking-widest">塑形药（背包）</p>
                 {potions.length === 0 ? <p className="text-[11px] text-rose-400/80">背包里没有塑形药，先去大厅「商店」买。</p> : (
                   <div className="flex flex-wrap gap-1.5">
-                    {potions.map((p) => <Chip key={p.id} active={potionId === p.id} onClick={() => setPotionId(p.id)} label={`${p.name} ×${inv[p.id]}`} />)}
+                    {potions.map((p) => <Chip key={p.id} active={potionId === p.id} onClick={() => setPotionId(p.id)} icon={itemIconPath('sculpt', p.id)} label={`${p.name} ×${inv[p.id]}`} />)}
                   </div>
                 )}
               </section>
@@ -373,7 +375,7 @@ export function TrainingSetup({ save, onSkip, onLive }: TrainingSetupProps) {
                 <div className="flex flex-wrap gap-1.5">
                   {ownedProps.map((p) => {
                     const on = props.includes(p.id)
-                    return <Chip key={p.id} active={on} label={p.name}
+                    return <Chip key={p.id} active={on} label={p.name} icon={itemIconPath('prop', p.id)}
                       onClick={() => setProps((cur) => on ? cur.filter((x) => x !== p.id) : cur.length < slots ? [...cur, p.id] : cur)} />
                   })}
                 </div>
@@ -384,7 +386,7 @@ export function TrainingSetup({ save, onSkip, onLive }: TrainingSetupProps) {
               <section className="space-y-2">
                 <p className="text-[10px] text-muted-foreground uppercase tracking-widest">服装（调教不加满意度，部分有固定加成）</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {outfits.map((o) => <Chip key={o.id} active={outfit === o.id} onClick={() => setOutfit(o.id)} label={o.name} />)}
+                  {outfits.map((o) => <Chip key={o.id} active={outfit === o.id} onClick={() => setOutfit(o.id)} label={o.name} icon={itemIconPath('outfit', o.id) ?? ''} />)}
                 </div>
               </section>
             )}

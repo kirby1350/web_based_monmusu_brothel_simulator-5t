@@ -15,7 +15,8 @@ import { GIFT_OPTIONS, canGiveGiftToday, giveGift, pendingSkillPicks } from '@/l
 import { COMMON_ZONES, RACE_ZONE_NAMES, RACE_TRAITS, getSensitivityLevel } from '@/lib/catalog'
 import { SkillPicker } from '@/components/skill-picker'
 import { useRecovery } from '@/lib/shop'
-import { RECOVERY_ITEMS } from '@/lib/catalog'
+import { RECOVERY_ITEMS, itemIconPath } from '@/lib/catalog'
+import { ItemIcon } from '@/components/item-icon'
 import { cn } from '@/lib/utils'
 
 interface GirlSheetProps {
@@ -153,8 +154,8 @@ export function GirlSheet({ girl, save, settings, onSaveChange, onClose, intro }
                   {RECOVERY_ITEMS.filter((i) => (player.inventory?.[i.id] ?? 0) > 0).map((i) => (
                     <button key={i.id} data-testid={`use-${i.id}`} disabled={girl.itemUsedOnDay === save.currentDay}
                       onClick={() => { const r = useRecovery(save, girl.id, i.id); if (r.ok) onSaveChange(r.save); setFeedback(r.ok ? r.message : r.error) }}
-                      className={cn('rounded-md border border-border px-2 py-1 text-[11px] hover:border-emerald-400/60', girl.itemUsedOnDay === save.currentDay && 'opacity-40 pointer-events-none')}>
-                      {i.name} ×{player.inventory?.[i.id]}
+                      className={cn('rounded-md border border-border pl-1 pr-2 py-1 text-[11px] hover:border-emerald-400/60 inline-flex items-center gap-1.5', girl.itemUsedOnDay === save.currentDay && 'opacity-40 pointer-events-none')}>
+                      <ItemIcon src={itemIconPath('recovery', i.id)} name={i.name} size={20} />{i.name} ×{player.inventory?.[i.id]}
                     </button>
                   ))}
                 </div>
