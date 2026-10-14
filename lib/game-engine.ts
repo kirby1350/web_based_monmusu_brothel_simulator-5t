@@ -58,7 +58,7 @@ const GUEST_FETISH_PREFS: { tag: string; matches: (g: MonstGirl) => boolean }[] 
   { tag: '兽耳', matches: (g) => BEAST_RACES.includes(g.race) },
 ]
 
-const BASE_GUEST_BUDGET = 65        // 声望 0 时客人的基础预算下限
+const BASE_GUEST_BUDGET = 80        // 声望 0 时客人的基础预算下限
 const REGULAR_RETURN_CHANCE = 0.4   // 每名回头客每天回访的概率
 const MATCH_BONUS = 15              // 命中一项偏好带来的初始满意度加成
 
@@ -146,7 +146,7 @@ export interface SatisfactionTier {
 /** 根据服务结束时的客人满意度返回结算分档 */
 export function getSatisfactionTier(satisfaction: number): SatisfactionTier {
   if (satisfaction >= 90) return { key: 'ecstatic', label: '极乐', payMult: 1.6, reputationDelta: 5, regularChance: 0.8 }
-  if (satisfaction >= 70) return { key: 'satisfied', label: '满意', payMult: 1.3, reputationDelta: 3, regularChance: 0.4 }
+  if (satisfaction >= 70) return { key: 'satisfied', label: '满意', payMult: 1.3, reputationDelta: 3, regularChance: 0.5 }
   if (satisfaction >= 30) return { key: 'normal', label: '一般', payMult: 1.0, reputationDelta: 1, regularChance: 0 }
   return { key: 'unsatisfied', label: '不满', payMult: 0.5, reputationDelta: -2, regularChance: 0 }
 }

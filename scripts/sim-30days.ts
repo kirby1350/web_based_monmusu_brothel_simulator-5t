@@ -6,10 +6,14 @@ import { resolveService, canSkipService } from '../lib/resolve-service'
 import { resolveTraining } from '../lib/resolve-training'
 import { applyServiceToSave, applyTrainingToSave } from '../lib/settle-session'
 import { endDay, restGirl, upgradeDorm, getDormInfo, pendingSkillPicks, pickSkill, selectableSkills } from '../lib/hub-logic'
-import { buyRecovery, useRecovery, upgradeServiceRoom, upgradeTrainingRoom } from '../lib/shop'
+import { buyRecovery, useRecovery, upgradeServiceRoom, upgradeTrainingRoom, buyWardrobe } from '../lib/shop'
+import { OUTFITS, STOCKINGS } from '../lib/catalog'
+import type { OutfitId, StockingId } from '../lib/types'
 import { migrateSave } from '../lib/migrate-save'
 
 const seed = Number(process.argv[2] ?? 42)
+/** 策略：base 只跳过；wardrobe 另买对口衣服并换装；train 每天先调教再接客 */
+const STRAT = (process.argv[3] ?? 'base') as 'base' | 'wardrobe' | 'train'
 function mulberry32(a: number) {
   return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296 }
 }
@@ -57,6 +61,13 @@ for (let day = 1; day <= 30; day++) {
     || tryUp('宿舍', getDormInfo(save.player.dormLevel).upgradeCost, () => { const r = upgradeDorm(save); if (r.ok) save = r.save })
     || (save.girls.length >= getGirlCapacity(lv) && tryUp('娼馆', getUpgradeCost(lv), () => { save = { ...save, player: { ...save.player, gold: save.player.gold - getUpgradeCost(lv), level: lv + 1 } } }))
     || tryUp('调教室', peekCost(() => upgradeTrainingRoom(save)), () => { const r = upgradeTrainingRoom(save); if (r.ok) save = r.save })
+  // 2b) 衣橱：今天客人里最多的服装喜好，没有就买
+  if (STRAT === 'wardrobe' && day >= 3) {
+    const prefs = (save.dailyGuests ?? []).map((g) => g.prefOutfit).filter(Boolean)
+    const owned = new Set(save.player.wardrobe ?? [])
+    const want = [...OUTFITS, ...STOCKINGS].find((o) => o.pref && prefs.includes(o.pref) && !owned.has(o.id) && save.player.gold - o.price >= RESERVE)
+    if (want) { const r = buyWardrobe(save, want.id); if (r.ok) { save = r.save; stats.upgrades.push(`D${day} 衣:${want.name}`) } }
+  }
   // 3) 行动
   for (let a = 0; a < MAX_ACTIONS_PER_DAY; a++) {
     // 体力低：先喂热餐（不占行动）
@@ -65,6 +76,12 @@ for (let day = 1; day <= 30; day++) {
         const b = buyRecovery(save, 'hot_meal'); if (b.ok) { const u = useRecovery(b.save, g.id, 'hot_meal'); if (u.ok) { save = u.save; stats.potions++ } }
       }
     }
+    if (STRAT === 'train' && a === 0) {
+      const t = [...save.girls].filter((g) => (g.stamina ?? 100) >= 60).sort((x, y) => x.obedience + x.lewdness - y.obedience - y.lewdness)[0]
+      // 有未到精通的服侍技能就特训它，否则驯服/放权
+      const sk = t && (['身侍', '口侍', '待客', '手技', '胸侍'] as SkillKey[]).find((k) => t.skillRanks?.[k] && t.skillRanks[k] !== '精通')
+      if (t) { const r = resolveTraining({ girl: t, direction: sk ? 'drill' : t.obedience <= t.lewdness ? 'tame' : 'release', skill: sk || undefined, skip: true, roomLevel: save.player.trainingRoomLevel }); if (r.ok) { save = applyTrainingToSave(save, r); stats.trainings++; continue } }
+    }
     // 先处理事件、先把不能跳过的新人驯服到 25
     const urgent = save.girls.find((g) => (g.stamina ?? 100) >= 40 && (g.incident || !canSkipService(g)))
     if (urgent) {
@@ -72,18 +89,20 @@ for (let day = 1; day <= 30; day++) {
       if (r.ok) { save = applyTrainingToSave(save, r); stats.trainings++; if (urgent.incident) stats.punish++; continue }
     }
     const guests = save.dailyGuests ?? []
-    let best: { g: MonstGirl; gi: number; sat: number } | null = null
+    let best: { g: MonstGirl; gi: number; sat: number; outfit: OutfitId; stockings: StockingId } | null = null
     for (const g of save.girls) {
       if ((g.stamina ?? 100) < 30 || !canSkipService(g)) continue
       guests.forEach((c, gi) => {
-        const r = resolveService({ girl: g, guest: c, skip: true, roomLevel: save.player.serviceRoomLevel, sessionIndexToday: save.actionsUsedToday ?? 0 })
-        if (!best || r.satisfaction > best.sat) best = { g, gi, sat: r.satisfaction }
+        for (const [outfit, stockings] of outfitCombos()) {
+          const r = resolveService({ girl: g, guest: c, skip: true, roomLevel: save.player.serviceRoomLevel, sessionIndexToday: save.actionsUsedToday ?? 0, outfit, stockings })
+          if (!best || r.satisfaction > best.sat) best = { g, gi, sat: r.satisfaction, outfit, stockings }
+        }
       })
     }
-    const b = best as { g: MonstGirl; gi: number; sat: number } | null
+    const b = best as { g: MonstGirl; gi: number; sat: number; outfit: OutfitId; stockings: StockingId } | null
     if (b && b.sat >= 35) {
       const guest = guests[b.gi]
-      const r = resolveService({ girl: b.g, guest, skip: true, roomLevel: save.player.serviceRoomLevel, sessionIndexToday: save.actionsUsedToday ?? 0 })
+      const r = resolveService({ girl: b.g, guest, skip: true, roomLevel: save.player.serviceRoomLevel, sessionIndexToday: save.actionsUsedToday ?? 0, outfit: b.outfit, stockings: b.stockings })
       save = applyServiceToSave(save, b.g.id, guest, r, rng).save
       stats.services++; stats.sats.push(r.satisfaction); stats.serviceIncome += r.reward; stats.tiers[r.tier.label] = (stats.tiers[r.tier.label] ?? 0) + 1
       continue
@@ -106,6 +125,13 @@ for (let day = 1; day <= 30; day++) {
   save = endDay(save, rng)
 }
 
+function outfitCombos(): [OutfitId, StockingId][] {
+  const owned = new Set(save.player.wardrobe ?? [])
+  const os = OUTFITS.filter((o) => o.id === 'regular' || owned.has(o.id)).map((o) => o.id)
+  const ss = STOCKINGS.filter((x) => x.id === 'none' || owned.has(x.id)).map((x) => x.id)
+  return os.flatMap((o) => ss.map((x) => [o, x] as [OutfitId, StockingId]))
+}
+
 function peekCost(f: () => { ok: boolean } & ({ ok: true } | { ok: false; error: string })): number | null {
   // 用十万金币试升级，拿到花费；满级返回 null
   const rich = { ...save, player: { ...save.player, gold: 100000 } }
@@ -116,7 +142,7 @@ function peekCost(f: () => { ok: boolean } & ({ ok: true } | { ok: false; error:
 }
 
 out('')
-out(`种子 ${seed}｜接客 ${stats.services}，调教 ${stats.trainings}，休息 ${stats.rests}，闲置 ${stats.idle}，热餐 ${stats.potions}，买人 ${stats.bought}`)
+out(`策略 ${STRAT}｜种子 ${seed}｜接客 ${stats.services}，调教 ${stats.trainings}，休息 ${stats.rests}，闲置 ${stats.idle}，热餐 ${stats.potions}，买人 ${stats.bought}`)
 out(`评价分布 ${JSON.stringify(stats.tiers)}｜满意度 最低 ${Math.min(...stats.sats)} 平均 ${Math.round(stats.sats.reduce((a, b) => a + b, 0) / stats.sats.length)} 最高 ${Math.max(...stats.sats)}｜接客总收入 ${stats.serviceIncome}，惩罚 ${stats.punish}`)
 out(`回头客 ${(save.regulars ?? []).length}，最终声望 ${save.player.reputation ?? 0}，最终金币 ${save.player.gold}`)
 out(`升级记录 ${stats.upgrades.join('，') || '无'}`)
