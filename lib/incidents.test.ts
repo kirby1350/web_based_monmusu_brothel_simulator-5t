@@ -42,3 +42,18 @@ test('夜间闯祸从该魔物娘自己的池子里抽（取最后一条 = 种�
   assert.equal(out[0].incident?.text, pool[pool.length - 1])
   assert.ok(AFFECTION_INCIDENT_TEMPLATES.high.includes(out[0].incident!.text))
 })
+
+test('单人新档：endDay 掷中 15% 时她会闯祸（hub 角标/角色卡读 girl.incident）', async () => {
+  const { endDay } = await import('./hub-logic')
+  const { migrateSave } = await import('./migrate-save')
+  const s = migrateSave({ player: { name: 'p', traits: [], customTraits: '', fetishes: [], gold: 500, day: 1, guestPreference: '', marketPreference: '' },
+    girls: [girl({ name: '千雪', affection: 10 })], currentDay: 1, phase: 'morning' })
+  const hit = endDay(s, () => 0.1)
+  assert.equal(hit.girls[0].incident?.kind, '闯祸')
+  assert.ok(mischiefPool(hit.girls[0]).includes(hit.girls[0].incident!.text))
+  assert.equal(endDay(s, () => 0.2).girls[0].incident ?? null, null)
+  // 已挂着接客失败：不叠加闯祸，只扣服从
+  const tagged = { ...s, girls: [{ ...s.girls[0], incident: { kind: '接客失败' as const, text: 'x', day: 1 } }] }
+  const n = endDay(tagged, () => 0)
+  assert.equal(n.girls[0].incident?.kind, '接客失败'); assert.equal(n.girls[0].obedience, 37)
+})
