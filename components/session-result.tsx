@@ -6,7 +6,8 @@ import { Loader2, Star, PenLine, Brush } from 'lucide-react'
 import { ImageDisplay } from '@/components/image-display'
 import { AppSettings, Guest, MonstGirl, OutfitId, StockingId } from '@/lib/types'
 import { Button } from '@/components/ui/button'
-import { OUTFITS, STOCKINGS } from '@/lib/catalog'
+import { OUTFITS, STOCKINGS, getSensitivityLevel } from '@/lib/catalog'
+import type { TrainingResult } from '@/lib/resolve-training'
 import type { ServiceResult } from '@/lib/resolve-service'
 import type { SettleInfo } from '@/lib/settle-session'
 import { cn } from '@/lib/utils'
@@ -137,6 +138,57 @@ function Section({ title, children }: { title: string; children: React.ReactNode
     <div className="border-t border-border pt-2 space-y-1">
       <p className="text-[10px] text-muted-foreground uppercase tracking-widest">{title}</p>
       {children}
+    </div>
+  )
+}
+
+// ─── 调教结算卡 ───────────────────────────────────────────────────────────────
+
+export function TrainingResultCard({ mode, before, result, onBack }: {
+  mode: 'skip' | 'live'
+  before: MonstGirl
+  result: TrainingResult
+  onBack: () => void
+}) {
+  const after = result.girl
+  const rows: [string, number, number][] = [
+    ['服从', before.obedience, after.obedience], ['淫乱', before.lewdness, after.lewdness], ['好感', before.affection, after.affection],
+  ]
+  const zoneChanges = Object.entries(after.sensitivities ?? {}).filter(([z, v]) => (before.sensitivities?.[z as keyof typeof before.sensitivities] ?? v) !== v)
+  const skillChanges = Object.keys(after.skillProgress ?? {}).filter((k) =>
+    (after.skillProgress as Record<string, number>)[k] !== ((before.skillProgress ?? {}) as Record<string, number>)[k] ||
+    (after.skillRanks as Record<string, string> | undefined)?.[k] !== (before.skillRanks as Record<string, string> | undefined)?.[k])
+  return (
+    <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3" data-testid="training-result">
+      <div className="text-center space-y-1">
+        <h2 className="text-lg font-bold gold-text">{mode === 'skip' ? '跳过调教' : '调教结束'}</h2>
+        <p className="text-xs text-muted-foreground">{result.summary}</p>
+      </div>
+      <div className="rounded-xl border border-border bg-card p-4 space-y-3 text-xs">
+        <Section title="成长">
+          {rows.filter(([, a, b]) => a !== b).map(([l, a, b]) => (
+            <div key={l} className="flex justify-between"><span className="text-muted-foreground">{l}</span><span data-testid={`tr-${l}`}>{a} → {b}</span></div>
+          ))}
+          {(result.delta.m > 0 || result.delta.s > 0) && <p>{result.delta.m > 0 ? `M 进度 +${result.delta.m}` : `S 进度 +${result.delta.s}`}</p>}
+          {skillChanges.map((k) => (
+            <p key={k} data-testid="tr-skill">{k}：{(before.skillRanks as Record<string, string> | undefined)?.[k]} 进度 {((before.skillProgress ?? {}) as Record<string, number>)[k] ?? 0} → {(after.skillRanks as Record<string, string>)[k]} 进度 {(after.skillProgress as Record<string, number>)[k]}（+{result.delta.skillProgress}）</p>
+          ))}
+          {result.becameTwoSided && <p className="text-emerald-300">她成为了「两面」</p>}
+        </Section>
+        {result.measurement && (
+          <Section title="三围">
+            <p data-testid="tr-measure">{{ bust: '胸围', waist: '腰围', hip: '臀围' }[result.measurement.stat]} {result.measurement.from} → {result.measurement.to}</p>
+          </Section>
+        )}
+        {zoneChanges.length > 0 && (
+          <Section title="敏感带">
+            {zoneChanges.map(([z, v]) => <p key={z} data-testid="tr-zone">{z} {before.sensitivities?.[z as keyof typeof before.sensitivities] ?? 30} → {v}（{getSensitivityLevel(v as number)}）</p>)}
+          </Section>
+        )}
+        <Section title="体力"><p>{before.stamina ?? 100} → {after.stamina}（−{result.staminaCost}）</p></Section>
+        {result.notes.length > 0 && <Section title="加成"><p className="text-muted-foreground">{result.notes.join('；')}</p></Section>}
+      </div>
+      <Button className="w-full h-10 glow-btn" onClick={onBack} data-testid="btn-back-hub">返回大厅</Button>
     </div>
   )
 }

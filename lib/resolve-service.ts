@@ -26,6 +26,10 @@ export interface ServiceInput {
   /** 手选 play id；跳过时缺省自动填最对口的 */
   plays?: string[]
   skip: boolean
+  /** 当天全馆已进行的场次（黑暗精灵「夜习」：第 2、3 场额外满意度） */
+  sessionIndexToday?: number
+  /** 她今天已出场的次数（兔娘「持久」：第二场体力消耗减轻） */
+  girlSessionsToday?: number
 }
 
 export interface StepResult { key: ServiceStepKey; label: string; score: number; zone?: SensitivityZone; note?: string }
@@ -42,6 +46,13 @@ export interface ServiceResult {
   tier: SatisfactionTier
   reward: number
   staminaCost: number
+  /** 体力修正明细：最终消耗 = round((基础 + extra) × mult) − refund（refund 只在满意及以上） */
+  staminaExtra: number
+  staminaMult: number
+  staminaRefund: number
+  /** 种族特技带来的满意度加成（已算进 satisfaction） */
+  satisfactionBonus: number
+  raceNotes: string[]
   affectionDelta: number
   summary: string
 }
@@ -69,11 +80,14 @@ const MAIN_ZONE: Record<'口侍' | '胸侍' | '身侍', SensitivityZone> = { 口
 function bustBonus(girl: MonstGirl) { return Math.max(0, Math.min(6, Math.floor(((girl.bust ?? 0) - 85) / 5))) }
 function hipBonus(girl: MonstGirl) { return Math.max(0, Math.min(5, Math.floor(((girl.hip ?? 0) - 88) / 5))) }
 
+const BEAST_RACES = ['猫娘', '犬娘', '狐娘', '兔娘', '牛娘', '狼娘']
+
 function traitMatched(guest: Guest, girl: MonstGirl): boolean {
   switch (guest.prefTrait) {
     case '巨乳': return (girl.bust ?? 0) >= 95
     case '贫乳': return (girl.bust ?? 0) > 0 && (girl.bust ?? 0) <= 82
     case '丰臀': return (girl.hip ?? 0) >= 95
+    case '兽耳': return BEAST_RACES.includes(girl.race)
     default: return false
   }
 }
@@ -121,13 +135,15 @@ export function scorePlay(girl: MonstGirl, guest: Guest, play: PlayDef): PlayRes
     if (play.source === 'race') {
       rank = '熟练'
       matched = profile.service === '种族'
+        // 拉米亚「缠缚」、蜘蛛娘「丝线」：对口拘束、支配（想施虐的客人）；不和 M 性叠成两份
+        || ((girl.race === '拉米亚' || girl.race === '蜘蛛娘') && profile.kind === 'M' && !getSkillRank(girl, 'M性'))
     } else {
       rank = getSkillRank(girl, play.source) ?? '初学'
       matched = profile.service === play.source || profile.secondary.includes(play.source as ServingSkill)
     }
     score = matched ? PLAY_SCORE[rank] : Math.floor(PLAY_SCORE[rank] / 2)
     if (play.id === 'paizuri') score += bustBonus(girl)
-    if (play.id === 'positions') score += hipBonus(girl)
+    if (play.id === 'positions') score += hipBonus(girl) + (girl.race === '哈比' && matched ? 2 : 0)
   }
   if (score > 0) score += zoneMod(girl, play.zone)
   const name = play.source === 'race' ? (RACE_TRAITS[girl.race] ?? play.name) : play.name
@@ -159,22 +175,35 @@ export function resolveService(input: ServiceInput): ServiceResult {
   const stockingPref = STOCKINGS.find((s) => s.id === stockings)?.pref ?? null
   const outfitMatched = !!guest.prefOutfit && (outfitPref === guest.prefOutfit || stockingPref === guest.prefOutfit)
   let greet = GREET_HOSTING_SCORE[getSkillRank(girl, '待客') ?? '无']
-  if (guest.prefRace && guest.prefRace === girl.race) greet += 2
-  if (traitMatched(guest, girl)) greet += 2
+  const raceNotes: string[] = []
+  const raceHit = !!guest.prefRace && guest.prefRace === girl.race
+  const traitHit = traitMatched(guest, girl)
+  if (raceHit) greet += 2
+  if (traitHit) greet += 2
   if (outfitMatched) greet += 4
   else if (guest.prefOutfit && outfit !== 'regular') greet -= 2
+  // 狐娘「魅惑」：偏好一项都没中，也给一截开场分
+  if (girl.race === '狐娘' && !raceHit && !traitHit && !outfitMatched) { greet += 2; raceNotes.push('魅惑：迎客 +2') }
+
+  // 低体力惩罚：开场体力 <30 时，挑逗到清洗每步 −2；史莱姆「柔体」减半
+  const lowStamina = (girl.stamina ?? 100) < 30
+  const lowPen = lowStamina ? (girl.race === '史莱姆' ? 1 : 2) : 0
+  if (lowStamina) raceNotes.push(girl.race === '史莱姆' ? '柔体：低体力惩罚减半（每步 −1）' : '体力过低：每步 −2')
+  // 哈比「轻身」、鬼娘「怪力」、狼娘「野性」：正戏身侍 +2
+  const bodyBonus = main === '身侍' && ['哈比', '鬼娘', '狼娘'].includes(girl.race) ? 2 : 0
+  if (bodyBonus) raceNotes.push(`${girl.race === '哈比' ? '轻身' : girl.race === '鬼娘' ? '怪力' : '野性'}：身侍 +2`)
 
   const steps: StepResult[] = [
     { key: 'greet', label: '迎客', score: clampStep(greet) },
     { key: 'tease', label: '挑逗', zone: '耳朵',
-      score: clampStep(STEP_SCORE[statToRank(girl.lewdness)] + ((girl.waist ?? 99) <= 60 ? 2 : 0) + zoneMod(girl, '耳朵')) },
+      score: clampStep(STEP_SCORE[statToRank(girl.lewdness)] + ((girl.waist ?? 99) <= 60 ? 2 : 0) + zoneMod(girl, '耳朵') - lowPen) },
     { key: 'foreplay', label: '前戏', zone: '阴蒂',
-      score: clampStep(STEP_SCORE[getSkillRank(girl, '手技') ?? '无'] + zoneMod(girl, '阴蒂')) },
+      score: clampStep(STEP_SCORE[getSkillRank(girl, '手技') ?? '无'] + zoneMod(girl, '阴蒂') - lowPen) },
     { key: 'main', label: '正戏', zone: MAIN_ZONE[main], note: main,
       score: clampStep(STEP_SCORE[getSkillRank(girl, main) ?? '无']
         + (main === '胸侍' ? bustBonus(girl) : main === '身侍' ? hipBonus(girl) : 0)
-        + zoneMod(girl, MAIN_ZONE[main])) },
-    { key: 'cleanup', label: '清洗', score: clampStep(STEP_SCORE[statToRank(obedience)]) },
+        + zoneMod(girl, MAIN_ZONE[main]) + bodyBonus - lowPen) },
+    { key: 'cleanup', label: '清洗', score: clampStep(STEP_SCORE[statToRank(obedience)] - lowPen) },
   ]
   const standardScore = steps.reduce((s, x) => s + x.score, 0)
 
@@ -188,9 +217,12 @@ export function resolveService(input: ServiceInput): ServiceResult {
     .map((p) => scorePlay(girl, guest, p))
   const playScore = plays.reduce((s, p) => s + p.score, 0)
 
-  const satisfaction = Math.max(0, Math.min(100, standardScore + playScore))
+  // 黑暗精灵「夜习」：当天第 2、3 场额外满意度 +5
+  const satisfactionBonus = girl.race === '黑暗精灵' && (input.sessionIndexToday ?? 0) >= 1 ? 5 : 0
+  if (satisfactionBonus) raceNotes.push('夜习：满意度 +5')
+  const satisfaction = Math.max(0, Math.min(100, standardScore + playScore + satisfactionBonus))
   const tier = getSatisfactionTier(satisfaction)
-  const reward = calcServiceReward({ ...guest, satisfaction })
+  const reward = serviceReward(guest, girl, satisfaction)
 
   // 体力：跳过固定 40，敏感档只取本场用到的最高一档
   const zones = [...steps.map((s) => s.zone), ...plays.map((p) => p.zone)].filter((z): z is SensitivityZone => !!z)
@@ -202,15 +234,35 @@ export function resolveService(input: ServiceInput): ServiceResult {
     const lv = getSensitivityLevel(v)
     if (top === null || order.indexOf(lv) > order.indexOf(top)) top = lv
   }
-  const staminaCost = (skip ? SKIP_SERVICE_STAMINA : 0) + (top ? SENSITIVITY_STAMINA_MOD[top] : 0)
+  let staminaExtra = top ? SENSITIVITY_STAMINA_MOD[top] : 0
+  let staminaMult = 1
+  if (girl.race === '兔娘' && (input.girlSessionsToday ?? 0) >= 1) { staminaMult *= 0.75; raceNotes.push('持久：第二场体力消耗 ×0.75') }
+  if (girl.race === '精灵') { staminaMult *= 1.25; raceNotes.push('敏感：体力消耗 ×1.25') }
+  if ((girl.race === '鬼娘' || girl.race === '狼娘') && main !== '身侍') { staminaExtra -= 10; raceNotes.push(`${girl.race === '鬼娘' ? '怪力' : '野性'}：体力消耗 −10`) }
+  const staminaRefund = girl.race === '吸血鬼' && tier.payMult >= 1.3 ? 15 : 0
+  if (staminaRefund) raceNotes.push('反哺：满意后返还 15 体力')
+  const staminaCost = skip ? serviceStaminaCost(SKIP_SERVICE_STAMINA, { staminaExtra, staminaMult, staminaRefund }) : Math.max(0, staminaExtra)
 
   return {
     canSkip: canSkipService(girl),
     steps, standardScore, plays, playScore, outfitMatched,
     satisfaction, tier, reward, staminaCost,
+    staminaExtra, staminaMult, staminaRefund, satisfactionBonus, raceNotes,
     affectionDelta: 1,
     summary: buildServiceSummary(girl.name, guest.name, tier.key, plays.length),
   }
+}
+
+/** 最终体力消耗 */
+export function serviceStaminaCost(base: number, r: Pick<ServiceResult, 'staminaExtra' | 'staminaMult' | 'staminaRefund'>): number {
+  return Math.max(0, Math.round((base + r.staminaExtra) * r.staminaMult) - r.staminaRefund)
+}
+
+/** 收入：龙娘「傲骨」满意及以上 ×1.2 */
+export const DRAGON_REWARD_MULT = 1.2
+export function serviceReward(guest: Guest, girl: MonstGirl, satisfaction: number): number {
+  const base = calcServiceReward({ ...guest, satisfaction })
+  return girl.race === '龙娘' && satisfaction >= 70 ? Math.round(base * DRAGON_REWARD_MULT) : base
 }
 
 const SUMMARY_TEMPLATES: Record<SatisfactionTier['key'], string> = {

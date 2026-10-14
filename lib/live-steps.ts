@@ -1,10 +1,10 @@
 // 亲自上场的步骤状态（纯函数）：迎客 → 挑逗 → 前戏 → 正戏 → 清洗
 import type { OutfitId, StockingId } from './types'
 import {
-  resolveService, getAvailablePlays, SERVICE_STEPS, type ServiceInput, type ServiceResult,
+  resolveService, getAvailablePlays, SERVICE_STEPS, serviceStaminaCost, serviceReward, type ServiceInput, type ServiceResult,
 } from './resolve-service'
 import { getPlaySlots, LIVE_SERVICE_STAMINA_LONG, LIVE_SERVICE_STAMINA_SHORT, STEP_MAX } from './catalog'
-import { calcServiceReward, getSatisfactionTier } from './game-engine'
+import { getSatisfactionTier } from './game-engine'
 
 export const MAIN_STEP_INDEX = 3
 export const TEASE_STEP_INDEX = 1
@@ -88,17 +88,20 @@ export function resolveLiveSteps(plan: Plan, s: LiveState): ServiceResult {
   const lastReached = s.finished ? SERVICE_STEPS.length - 1 : s.stepIndex
   const steps = base.steps.map((st, i) => ({ ...st, score: liveStepScore(st.score, s.turns[i], i <= lastReached) }))
   const standardScore = steps.reduce((a, x) => a + x.score, 0)
-  const satisfaction = Math.max(0, Math.min(100, standardScore + base.playScore))
+  const satisfaction = Math.max(0, Math.min(100, standardScore + base.playScore + base.satisfactionBonus))
   const totalTurns = s.turns.reduce((a, b) => a + b, 0)
-  const sensExtra = base.staminaCost
+  const tier = getSatisfactionTier(satisfaction)
+  const refund = tier.payMult >= 1.3 ? base.staminaRefund : 0
   return {
     ...base,
     steps,
     standardScore,
     satisfaction,
-    tier: getSatisfactionTier(satisfaction),
-    reward: calcServiceReward({ ...plan.guest, satisfaction }),
-    staminaCost: (totalTurns <= LIVE_SHORT_TURNS ? LIVE_SERVICE_STAMINA_SHORT : LIVE_SERVICE_STAMINA_LONG) + sensExtra + (s.outfitChanged ? OUTFIT_CHANGE_STAMINA : 0),
+    tier,
+    reward: serviceReward(plan.guest, plan.girl, satisfaction),
+    staminaCost: serviceStaminaCost(
+      (totalTurns <= LIVE_SHORT_TURNS ? LIVE_SERVICE_STAMINA_SHORT : LIVE_SERVICE_STAMINA_LONG) + (s.outfitChanged ? OUTFIT_CHANGE_STAMINA : 0),
+      { ...base, staminaRefund: refund }),
     affectionDelta: s.finished ? 1 : 0,
   }
 }

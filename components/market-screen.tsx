@@ -14,6 +14,7 @@ import { getGirlCapacity } from '@/lib/game-engine'
 import { GIRL_TEMPLATES, GIRL_TEMPLATE_IMAGES } from '@/lib/game-data'
 import { nanoid } from 'nanoid'
 import { cn, parseLooseJson } from '@/lib/utils'
+import { RACE_TRAITS, RACE_ZONE_NAMES } from '@/lib/catalog'
 
 interface MarketScreenProps {
   save: GameSave
@@ -397,6 +398,7 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
                       <div>
                         <p className="text-sm font-bold">{template.name}</p>
                         <p className="text-[11px] text-muted-foreground">{template.race} · {template.age}岁</p>
+                        <RaceTraitLine race={template.race} />
                         <p className="text-[10px] text-muted-foreground/70 font-mono mt-0.5">B{template.bust} / W{template.waist} / H{template.hip}</p>
                       </div>
                       <Badge variant="outline" className="text-[10px] shrink-0 border-amber-500/40 text-amber-400">500 G</Badge>
@@ -495,6 +497,7 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
                       <div>
                         <p className="text-sm font-bold">{girl.name}</p>
                         <p className="text-[11px] text-muted-foreground">{girl.race} · {girl.age}岁</p>
+                        <RaceTraitLine race={girl.race} />
                         {(girl.bust || girl.waist || girl.hip) && (
                           <p className="text-[10px] text-muted-foreground/70 font-mono mt-0.5">B{girl.bust} / W{girl.waist} / H{girl.hip}</p>
                         )}
@@ -628,4 +631,15 @@ function fallbackGirl(index: number): MonstGirl {
     { name: '珊珊', race: '牛娘', age: '20', bodyDesc: '丰满圆润，棕色牛角，温和笑容', bodyTags: 'holstaur, brown horns, large breasts', bust: 105, waist: 65, hip: 100, personality: '温柔贤淑，像大姐姐一样照顾人', personalityTags: 'gentle, nurturing', outfit: '白色农家风连衣裙', outfitTags: 'white rural dress', otherDesc: '前农场主人去世后独自流浪', otherTags: 'farm girl', affection: 45, obedience: 50, lewdness: 25, skills: ['按摩'], imageTags: '1girl, holstaur, large breasts, white dress, anime, masterpiece, best quality', price: 280 },
   ]
   return { id: nanoid(), ...templates[index % templates.length] }
+}
+
+/** 市场卡片：种族特技名与签名敏感带 */
+function RaceTraitLine({ race }: { race: string }) {
+  if (!RACE_TRAITS[race] && !RACE_ZONE_NAMES[race]) return null
+  return (
+    <p className="text-[10px] text-amber-300/80">
+      {RACE_TRAITS[race] && <>特技「{RACE_TRAITS[race]}」</>}
+      {RACE_ZONE_NAMES[race] && <> · 敏感带「{RACE_ZONE_NAMES[race]}」</>}
+    </p>
+  )
 }

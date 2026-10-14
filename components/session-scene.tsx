@@ -242,3 +242,68 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish }: Ses
     </div>
   )
 }
+
+// ─── 调教的亲自上场（仍用旧调教提示词，无步骤条） ──────────────────────────────
+
+export function TrainingScene({ player, girl, directionLabel, settings, onFinish }: {
+  player: Player
+  girl: MonstGirl
+  directionLabel: string
+  settings: AppSettings
+  onFinish: (turns: number, pleasure: number) => void
+}) {
+  const [session] = useState<ServiceSession>(() => createServiceSession('training', [girl], {}))
+  const [messages, setMessages] = useState<ChatMessage[]>(() => [{
+    role: 'assistant',
+    content: `调教室的门缓缓关上。${girl.name}被带到你面前，今天的项目是「${directionLabel}」。` +
+      `\n<!--STATS:${JSON.stringify({ girls: { [girl.name]: { pleasure: 0, stamina: 0 } }, satisfaction: 0 })}-->` +
+      `\n<!--ACTIONS:["命令她跪下","抬起她的下巴","她低声求饶"]-->`,
+  }])
+  const [turns, setTurns] = useState(0)
+  const [pleasure, setPleasure] = useState(0)
+  const [suggestions, setSuggestions] = useState<[string, string, string] | null>(['命令她跪下', '抬起她的下巴', '她低声求饶'])
+  const [inputValue, setInputValue] = useState('')
+  const chatRef = useRef<ChatEngineHandle>(null)
+  const systemPrompt = buildServiceSystemPrompt(player, { ...session, messages }, settings.proseStyle) + `\n\n【本次调教方向】${directionLabel}`
+
+  const onRaw = useCallback((raw: string) => {
+    const a = parseActionsFromReply(raw)
+    if (a) setSuggestions(a)
+    const multi = parseStatsFromReply(raw)
+    const d = multi ? (getGirlDelta(multi, girl.name) ?? { pleasureDelta: 5, staminaDelta: -8 }) : estimateStatDelta(raw)
+    setPleasure((p) => Math.max(0, Math.min(100, p + d.pleasureDelta)))
+  }, [girl.name])
+  const send = (t: string) => {
+    if (!t.trim()) return
+    setTurns((n) => n + 1)
+    chatRef.current?.sendMessage(t.trim())
+    setInputValue('')
+  }
+
+  return (
+    <div className="flex flex-col flex-1 min-h-0">
+      <div className="border-b border-border px-3 py-2 flex items-center gap-3 text-[11px] text-foreground/75 shrink-0">
+        <span className="gold-text font-semibold">{girl.name}</span>
+        <span>{directionLabel}</span>
+        <span data-testid="tr-turns">回合 {turns}</span>
+        <span>快感 {pleasure}</span>
+        <span className="flex-1" />
+        <Button size="sm" variant="outline" className="h-7 text-xs border-rose-500/30 text-rose-400" onClick={() => onFinish(turns, pleasure)} data-testid="btn-end-training">
+          结束调教
+        </Button>
+      </div>
+      <ChatEngine ref={chatRef} systemPrompt={systemPrompt} messages={messages} onMessagesChange={setMessages}
+        settings={settings} onRawStreamComplete={onRaw} showInput={false} className="flex-1 min-h-0" />
+      <SuggestionBar suggestions={suggestions} onSelect={(t) => setInputValue(t)} />
+      <div className="border-t border-border px-3 pb-3 pt-2 flex gap-2 items-end">
+        <textarea value={inputValue} onChange={(e) => setInputValue(e.target.value)}
+          className="flex-1 min-h-[56px] max-h-[100px] resize-none bg-input border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+          placeholder="描述你的调教…（Enter 发送）"
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(inputValue) } }} />
+        <Button size="icon" className="h-9 w-9 shrink-0 glow-btn" disabled={!inputValue.trim()} onClick={() => send(inputValue)}>
+          <Send className="w-3.5 h-3.5" />
+        </Button>
+      </div>
+    </div>
+  )
+}

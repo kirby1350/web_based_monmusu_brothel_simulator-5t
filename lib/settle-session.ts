@@ -1,20 +1,20 @@
 // 接客结算写档（纯函数）：把 resolveService 的结果落进存档
 import type { GameSave, Guest } from './types'
-import { resolveService, type ServiceInput, type ServiceResult } from './resolve-service'
+import { resolveService, serviceStaminaCost, type ServiceInput, type ServiceResult } from './resolve-service'
+import type { TrainingResult } from './resolve-training'
 import { applyReputationDelta, calcServiceReward, MAX_ACTIONS_PER_DAY } from './game-engine'
-import { LIVE_SERVICE_STAMINA_LONG, LIVE_SERVICE_STAMINA_SHORT, SKIP_SERVICE_STAMINA, MAX_STAMINA } from './catalog'
+import { LIVE_SERVICE_STAMINA_LONG, LIVE_SERVICE_STAMINA_SHORT, MAX_STAMINA } from './catalog'
 
 /** 预览：收入区间（亲自上场最差到最好的大致范围）与体力 */
 export function previewService(input: Omit<ServiceInput, 'skip'>) {
   const skip = resolveService({ ...input, skip: true })
   const live = resolveService({ ...input, skip: false })
   const rewards = [calcServiceReward({ ...input.guest, satisfaction: 0 }), skip.reward, live.reward]
-  const sensExtra = skip.staminaCost - SKIP_SERVICE_STAMINA
   return {
     skip,
     live,
     rewardRange: [Math.min(...rewards), Math.max(...rewards)] as [number, number],
-    liveStamina: [LIVE_SERVICE_STAMINA_SHORT + sensExtra, LIVE_SERVICE_STAMINA_LONG + sensExtra] as [number, number],
+    liveStamina: [serviceStaminaCost(LIVE_SERVICE_STAMINA_SHORT, { ...live, staminaRefund: 0 }), serviceStaminaCost(LIVE_SERVICE_STAMINA_LONG, { ...live, staminaRefund: 0 })] as [number, number],
   }
 }
 
@@ -66,5 +66,21 @@ export function applyServiceToSave(
       dailyGuests: (save.dailyGuests ?? []).filter((g) => g.id !== guest.id),
       regulars,
     },
+  }
+}
+
+/** 把一场调教写进存档：魔物娘数值/三围/敏感带/体力、塑形药出背包、行动 +1、已出场；金币不变 */
+export function applyTrainingToSave(save: GameSave, result: TrainingResult, potionId?: string): GameSave {
+  if (!result.ok) return save
+  const inv = { ...(save.player.inventory ?? {}) }
+  if (potionId && inv[potionId]) { inv[potionId] -= 1; if (inv[potionId] <= 0) delete inv[potionId] }
+  const appeared = save.appearedToday ?? []
+  const id = result.girl.id
+  return {
+    ...save,
+    player: { ...save.player, inventory: inv },
+    girls: save.girls.map((g) => (g.id === id ? result.girl : g)),
+    actionsUsedToday: Math.min(MAX_ACTIONS_PER_DAY, (save.actionsUsedToday ?? 0) + 1),
+    appearedToday: appeared.includes(id) ? appeared : [...appeared, id],
   }
 }

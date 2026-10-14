@@ -111,7 +111,7 @@ export function GirlSheet({ girl, save, settings, onSaveChange, onClose }: GirlS
                 <StatBar label="体力" value={stamina} color="green" size="sm" />
                 {girl.exhausted && <Badge variant="secondary" className="text-[9px] bg-rose-500/15 text-rose-300">疲惫</Badge>}
                 {RACE_TRAITS[girl.race] && (
-                  <p className="text-[10px] text-muted-foreground">种族特技：<span className="text-amber-300">{RACE_TRAITS[girl.race]}</span></p>
+                  <p className="text-[10px] text-muted-foreground">种族特技：<span className="text-amber-300">{RACE_TRAITS[girl.race]}</span>{RACE_ZONE_NAMES[girl.race] && <> · 签名敏感带：<span className="text-pink-300">{RACE_ZONE_NAMES[girl.race]}</span></>}</p>
                 )}
               </div>
             </div>

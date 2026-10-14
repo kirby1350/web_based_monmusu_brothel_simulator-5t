@@ -162,7 +162,7 @@ export const ANAL_UNLOCK = 51
 
 export function getSensitivityLevel(value: number): SensitivityLevel {
   if (value >= 76) return '弱点'
-  if (value >= 51) return '敏感'
+  if (value >= 40) return '敏感'
   if (value <= 20) return '迟钝'
   return '普通'
 }

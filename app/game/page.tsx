@@ -8,7 +8,7 @@ import { generateDailyGuests, getGuestCapacity } from '@/lib/game-engine'
 import { GameSave, AppSettings } from '@/lib/types'
 import { migrateSave } from '@/lib/migrate-save'
 import { DailyHub } from '@/components/daily-hub'
-import { ServiceScreen } from '@/components/service-screen'
+import { TrainingFlow } from '@/components/training-flow'
 import { ServiceFlow } from '@/components/service-flow'
 import { MarketScreen } from '@/components/market-screen'
 import { SettingsPanel } from '@/components/settings-panel'
@@ -107,14 +107,7 @@ export default function GamePage() {
           />
         )}
         {activeTab === 'training' && (
-          <ServiceScreen
-            key={activeTab}
-            save={save}
-            type="training"
-            settings={settings}
-            onSaveChange={handleSaveChange}
-            onBack={() => setActiveTab('hub')}
-          />
+          <TrainingFlow save={save} settings={settings} onSaveChange={handleSaveChange} onBack={() => setActiveTab('hub')} />
         )}
         {activeTab === 'market' && (
           <MarketScreen
