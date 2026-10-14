@@ -15,7 +15,8 @@ import {
   updateGuestSatisfaction, parseActionsFromReply, computeInitialSatisfaction,
 } from '@/lib/game-engine'
 import { parseLooseJson, cn } from '@/lib/utils'
-import { OUTFITS, STOCKINGS, getSensitivityLevel } from '@/lib/catalog'
+import { OUTFITS, STOCKINGS, getSensitivityLevel, playIconPath } from '@/lib/catalog'
+import { ItemIcon } from '@/components/item-icon'
 import { SERVICE_STEPS } from '@/lib/resolve-service'
 import {
   initLiveState, recordTurn, nextStep, canChangeOutfit, changeOutfit, insertablePlays, insertPlay,
@@ -213,8 +214,8 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish }: Ses
         {panel === 'play' && (
           <div className="flex flex-wrap gap-1.5">
             {playOpts.map((p) => (
-              <button key={p.id} className="rounded-md border border-border px-2 py-0.5 text-[11px] hover:border-amber-400/60"
-                onClick={() => { setLive((s) => insertPlay(plan, s, p.id)); setPanel('none') }}>{p.name}</button>
+              <button key={p.id} className="rounded-md border border-border pl-1 pr-2 py-0.5 text-[11px] hover:border-amber-400/60 inline-flex items-center gap-1"
+                onClick={() => { setLive((s) => insertPlay(plan, s, p.id)); setPanel('none') }}><ItemIcon src={playIconPath(p.id)} name={p.name} size={18} />{p.name}</button>
             ))}
           </div>
         )}

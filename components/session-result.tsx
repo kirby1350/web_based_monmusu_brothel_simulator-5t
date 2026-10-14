@@ -9,7 +9,7 @@ import { saveGuest } from '@/lib/storage'
 import { ImageDisplay } from '@/components/image-display'
 import { AppSettings, Guest, MonstGirl, OutfitId, StockingId } from '@/lib/types'
 import { Button } from '@/components/ui/button'
-import { OUTFITS, STOCKINGS, getSensitivityLevel, itemIconPath } from '@/lib/catalog'
+import { OUTFITS, STOCKINGS, getSensitivityLevel, itemIconPath, playIconPath } from '@/lib/catalog'
 import { ItemIcon } from '@/components/item-icon'
 import type { TrainingResult } from '@/lib/resolve-training'
 import type { ServiceResult } from '@/lib/resolve-service'
@@ -122,7 +122,7 @@ export function SessionResult({ mode, girl, guest, outfit, stockings, result, in
           <Section title={`追加 play ${result.playScore > 0 ? '+' : ''}${result.playScore}`}>
             {result.plays.map((p) => (
               <div key={p.id} className="flex justify-between">
-                <span>{p.name} <span className="text-muted-foreground text-[10px]">{p.rank}{p.matched ? ' · 对口' : ''}</span></span>
+                <span className="flex items-center gap-1.5"><ItemIcon src={playIconPath(p.id)} name={p.name} size={18} />{p.name} <span className="text-muted-foreground text-[10px]">{p.rank}{p.matched ? ' · 对口' : ''}</span></span>
                 <span className={cn('tabular-nums', p.score < 0 ? 'text-rose-400' : 'gold-text')}>{p.score > 0 ? '+' : ''}{p.score}</span>
               </div>
             ))}

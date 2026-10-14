@@ -6,7 +6,7 @@ import { ChevronLeft, ChevronRight, FastForward, Swords } from 'lucide-react'
 import { CustomProp, GameSave, Guest, MonstGirl, OutfitId, StockingId, TrainingDirection, SkillKey, SensitivityZone } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { OUTFITS, STOCKINGS, getPlaySlots, getSkillRank, getSensitivityLevel, TRAINING_PROPS, SCULPT_POTIONS, COMMON_ZONES, RACE_ZONE_NAMES, RACE_TRAITS, itemIconPath } from '@/lib/catalog'
+import { OUTFITS, STOCKINGS, getPlaySlots, getSkillRank, getSensitivityLevel, TRAINING_PROPS, SCULPT_POTIONS, COMMON_ZONES, RACE_ZONE_NAMES, RACE_TRAITS, itemIconPath, playIconPath } from '@/lib/catalog'
 import { ItemIcon } from '@/components/item-icon'
 import { getTemplate } from '@/lib/custom-props'
 import { canPunish } from '@/lib/incidents'
@@ -161,7 +161,7 @@ export function SessionSetup({ save, onSkip, onLive }: SessionSetupProps) {
                   return (
                     <button key={p.id} onClick={() => setPlays((cur) => on ? cur.filter((x) => x !== p.id) : cur.length < slots ? [...cur, p.id] : cur)}
                       className={cn('w-full flex items-center justify-between rounded-lg border px-3 py-1.5 text-xs', on ? 'border-amber-400/70' : 'border-border')}>
-                      <span>{r.name} <span className="text-muted-foreground text-[10px]">{r.rank}{r.matched ? ' · 对口' : ''}</span></span>
+                      <span className="flex items-center gap-1.5"><ItemIcon src={playIconPath(p.id)} name={r.name} size={20} />{r.name} <span className="text-muted-foreground text-[10px]">{r.rank}{r.matched ? ' · 对口' : ''}</span></span>
                       <span className={r.score < 0 ? 'text-rose-400' : 'gold-text'}>{r.score > 0 ? '+' : ''}{r.score}</span>
                     </button>
                   )

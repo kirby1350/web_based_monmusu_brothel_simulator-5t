@@ -48,3 +48,12 @@ test('指定床位：单间才能设；夜间恢复多 +15', () => {
   }
   assert.equal(setBestBed(lv4, 'zz').ok, false)
 })
+
+test('play 图标：未就绪时返回 undefined（组件显示文字徽章）；就绪集合里的都有文件', async () => {
+  const { ALL_PLAYS, PLAY_ICONS_READY, playIconPath } = await import('./catalog')
+  for (const p of ALL_PLAYS) {
+    const src = playIconPath(p.id)
+    if (PLAY_ICONS_READY.has(p.id)) assert.ok(existsSync(pub(src!)), p.id)
+    else assert.equal(src, undefined)
+  }
+})

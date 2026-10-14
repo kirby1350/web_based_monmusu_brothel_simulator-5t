@@ -310,3 +310,9 @@ export const PUNISH_EXTRA_OBEDIENCE = 3
 export const PUNISH_EXTRA_M = 1
 export const PUNISH_M_AFFECTION = 3
 export const INCIDENT_OVERNIGHT_AFFECTION = 3
+
+// ─── play 图标：美术到位后把 id 加进集合，文件放 public/icons/play/<id>.webp；没有时显示文字徽章 ───
+export const PLAY_ICONS_READY = new Set<string>([])
+export function playIconPath(id: string): string | undefined {
+  return PLAY_ICONS_READY.has(id) ? `/icons/play/${id}.webp` : undefined
+}
