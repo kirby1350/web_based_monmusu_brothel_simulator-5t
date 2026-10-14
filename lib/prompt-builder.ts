@@ -1,4 +1,5 @@
 import { Player, MonstGirl, Guest, ServiceSession, GameSave, ProseStyle } from '@/lib/types'
+import { PLAYS, getSensitivityLevel, getSkillRank } from '@/lib/catalog'
 
 // ─── 文风控制（去油黑名单常驻 + 可切换文风片段） ───────────────────────────────
 
@@ -653,4 +654,62 @@ ${prevContext}
 
 只输出JSON：{"guestAboutGirl":"...","girlAboutGuest":"..."}
 ${JSON_HALFWIDTH_NOTE}`
+}
+
+// ─── 亲自上场：按敏感档 / 技能档追加一句行为描写（只写当前步骤用到的） ─────────
+
+export const SENSITIVITY_BEHAVIOUR: Record<'迟钝' | '普通' | '敏感' | '弱点', string> = {
+  迟钝: '反应平淡，需要更多、更久的刺激才会有感觉',
+  普通: '反应正常，随刺激自然起伏',
+  敏感: '轻轻一碰就会颤抖，压不住声音',
+  弱点: '一碰就失守，几乎无法维持表情和姿势',
+}
+
+export const SKILL_BEHAVIOUR: Record<'未学' | '初学' | '熟练' | '精通', string> = {
+  未学: '动作生涩，全凭本能摸索',
+  初学: '照着学过的做，还有些拘谨',
+  熟练: '动作流畅，懂得配合对方的节奏',
+  精通: '游刃有余，能主动掌控节奏',
+}
+
+export interface BehaviourInput {
+  zones: { label: string; level: keyof typeof SENSITIVITY_BEHAVIOUR }[]
+  skills: { skill: string; rank?: '初学' | '熟练' | '精通' }[]
+}
+
+/** 生成「当前步骤的表现」段落；没有可写的项时返回空字符串 */
+export function buildBehaviourLines(girlName: string, input: BehaviourInput): string {
+  const lines = [
+    ...input.zones.map((z) => `- ${z.label}（${z.level}）：${SENSITIVITY_BEHAVIOUR[z.level]}`),
+    ...input.skills.map((s) => `- ${s.skill}（${s.rank ?? '未学'}）：${SKILL_BEHAVIOUR[s.rank ?? '未学']}`),
+  ]
+  return lines.length ? `【${girlName}在这一步的表现】\n${lines.join('\n')}` : ''
+}
+
+/** 当前步骤用到的敏感带与技能：迎客看待客；挑逗看耳朵；前戏看阴蒂和手技；正戏看主类型及已插入的 play；清洗不加 */
+export function stepBehaviour(girl: MonstGirl, stepIndex: number, zone: string | undefined, mainSkill: string | undefined, playIds: string[]): BehaviourInput {
+  const zones: BehaviourInput['zones'] = []
+  const skills: BehaviourInput['skills'] = []
+  const addZone = (z?: string) => {
+    if (!z || zones.some((x) => x.label === z)) return
+    const v = girl.sensitivities?.[z as keyof NonNullable<MonstGirl['sensitivities']>]
+    if (v !== undefined) zones.push({ label: z, level: getSensitivityLevel(v) })
+  }
+  const addSkill = (k?: string) => {
+    if (!k || skills.some((x) => x.skill === k)) return
+    skills.push({ skill: k, rank: getSkillRank(girl, k as Parameters<typeof getSkillRank>[1]) })
+  }
+  if (stepIndex === 0) addSkill('待客')
+  if (stepIndex === 1 || stepIndex === 2 || stepIndex === 3) addZone(zone)
+  if (stepIndex === 2) addSkill('手技')
+  if (stepIndex === 3) {
+    addSkill(mainSkill)
+    for (const id of playIds) {
+      const p = PLAYS.find((x) => x.id === id)
+      if (!p) continue
+      addZone(p.zone)
+      if (p.source !== 'race') addSkill(p.source)
+    }
+  }
+  return { zones, skills }
 }

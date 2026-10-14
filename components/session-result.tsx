@@ -2,7 +2,10 @@
 
 // 结算卡：五步得分 / play / 服装 / 体力 / 成长，没有 play 时不画空段
 import { useState } from 'react'
-import { Loader2, Star, PenLine, Brush } from 'lucide-react'
+import { Loader2, Star, PenLine, Brush, BookmarkPlus } from 'lucide-react'
+import { buildMemoryPrompt } from '@/lib/prompt-builder'
+import { mergeGirlMemory } from '@/lib/hub-logic'
+import { saveGuest } from '@/lib/storage'
 import { ImageDisplay } from '@/components/image-display'
 import { AppSettings, Guest, MonstGirl, OutfitId, StockingId } from '@/lib/types'
 import { Button } from '@/components/ui/button'
@@ -21,10 +24,39 @@ interface SessionResultProps {
   result: ServiceResult
   info: SettleInfo
   settings: AppSettings
+  /** 亲自上场的对话摘录，用于生成记忆 */
+  transcript?: string
+  /** 写入关系记忆后回调（同步回头客池） */
+  onSaveRegular?: (guest: Guest) => void
   onBack: () => void
 }
 
-export function SessionResult({ mode, girl, guest, outfit, stockings, result, info, settings, onBack }: SessionResultProps) {
+export function SessionResult({ mode, girl, guest, outfit, stockings, result, info, settings, transcript, onSaveRegular, onBack }: SessionResultProps) {
+  const [memState, setMemState] = useState<'idle' | 'saving' | 'saved'>('idle')
+  // 「保存为常客」：生成双方印象写入关系记忆（对话 API 不通时用本地摘要）
+  const saveRegular = async () => {
+    setMemState('saving')
+    const summary = `${result.summary}；评价「${result.tier.label}」${transcript ? `；对话摘录：${transcript.slice(-600)}` : ''}`
+    let parsed: { guestAboutGirl?: string; girlAboutGuest?: string } = {
+      guestAboutGirl: `${girl.name}这次让我${result.satisfaction >= 70 ? '很满足' : result.satisfaction >= 40 ? '还算满意' : '有点失望'}。`,
+      girlAboutGuest: `${guest.name}是个${guest.personality || '普通'}的客人。`,
+    }
+    try {
+      const apiKey = settings.chatModel.startsWith('grok') ? settings.grokApiKey : settings.chatApiKey
+      const res = await fetch('/api/chat', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: [{ role: 'user', content: buildMemoryPrompt(guest, girl, summary, guest.memories?.[girl.name]) }], model: settings.chatModel, apiKey, stream: false }),
+      })
+      if (res.ok) {
+        const m = ((await res.json()).content ?? '').match(/\{[\s\S]*\}/)
+        if (m) { const j = JSON.parse(m[0]); if (j.guestAboutGirl || j.girlAboutGuest) parsed = j }
+      }
+    } catch { /* 用本地摘要 */ }
+    const updated: Guest = { ...guest, memories: mergeGirlMemory(guest.memories, girl.name, parsed) }
+    saveGuest(updated)
+    onSaveRegular?.(updated)
+    setMemState('saved')
+  }
   const [extra, setExtra] = useState('')
   const [loading, setLoading] = useState(false)
   const [redraw, setRedraw] = useState(false)
@@ -128,6 +160,11 @@ export function SessionResult({ mode, girl, guest, outfit, stockings, result, in
           {loading ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />生成中…</> : <><PenLine className="w-3.5 h-3.5 mr-1.5" />补一段</>}
         </Button>
       )}
+      <Button variant="outline" size="sm" className="w-full h-9 text-xs" onClick={saveRegular} disabled={memState !== 'idle'} data-testid="btn-save-regular">
+        {memState === 'saving' ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />记录中…</>
+          : memState === 'saved' ? <><BookmarkPlus className="w-3.5 h-3.5 mr-1.5" />已保存为常客</>
+          : <><BookmarkPlus className="w-3.5 h-3.5 mr-1.5" />保存为常客</>}
+      </Button>
       <Button className="w-full h-10 glow-btn" onClick={onBack} data-testid="btn-back-hub">返回大厅</Button>
     </div>
   )

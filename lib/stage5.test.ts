@@ -63,9 +63,10 @@ test('敏感开发：耳朵 30→40（耳羽 +4），到 40 即「敏感」，�
 test('道具与服装只加成对口方向，不吃倍率', () => {
   const g = girl()
   assert.equal(resolveTraining({ girl: g, direction: 'tame', skip: true, props: ['whip'] }).delta.obedience, 9)
-  assert.equal(resolveTraining({ girl: g, direction: 'tame', skip: true, props: ['whip'] }).staminaCost, 30)
+  assert.equal(resolveTraining({ girl: g, direction: 'tame', skip: true, props: ['whip'] }).staminaCost, 20)
   assert.equal(resolveTraining({ girl: g, direction: 'tame', skip: true, roomLevel: 4, props: ['whip'], outfit: 'restraint' }).delta.obedience, 16)
-  assert.equal(resolveTraining({ girl: g, direction: 'release', skip: true, props: ['massage_table'] }).staminaCost, 10)
+  assert.equal(resolveTraining({ girl: g, direction: 'release', skip: true, props: ['massage_table'] }).staminaCost, 20)
+  assert.equal(resolveTraining({ girl: girl({ race: '精灵' }), direction: 'tame', skip: true, roomLevel: 4, props: ['whip'] }).staminaCost, 20)
   assert.equal(resolveTraining({ girl: g, direction: 'release', skip: true, props: ['whip'] }).delta.lewdness, 6)
   assert.equal(resolveTraining({ girl: g, direction: 'sensitize', zone: '小穴', skip: true, outfit: 'crotchless' }).delta.sensitivity, 12)
   assert.equal(resolveTraining({ girl: g, direction: 'tame', skip: true, props: ['rack'] }).delta.m, 2)
@@ -98,8 +99,8 @@ test('种族特技', () => {
   assert.equal(base('狐娘').steps[0].score, base('人类').steps[0].score + 2)
   // 兔娘持久：当天第二场体力 ×0.75
   assert.equal(base('兔娘', {}, {}, { girlSessionsToday: 1 }).staminaCost, 30)
-  // 精灵：体力 ×1.25
-  assert.equal(base('精灵').staminaCost, 50)
+  // 精灵：接客体力不再 ×1.25
+  assert.equal(base('精灵').staminaCost, 40)
   // 黑暗精灵夜习：第 2 场 +5
   assert.equal(base('黑暗精灵', {}, {}, { sessionIndexToday: 1 }).satisfaction, base('黑暗精灵').satisfaction + 5)
   // 狼娘/鬼娘：正戏身侍 +2

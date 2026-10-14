@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ChatEngine, ChatEngineHandle } from '@/components/chat-engine'
 import { SuggestionBar } from '@/components/suggestion-bar'
-import { buildServiceSystemPrompt, buildOpeningDialoguePrompt } from '@/lib/prompt-builder'
+import { buildServiceSystemPrompt, buildOpeningDialoguePrompt, buildBehaviourLines, stepBehaviour } from '@/lib/prompt-builder'
 import {
   createServiceSession, applyStatDelta, estimateStatDelta, parseStatsFromReply, getGirlDelta,
   updateGuestSatisfaction, parseActionsFromReply, computeInitialSatisfaction,
@@ -122,7 +122,8 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish }: Ses
     zoneLevel: zoneVal !== undefined ? getSensitivityLevel(zoneVal) : undefined,
     plays: preview.plays.map((p) => p.name),
   })
-  const systemPrompt = buildServiceSystemPrompt(player, { ...session, messages }, settings.proseStyle, stepContext)
+  const behaviour = buildBehaviourLines(girl.name, stepBehaviour(girl, live.stepIndex, currentStep.zone, currentStep.note, preview.plays.map((p) => p.id)))
+  const systemPrompt = buildServiceSystemPrompt(player, { ...session, messages }, settings.proseStyle, behaviour ? `${stepContext}\n${behaviour}` : stepContext)
   const shownSuggestions: [string, string, string] = [STEP_STANDARD_ACTION[live.stepIndex], suggestions?.[1] ?? '与她贴身调情', suggestions?.[2] ?? '她主动靠近']
   const owned = new Set(wardrobe)
   const outfitOpts = OUTFITS.filter((o) => o.id === 'regular' || owned.has(o.id))
@@ -307,3 +308,4 @@ export function TrainingScene({ player, girl, directionLabel, settings, onFinish
     </div>
   )
 }
+

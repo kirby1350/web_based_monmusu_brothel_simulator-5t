@@ -75,14 +75,12 @@ export const OUTFIT_PREFS: OutfitPref[] = ['制服', '和服', '黑丝', '白丝
 
 // ─── 恢复药 / 塑形药 / 调教道具 ──────────────────────────────────────────────
 
-export interface RecoveryItem { id: string; name: string; price: number; stamina: number | 'full'; clearsExhaustion?: boolean; rare?: boolean }
+export interface RecoveryItem { id: string; name: string; price: number; stamina: number | 'full'; clearsExhaustion?: boolean }
 export const RECOVERY_ITEMS: RecoveryItem[] = [
   { id: 'hot_meal', name: '热餐', price: 40, stamina: 30 },
   { id: 'tonic_soup', name: '滋补汤', price: 100, stamina: 60 },
-  { id: 'vigor_potion', name: '精力药', price: 220, stamina: 'full', clearsExhaustion: true, rare: true },
+  { id: 'vigor_potion', name: '精力药', price: 220, stamina: 'full', clearsExhaustion: true },
 ]
-/** 精力药每天出现在货架的概率 */
-export const VIGOR_POTION_CHANCE = 0.3
 
 export type SculptStat = 'bust' | 'waist' | 'hip'
 export interface SculptPotion { id: string; name: string; stat: SculptStat; delta: number }

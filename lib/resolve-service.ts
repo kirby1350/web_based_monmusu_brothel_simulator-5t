@@ -237,7 +237,6 @@ export function resolveService(input: ServiceInput): ServiceResult {
   let staminaExtra = top ? SENSITIVITY_STAMINA_MOD[top] : 0
   let staminaMult = 1
   if (girl.race === '兔娘' && (input.girlSessionsToday ?? 0) >= 1) { staminaMult *= 0.75; raceNotes.push('持久：第二场体力消耗 ×0.75') }
-  if (girl.race === '精灵') { staminaMult *= 1.25; raceNotes.push('敏感：体力消耗 ×1.25') }
   if ((girl.race === '鬼娘' || girl.race === '狼娘') && main !== '身侍') { staminaExtra -= 10; raceNotes.push(`${girl.race === '鬼娘' ? '怪力' : '野性'}：体力消耗 −10`) }
   const staminaRefund = girl.race === '吸血鬼' && tier.payMult >= 1.3 ? 15 : 0
   if (staminaRefund) raceNotes.push('反哺：满意后返还 15 体力')

@@ -1,7 +1,7 @@
 // 商店与设施（纯函数）：恢复药、塑形药、衣橱、调教道具；服务房间 / 调教室升级
 import type { GameSave, MonstGirl } from './types'
 import {
-  RECOVERY_ITEMS, SCULPT_POTIONS, OUTFITS, STOCKINGS, TRAINING_PROPS, VIGOR_POTION_CHANCE, MAX_STAMINA,
+  RECOVERY_ITEMS, SCULPT_POTIONS, OUTFITS, STOCKINGS, TRAINING_PROPS, MAX_STAMINA,
   SCULPT_BASE_PRICE, SCULPT_PRICE_STEP, SERVICE_ROOM_UPGRADE_COSTS, TRAINING_ROOM_UPGRADE_COSTS, getUpgradeCostFor,
   type SculptStat,
 } from './catalog'
@@ -13,19 +13,10 @@ const fail = (error: string): ShopResult => ({ ok: false, error })
 export const WITCH_ITEM_MULT = 1.5
 export const itemMult = (girl: Pick<MonstGirl, 'race'>) => (girl.race === '魔女' ? WITCH_ITEM_MULT : 1)
 
-// ─── 精力药货架：按天确定（约三成概率出现） ─────────────────────────────────────
+// ─── 货架：恢复药全部常驻（精力药不再按天随机） ───────────────────────────────
 
-export function vigorOnShelf(day: number): boolean {
-  // mulberry32：同一天刷新页面结果不变
-  let t = (day * 0x6d2b79f5 + 0x9e3779b9) >>> 0
-  t = Math.imul(t ^ (t >>> 15), t | 1)
-  t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
-  const h = (t ^ (t >>> 14)) >>> 0
-  return (h % 1000) / 1000 < VIGOR_POTION_CHANCE
-}
-
-export function shelfRecoveryItems(day: number) {
-  return RECOVERY_ITEMS.filter((i) => !i.rare || vigorOnShelf(day))
+export function shelfRecoveryItems(_day?: number) {
+  return RECOVERY_ITEMS
 }
 
 // ─── 塑形药价格：起步 180G，该项（全馆）每改过一次再贵 80G ────────────────────

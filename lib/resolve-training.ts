@@ -14,12 +14,12 @@ export const TRAINING_DIRECTIONS: { key: TrainingDirection; label: string; hint:
   { key: 'sensitize', label: '敏感开发', hint: '一条敏感带 +10' },
 ]
 
-/** 调教体力消耗（TODO/PLAN 未给数值，暂定 20） */
+/** 调教体力消耗：每场固定 20（道具、种族、调教室都不改体力） */
 export const TRAINING_STAMINA_COST = 20
 /** 「两面」：服从和淫乱都到 70，且已有 M 性或 S 性 */
 export const TWO_SIDED_MIN = 70
 export const TWO_SIDED_KEY = '两面'
-/** 精灵「敏感」：成长 ×1.25，体力消耗 ×1.25 */
+/** 精灵「敏感」：调教成长 ×1.25（体力不变） */
 export const ELF_GROWTH_MULT = 1.25
 
 export interface TrainingInput {
@@ -82,14 +82,14 @@ export function resolveTraining(input: TrainingInput): TrainingResult {
   let measurement: TrainingResult['measurement']
   let newRank: SkillRank | undefined
   let becameTwoSided = false
-  let stamina = TRAINING_STAMINA_COST
+  const stamina = TRAINING_STAMINA_COST
   const fail = (error: string): TrainingResult => ({ ok: false, error, delta, staminaCost: 0, girl, notes, summary: error })
 
   switch (direction) {
     case 'tame': {
       let ob = m(6)
       if (skip && girl.obedience < SKIP_OBEDIENCE_MIN) { ob = Math.round(ob * 0.8); notes.push('服从不足 25，跳过的驯服八折') }
-      if (props.has('whip')) { ob += 3; stamina += 10; notes.push('皮鞭：服从 +3，体力 −10') }
+      if (props.has('whip')) { ob += 3; notes.push('皮鞭：服从 +3') }
       if (props.has('rack')) { delta.m += 1; notes.push('拘束架：M 进度 +1') }
       if (input.outfit === 'restraint') { ob += 1; notes.push('拘束衣：服从 +1') }
       delta.obedience = ob; delta.m += m(1); delta.affection = m(1)
@@ -97,7 +97,7 @@ export function resolveTraining(input: TrainingInput): TrainingResult {
     }
     case 'release': {
       let lw = m(6)
-      if (props.has('massage_table')) { lw += 3; stamina -= 10; notes.push('按摩台：淫乱 +3，体力消耗 −10') }
+      if (props.has('massage_table')) { lw += 3; notes.push('按摩台：淫乱 +3') }
       if (props.has('censer')) { lw += 2; notes.push('香炉：淫乱 +2') }
       if (input.outfit === 'queen') { lw += 1; notes.push('女王装：淫乱 +1') }
       delta.lewdness = lw; delta.s = m(1); delta.affection = m(1)
@@ -161,8 +161,7 @@ export function resolveTraining(input: TrainingInput): TrainingResult {
   // 不对口的道具不生效
   for (const id of props) if (!notes.some((n) => n.startsWith(PROP_NAME(id)))) notes.push(`${PROP_NAME(id)}：方向不对口，无效果`)
 
-  if (girl.race === '精灵') { stamina = Math.round(stamina * ELF_GROWTH_MULT); notes.push('敏感：成长更快，体力掉得更快') }
-  stamina = Math.max(0, stamina)
+  if (girl.race === '精灵') notes.push('敏感：成长 ×1.25')
 
   applyDelta(girl, next, delta)
   next.stamina = Math.max(0, (girl.stamina ?? MAX_STAMINA) - stamina)

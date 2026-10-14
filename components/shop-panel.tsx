@@ -38,7 +38,7 @@ export function ShopPanel({ save, onSaveChange, onOpenMarket }: ShopPanelProps) 
 
       <Section title="恢复药" hint="进背包，不占行动，每人每天一瓶；在魔物娘页使用">
         {shelfRecoveryItems(save.currentDay).map((i) => (
-          <Item key={i.id} name={i.name} desc={i.stamina === 'full' ? '回满体力并解除疲惫（今日限定）' : `体力 +${i.stamina}`}
+          <Item key={i.id} name={i.name} desc={i.stamina === 'full' ? '回满体力并解除疲惫' : `体力 +${i.stamina}`}
             price={i.price} gold={player.gold} owned={inv[i.id] ? `背包 ${inv[i.id]}` : undefined}
             onBuy={() => run(buyRecovery(save, i.id))} testId={`buy-${i.id}`} />
         ))}

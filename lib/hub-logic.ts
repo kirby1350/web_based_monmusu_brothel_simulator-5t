@@ -1,5 +1,5 @@
 // 大厅经营动作（纯函数）：送礼、休息、宿舍升级、结束今天、技能选择
-import type { GameSave, MonstGirl, SkillKey } from './types'
+import type { GameSave, Guest, MonstGirl, SkillKey } from './types'
 import {
   DORM_LEVELS, DORM_UPGRADE_COSTS, MAX_STAMINA, REST_STAMINA, MAX_SERVING_SKILLS,
   SKILL_PICK_THRESHOLDS, getUpgradeCostFor,
@@ -133,4 +133,56 @@ export function pickSkill(girl: MonstGirl, skill: SkillKey): MonstGirl | null {
   if (skill === 'M性') next.inclination = 'M'
   if (skill === 'S性') next.inclination = 'S'
   return next
+}
+
+// ─── 新魔物娘入馆：领头人与本地模板 ───────────────────────────────────────────
+
+/** 领头人好感门槛（待确认数值） */
+export const ARRIVAL_LEADER_MIN_AFFECTION = 50
+
+export type ArrivalLeader = { kind: 'girl'; girl: MonstGirl } | { kind: 'player' }
+
+/** 馆内（不含新人）好感最高且 ≥50 的魔物娘领头；并列取先入馆者；都不到时由馆主出面 */
+export function pickArrivalLeader(girls: MonstGirl[], newGirlId: string): ArrivalLeader {
+  let best: MonstGirl | null = null
+  for (const g of girls) {
+    if (g.id === newGirlId || g.affection < ARRIVAL_LEADER_MIN_AFFECTION) continue
+    if (!best || g.affection > best.affection) best = g
+  }
+  return best ? { kind: 'girl', girl: best } : { kind: 'player' }
+}
+
+export function arrivalFallbackText(leader: ArrivalLeader, playerName: string, newGirl: MonstGirl): string {
+  return leader.kind === 'girl'
+    ? `${leader.girl.name}领着${newGirl.name}在馆里转了一圈，把规矩一条条交代清楚，末了拍拍她的肩：「以后就是自己人了。」`
+    : `${playerName}亲自把${newGirl.name}领进门，带她看过房间和大厅。${newGirl.name}四处打量着，神情还有些拘谨。`
+}
+
+export function arrivalPromptNote(leader: ArrivalLeader, playerName: string, newGirl: MonstGirl): string {
+  return leader.kind === 'girl'
+    ? `【入馆安排】由馆里好感最高的魔物娘${leader.girl.name}（${leader.girl.race}，性格：${leader.girl.personality}）出面迎接新人${newGirl.name}，带她熟悉娼馆、交代规矩。以${leader.girl.name}为主导写这段入馆对话。`
+    : `【入馆安排】由馆主${playerName}亲自迎接新人${newGirl.name}，带她熟悉娼馆。以馆主为主导写这段入馆对话。`
+}
+
+// ─── 常客关系记忆：合并进回头客池 ─────────────────────────────────────────────
+
+
+/** 回头客池里有这位客人时，用新记忆覆盖；没有时原样返回 */
+export function mergeRegularMemories(regulars: Guest[], guestId: string, memories: NonNullable<Guest['memories']>): Guest[] {
+  return regulars.map((r) => (r.id === guestId ? { ...r, memories } : r))
+}
+
+/** 把一位魔物娘的新印象并入已有记忆，visitCount 递增 */
+export function mergeGirlMemory(
+  existing: Guest['memories'], girlName: string, parsed: { guestAboutGirl?: string; girlAboutGuest?: string },
+): NonNullable<Guest['memories']> {
+  const prev = existing?.[girlName]
+  return {
+    ...(existing ?? {}),
+    [girlName]: {
+      guestAboutGirl: parsed.guestAboutGirl ?? '',
+      girlAboutGuest: parsed.girlAboutGuest ?? '',
+      visitCount: (prev?.visitCount ?? 0) + 1,
+    },
+  }
 }

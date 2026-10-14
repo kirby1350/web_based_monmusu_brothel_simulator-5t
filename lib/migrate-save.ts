@@ -16,7 +16,11 @@ export function migratePlayer(p: Player): Player {
   }
 }
 
-export function migrateGirl(g: MonstGirl): MonstGirl {
+/** 旧种族名 → 目录种族名 */
+export const RACE_RENAMES: Record<string, string> = { 阿拉克涅: '蜘蛛娘' }
+
+export function migrateGirl(raw: MonstGirl): MonstGirl {
+  const g = RACE_RENAMES[raw.race] ? { ...raw, race: RACE_RENAMES[raw.race] } : raw
   return {
     ...g,
     skills: g.skills ?? [],

@@ -135,7 +135,7 @@ export const GIRL_TEMPLATES: Omit<MonstGirl, 'id' | 'imageUrl'>[] = [
   },
   {
     name: '文香',
-    race: '阿拉克涅',
+    race: '蜘蛛娘',
     age: '23',
     bodyDesc: '黑发长发，蓝色大眼，圆形眼镜，上身丰满，下身为黑色蜘蛛体，皮肤白皙',
     bodyTags: 'arachne, black hair, long hair, blue eyes, glasses, round glasses, pale skin, huge breasts, spider lower body, eight legs',

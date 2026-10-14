@@ -24,13 +24,15 @@ interface GirlSheetProps {
   settings: AppSettings
   onSaveChange: (save: GameSave) => void
   onClose: () => void
+  /** 新人入馆对话（只在刚买下时传入） */
+  intro?: { speaker: string; text: string; loading: boolean } | null
 }
 
 const LEVEL_COLOR: Record<string, string> = {
   迟钝: 'text-muted-foreground', 普通: 'text-foreground/80', 敏感: 'text-pink-300', 弱点: 'text-rose-400',
 }
 
-export function GirlSheet({ girl, save, settings, onSaveChange, onClose }: GirlSheetProps) {
+export function GirlSheet({ girl, save, settings, onSaveChange, onClose, intro }: GirlSheetProps) {
   const [chatOpen, setChatOpen] = useState(false)
   const [feedback, setFeedback] = useState('')
   const [outfit, setOutfit] = useState(girl.outfit)
@@ -99,6 +101,12 @@ export function GirlSheet({ girl, save, settings, onSaveChange, onClose }: GirlS
           )}
 
           <TabsContent value="overview" className="space-y-4 mt-0">
+            {intro && (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 space-y-1" data-testid="arrival-intro">
+                <p className="text-[11px] text-amber-300">入馆 · {intro.speaker}带路</p>
+                <p className="text-xs leading-relaxed whitespace-pre-wrap">{intro.loading ? '……' : intro.text}</p>
+              </div>
+            )}
             <div className="flex gap-3">
               <div className="w-28 shrink-0 rounded-lg overflow-hidden">
                 <ImageDisplay tags={girl.imageTags} settings={settings} cachedUrl={girl.imageUrl}
