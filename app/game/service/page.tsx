@@ -4,7 +4,8 @@ import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { getGameSave, saveGameSave, getSettings } from '@/lib/storage'
 import { GameSave, AppSettings } from '@/lib/types'
-import { ServiceScreen } from '@/components/service-screen'
+import { ServiceFlow } from '@/components/service-flow'
+import { TrainingFlow } from '@/components/training-flow'
 
 function ServicePageInner() {
   const router = useRouter()
@@ -37,13 +38,10 @@ function ServicePageInner() {
   }
 
   return (
-    <ServiceScreen
-      save={save}
-      type={type}
-      settings={settings}
-      onSaveChange={handleSaveChange}
-      onBack={() => router.replace('/game')}
-    />
+    // 旧路由占位：转用新的接客 / 调教流程
+    type === 'training'
+      ? <TrainingFlow save={save} settings={settings} onSaveChange={handleSaveChange} onBack={() => router.replace('/game')} />
+      : <ServiceFlow save={save} settings={settings} onSaveChange={handleSaveChange} onBack={() => router.replace('/game')} />
   )
 }
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Gift, Shirt, MessageCircle, X, Heart, Loader2 } from 'lucide-react'
+import { Gift, MessageCircle, X, Heart, Loader2 } from 'lucide-react'
 import { MonstGirl, Player, ChatMessage, AppSettings } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -12,6 +12,7 @@ import { buildInteractionSystemPrompt, buildOpeningDialoguePrompt } from '@/lib/
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
+import { GIFT_OPTIONS } from '@/lib/hub-logic'
 
 interface InteractionPanelProps {
   girl: MonstGirl
@@ -19,24 +20,19 @@ interface InteractionPanelProps {
   settings: AppSettings
   onClose: () => void
   onGirlUpdated: (updated: MonstGirl) => void
+  /** 送礼走大厅的 giveGift（全馆每天一次、当场扣钱），由魔物娘页传入 */
+  onGift: (giftIndex: number) => string | null
+  giftBlockedReason?: string
 }
 
-type InteractionType = 'chat' | 'gift' | 'outfit'
+type InteractionType = 'chat' | 'gift'
 
-const GIFT_OPTIONS = [
-  { name: '小礼物', cost: 20, affectionBonus: 5 },
-  { name: '精美首饰', cost: 80, affectionBonus: 15 },
-  { name: '稀有宝石', cost: 200, affectionBonus: 30 },
-]
 
-export function InteractionPanel({ girl, player, settings, onClose, onGirlUpdated }: InteractionPanelProps) {
+export function InteractionPanel({ girl, player, settings, onClose, onGirlUpdated, onGift, giftBlockedReason }: InteractionPanelProps) {
   const [started, setStarted] = useState(false)
   const [mode, setMode] = useState<InteractionType>('chat')
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [openingLoading, setOpeningLoading] = useState(false)
-  const [newOutfit, setNewOutfit] = useState(girl.outfit)
-  const [newOutfitTags, setNewOutfitTags] = useState(girl.outfitTags)
-  const [outfitImageKey, setOutfitImageKey] = useState(0) // bump to force ImageDisplay re-mount after outfit change
   const [giftFeedback, setGiftFeedback] = useState('')
   const [imageUrl, setImageUrl] = useState(girl.imageUrl)
 
@@ -89,25 +85,12 @@ export function InteractionPanel({ girl, player, settings, onClose, onGirlUpdate
 
   const systemPrompt = buildInteractionSystemPrompt(player, girl, mode)
 
-  const handleGift = (gift: { name: string; cost: number; affectionBonus: number }) => {
-    if (player.gold < gift.cost) return
-    const updated: MonstGirl = { ...girl, affection: Math.min(100, girl.affection + gift.affectionBonus) }
-    onGirlUpdated(updated)
-    setGiftFeedback(`送出了「${gift.name}」！${girl.name} 的好感度 +${gift.affectionBonus}`)
-    setTimeout(() => setGiftFeedback(''), 3000)
-  }
-
-  const handleOutfitChange = () => {
-    const updated: MonstGirl = {
-      ...girl,
-      outfit: newOutfit,
-      outfitTags: newOutfitTags,
-      imageTags: girl.imageTags.replace(girl.outfitTags, newOutfitTags),
-      imageUrl: undefined,
+  const handleGift = (index: number) => {
+    const msg = onGift(index)
+    if (msg) {
+      setGiftFeedback(msg)
+      setTimeout(() => setGiftFeedback(''), 3000)
     }
-    onGirlUpdated(updated)
-    setImageUrl(undefined)
-    setOutfitImageKey((k) => k + 1) // force re-mount → autoGenerate will fire
   }
 
   return (
@@ -203,7 +186,6 @@ export function InteractionPanel({ girl, player, settings, onClose, onGirlUpdate
                 {([
                   { key: 'chat', label: '闲聊', icon: MessageCircle },
                   { key: 'gift', label: '送礼', icon: Gift },
-                  { key: 'outfit', label: '换装', icon: Shirt },
                 ] as { key: InteractionType; label: string; icon: typeof MessageCircle }[]).map(({ key, label, icon: Icon }) => (
                   <button
                     key={key}
@@ -246,19 +228,20 @@ export function InteractionPanel({ girl, player, settings, onClose, onGirlUpdate
                   <p className="text-xs text-muted-foreground">
                     当前金币：<span className="gold-text font-semibold">{player.gold} G</span>
                   </p>
+                  {giftBlockedReason && <p className="text-[11px] text-rose-400/80">{giftBlockedReason}</p>}
                   {giftFeedback && (
                     <div className="bg-primary/10 border border-primary/30 rounded-lg p-3 text-xs text-primary">
                       {giftFeedback}
                     </div>
                   )}
                   <div className="space-y-2">
-                    {GIFT_OPTIONS.map((g) => (
+                    {GIFT_OPTIONS.map((g, i) => (
                       <div key={g.name} className="flex items-center justify-between bg-secondary/30 rounded-lg p-3">
                         <div>
                           <p className="text-sm font-medium">{g.name}</p>
                           <p className="text-[10px] text-muted-foreground">好感度 +{g.affectionBonus}</p>
                         </div>
-                        <Button size="sm" className="h-7 text-xs" disabled={player.gold < g.cost} onClick={() => handleGift(g)}>
+                        <Button size="sm" className="h-7 text-xs" disabled={!!giftBlockedReason || player.gold < g.cost} onClick={() => handleGift(i)}>
                           {g.cost} G
                         </Button>
                       </div>
@@ -267,46 +250,6 @@ export function InteractionPanel({ girl, player, settings, onClose, onGirlUpdate
                 </div>
               )}
 
-              {/* Outfit mode */}
-              {mode === 'outfit' && (
-                <div className="flex-1 flex gap-4 p-4 overflow-y-auto">
-                  {/* Left: preview */}
-                  <div className="w-36 shrink-0">
-                    <ImageDisplay
-                      key={outfitImageKey}
-                      tags={newOutfitTags
-                        ? girl.imageTags.replace(girl.outfitTags, newOutfitTags)
-                        : girl.imageTags}
-                      settings={settings}
-                      cachedUrl={outfitImageKey === 0 ? imageUrl : undefined}
-                      onUrlCached={(url) => { setImageUrl(url); onGirlUpdated({ ...girl, imageUrl: url }) }}
-                      alt={girl.name}
-                      autoGenerate={outfitImageKey > 0}
-                      className="w-full"
-                    />
-                  </div>
-                  {/* Right: inputs */}
-                  <div className="flex-1 space-y-4">
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">服装描述</Label>
-                      <Input value={newOutfit} onChange={(e) => setNewOutfit(e.target.value)} className="bg-input text-sm h-9" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">服装 TAG（英文，用于生图）</Label>
-                      <Input
-                        value={newOutfitTags}
-                        onChange={(e) => setNewOutfitTags(e.target.value)}
-                        className="bg-input text-xs font-mono h-9"
-                        placeholder="dress, white, lace, ..."
-                      />
-                    </div>
-                    <Button className="w-full h-9 text-sm glow-btn" onClick={handleOutfitChange} disabled={!newOutfit.trim()}>
-                      确认换装并重新生图
-                    </Button>
-                    <p className="text-[10px] text-muted-foreground">确认后将根据新服装 TAG 自动生成图片</p>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         )}

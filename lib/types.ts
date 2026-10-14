@@ -136,6 +136,21 @@ export const DEFAULT_SETTINGS: AppSettings = {
   tensorartApiKey: '',
 }
 
+// ─── 经营规则类型（TODO.md） ──────────────────────────────────────────────────
+
+export type SkillRank = '初学' | '熟练' | '精通'
+export type ServingSkill = '口侍' | '胸侍' | '身侍' | '手技' | '待客'
+export type SkillKey = ServingSkill | 'M性' | 'S性'
+export type Inclination = '无' | 'M' | 'S' | '两面'
+export type SensitivityZone = '耳朵' | '阴蒂' | '唇舌' | '乳房' | '小穴' | '后庭' | '种族'
+export type SensitivityLevel = '迟钝' | '普通' | '敏感' | '弱点'
+export type DesireKind = 'M' | 'S' | '中性'
+export type DesireService = ServingSkill | '种族'
+export type OutfitId = 'regular' | 'maid' | 'kimono' | 'crotchless' | 'restraint' | 'queen'
+export type StockingId = 'none' | 'black' | 'white'
+export type OutfitPref = '制服' | '和服' | '黑丝' | '白丝' | '暴露' | '想施虐的客人' | '想被榨的客人'
+export type TrainingDirection = 'tame' | 'release' | 'sculpt' | 'drill' | 'sensitize'
+
 // ─── 游戏类型 ─────────────────────────────────────────────────────────────────
 
 export interface Player {
@@ -151,6 +166,14 @@ export interface Player {
   level?: number
   // 声望：由客人满意度累积，提升每日客人的预算/质量（旧存档缺省视为 0）
   reputation?: number
+  // ─── 经营设施（旧存档由 migrate-save 回填为 1） ───
+  dormLevel?: number          // 宿舍 1 通铺 / 2 软床 / 3 浴场 / 4 单间
+  serviceRoomLevel?: number   // 服务房间 1–4，只决定额外 play 槽
+  trainingRoomLevel?: number  // 调教室 1–4，决定倍率与道具槽
+  wardrobe?: string[]         // 已购衣橱 id（主装与丝袜；常服自带，不记入）
+  inventory?: Record<string, number> // 道具 id → 数量（恢复药 / 塑形药）
+  ownedTrainingProps?: string[]      // 已购调教道具 id
+  giftGivenOnDay?: number     // 当天已送礼（全馆每天一次）
 }
 
 export interface MonstGirl {
@@ -174,7 +197,17 @@ export interface MonstGirl {
   affection: number
   obedience: number
   lewdness: number
-  skills: string[]
+  skills: string[]  // 旧技能名（口技/手技…）保留展示，不参与新结算
+  // ─── 新结算字段（全部可选，旧存档由 migrate-save 回填） ───
+  stamina?: number                              // 体力 0–100，跨天保留
+  exhausted?: boolean                           // 疲惫
+  skillRanks?: Partial<Record<SkillKey, SkillRank>> // 服侍技能 / M性 / S性 → 档位
+  inclination?: Inclination                     // 无 / M / S / 两面
+  msProgress?: { m: number; s: number }         // 驯服积累 M、放权积累 S
+  skillProgress?: Partial<Record<SkillKey, number>> // 特训进度
+  sensitivities?: Partial<Record<SensitivityZone, number>> // 六条共通带 + 种族带，0–100
+  sculptCounts?: { bust: number; waist: number; hip: number } // 各项塑形次数（涨价）
+  itemUsedOnDay?: number                        // 当天已用过恢复药（每人每天一瓶）
   // 图片缓存
   imageTags: string
   imageUrl?: string
@@ -210,6 +243,9 @@ export interface Guest {
   // 偏好：开场时若在场魔物娘命中，给予初始满意度加成
   prefRace?: string   // 偏好种族（命中在场任一魔物娘的种族）
   prefTrait?: string  // 偏好特征（巨乳/贫乳/丰臀/兽耳…，对魔物娘属性可判定）
+  desireKind?: DesireKind        // M（想施虐）/ S（想被榨）/ 中性
+  desireService?: DesireService  // 主需求类型
+  prefOutfit?: OutfitPref | null // 服装喜好；约一半客人为 null
 }
 
 export interface ChatMessage {
@@ -253,4 +289,8 @@ export interface GameSave {
   dailyGuests?: Guest[]
   // 回头客池：高满意度服务后沉淀的常客，未来有概率混入每日客人池并带着关系记忆回访
   regulars?: Guest[]
+  // 单间宿舍指定的额外回复对象
+  bestBedGirlId?: string
+  // 今天已出场（接客/调教/休息）的魔物娘 id，结束今天时清空
+  appearedToday?: string[]
 }

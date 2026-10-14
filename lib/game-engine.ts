@@ -2,6 +2,7 @@ import { MonstGirl, Guest, ParticipantStats, ServiceSession, Player } from '@/li
 import { parseLooseJson } from '@/lib/utils'
 import { GUEST_RACES, GUEST_PERSONALITIES, GUEST_TRAITS, RACES } from '@/lib/game-data'
 import { nanoid } from 'nanoid'
+import { getDesireProfile, OUTFIT_PREFS } from '@/lib/catalog'
 
 // ─── 经营机制：行动次数 / 容量 / 升级 ──────────────────────────────────────────
 
@@ -68,13 +69,19 @@ function rollGuestBudget(reputation: number): number {
 
 /** 随机生成一名客人（本地随机，不调用 AI）。reputation 越高，预算越高 */
 export function createRandomGuest(reputation = 0): Guest {
+  const desires = pick(GUEST_DESIRES)
+  const profile = getDesireProfile(desires)
   return {
     id: nanoid(),
     name: pick(GUEST_NAMES),
     race: pick(GUEST_RACES),
     personality: pick(GUEST_PERSONALITIES),
     traits: [pick(GUEST_TRAITS)],
-    desires: pick(GUEST_DESIRES),
+    desires,
+    desireKind: profile.kind,
+    desireService: profile.service,
+    // 约一半客人没有服装喜好
+    prefOutfit: Math.random() < 0.5 ? null : pick(OUTFIT_PREFS),
     imageTags: '1man, adventurer, anime, masterpiece, best quality',
     satisfaction: 0,
     budget: rollGuestBudget(reputation),
@@ -172,11 +179,13 @@ const SKILL_UNLOCK_RULES: { skill: string; meets: (g: MonstGirl) => boolean }[] 
  * 根据魔物娘当前数值，返回她「应当已解锁、但尚未拥有」的新技能列表。
  * 在数值成长结算之后调用，把返回的技能追加到 girl.skills 即可。
  */
-export function evaluateSkillUnlocks(girl: MonstGirl): string[] {
-  return SKILL_UNLOCK_RULES
-    .filter((r) => r.meets(girl) && !girl.skills.includes(r.skill))
-    .map((r) => r.skill)
+export function evaluateSkillUnlocks(_girl: MonstGirl): string[] {
+  // 新规则：技能由玩家在服从 30 / 淫乱 40 / 好感 50 时选择（阶段 1 界面），不再自动塞技能
+  return []
 }
+
+/** 旧解锁表仅保留给参考/展示，不再参与结算 */
+export const LEGACY_SKILL_UNLOCK_RULES = SKILL_UNLOCK_RULES
 
 // ─── STATS 块解析 ──────────────────────────────────────────────────────────────
 
@@ -340,21 +349,17 @@ export function applyStatDelta(
   }
 }
 
-// 每个已解锁侍奉技能为本次服务带来的收入加成
-const SKILL_REWARD_BONUS = 8
-
 /**
  * 计算服务结束后的金币收入。
- * 收入 =（客人预算 + 回头客累计加成 + 多魔物娘加成 + 技能加成）× 满意度分档倍率
+ * 收入 =（客人预算 + 回头客累计加成）× 满意度分档倍率。
+ * 一场只安排一名魔物娘；技能已算进满意度，不再按个数另加钱。
+ * 第二个参数仅为旧调用兼容，不参与计算。
  */
-export function calcServiceReward(guest: Guest, session: ServiceSession): number {
+export function calcServiceReward(guest: Guest, _session?: ServiceSession): number {
   const visitBonus = (guest.visits ?? 0) * 20            // 回头客每回访一次基底 +20
   const base = (guest.budget ?? 80) + visitBonus
-  const girlCountBonus = (session.girls.length - 1) * 25
-  const skillBonus = session.girls.reduce((sum, g) => sum + g.skills.length * SKILL_REWARD_BONUS, 0)
   const tier = getSatisfactionTier(guest.satisfaction)
-  const subtotal = base + girlCountBonus + skillBonus
-  return Math.max(30, Math.round(subtotal * tier.payMult))
+  return Math.max(30, Math.round(base * tier.payMult))
 }
 
 /**

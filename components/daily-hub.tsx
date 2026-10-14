@@ -1,18 +1,20 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { Settings, Coins, Calendar, Store, Sword, ShoppingBag, Heart, Users, X, Send, Loader2, Moon, Zap, ArrowUpCircle, Crown, Star } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Settings, Coins, Calendar, Store, Sword, ShoppingBag, Moon, Zap, Crown, Bed, DoorOpen, BedDouble } from 'lucide-react'
 import { GameSave, MonstGirl, AppSettings } from '@/lib/types'
 import { ImageDisplay } from '@/components/image-display'
-import { InteractionPanel } from '@/components/interaction-panel'
-import { StatBar } from '@/components/stat-bar'
+import { GirlSheet } from '@/components/girl-sheet'
+import { SkillPicker } from '@/components/skill-picker'
+import { ShopPanel } from '@/components/shop-panel'
+import { upgradeServiceRoom, upgradeTrainingRoom } from '@/lib/shop'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { buildOpeningDialoguePrompt } from '@/lib/prompt-builder'
-import {
-  MAX_ACTIONS_PER_DAY, getGirlCapacity, getGuestCapacity, getUpgradeCost, generateDailyGuests,
-} from '@/lib/game-engine'
-import { getOpeningCache, saveOpeningCache, clearOpeningCache } from '@/lib/storage'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { MAX_ACTIONS_PER_DAY, getGirlCapacity, getGuestCapacity, getUpgradeCost } from '@/lib/game-engine'
+import { endDay, restGirl, upgradeDorm, getDormInfo, pendingSkillPicks } from '@/lib/hub-logic'
+import { SERVICE_ROOM_UPGRADE_COSTS, TRAINING_ROOM_UPGRADE_COSTS, getUpgradeCostFor, getPlaySlots, TRAINING_ROOM_MULT, TRAINING_ROOM_PROP_SLOTS, REST_STAMINA } from '@/lib/catalog'
+import { clearOpeningCache } from '@/lib/storage'
 import { cn } from '@/lib/utils'
 import type { GameTab } from '@/app/game/page'
 
@@ -26,417 +28,243 @@ interface DailyHubProps {
   onNewGirlGreeted?: () => void
 }
 
+const KIND_LABEL: Record<string, string> = { M: '想施虐 · M 性对口', S: '想被榨 · S 性对口', 中性: '中性' }
+
 export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSettings, newlyPurchasedGirl, onNewGirlGreeted }: DailyHubProps) {
-  const [girlsDrawerOpen, setGirlsDrawerOpen] = useState(false)
-  const [interactingWith, setInteractingWith] = useState<MonstGirl | null>(null)
-  const [chatMessages, setChatMessages] = useState<{ role: 'system' | 'player'; text: string }[]>([])
-  const [chatInput, setChatInput] = useState('')
-  const [chatLoading, setChatLoading] = useState(false)
-  const chatEndRef = useRef<HTMLDivElement>(null)
   const { player, girls } = save
+  const [openGirlId, setOpenGirlId] = useState<string | null>(null)
+  const [restPicking, setRestPicking] = useState(false)
+  const [notice, setNotice] = useState('')
+  const [dismissedPicks, setDismissedPicks] = useState<string[]>([])
 
-  const purchaseRef = useRef<MonstGirl | null>(null)
-
-  // ─── Opening dialogue (cached per day, generates once on mount) ──────────
-  useEffect(() => {
-    let ignore = false
-
-    const fallback = `欢迎回来，${player.name}。今天是第 ${save.currentDay} 天，你的娼馆已经开门了。`
-
-    // If a purchase is pending, skip the opening — purchase effect will handle chat
-    if (purchaseRef.current) return
-
-    // Hit cache first — only valid for the current day
-    const cached = getOpeningCache()
-    if (cached && cached.day === save.currentDay) {
-      setChatMessages([{ role: 'system', text: cached.text }])
-      return
-    }
-
-    // No valid cache — generate a new opening
-    setChatLoading(true)
-    const apiKey = settings.chatModel.startsWith('grok') ? settings.grokApiKey : settings.chatApiKey
-    const prompt = buildOpeningDialoguePrompt('game-start', player, girls, { currentDay: save.currentDay })
-
-    fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], model: settings.chatModel, apiKey, stream: false }),
-    })
-      .then((r) => r.json())
-      .then((data) => {
-        if (ignore) return
-        const text = (data.content ?? data.text ?? '').trim()
-        if (text) {
-          saveOpeningCache(save.currentDay, text)
-          setChatMessages([{ role: 'system', text }])
-        } else {
-          setChatMessages([{ role: 'system', text: fallback }])
-        }
-      })
-      .catch(() => {
-        if (ignore) return
-        setChatMessages([{ role: 'system', text: fallback }])
-      })
-      .finally(() => { if (!ignore) setChatLoading(false) })
-
-    return () => { ignore = true }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [save.currentDay])
-
-  // ─── New girl purchased — send welcome dialogue ────────────────────────────
+  // 新买的魔物娘：直接打开她的魔物娘页
   useEffect(() => {
     if (!newlyPurchasedGirl) return
-
-    // Store in ref so opening effect can check synchronously on same render
-    purchaseRef.current = newlyPurchasedGirl
-    // Notify parent to clear the prop — do NOT call synchronously here to avoid
-    // triggering an extra re-render before we start the fetch
-    const timer = setTimeout(() => onNewGirlGreeted?.(), 0)
-
-    const fallback = `${newlyPurchasedGirl.name} 走进了娼馆，四处打量着这里，神情有些拘谨。`
-    const apiKey = settings.chatModel.startsWith('grok') ? settings.grokApiKey : settings.chatApiKey
-    const prompt = buildOpeningDialoguePrompt('purchase', player, [newlyPurchasedGirl], { girl: newlyPurchasedGirl })
-    setChatLoading(true)
-    // Clear any stale opening messages first so only the purchase greeting shows
-    setChatMessages([])
-    fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], model: settings.chatModel, apiKey, stream: false }),
-    })
-      .then((r) => r.json())
-      .then((data) => {
-        const text = (data.content ?? data.text ?? '').trim() || fallback
-        setChatMessages([{ role: 'system', text }])
-      })
-      .catch(() => setChatMessages([{ role: 'system', text: fallback }]))
-      .finally(() => {
-        setChatLoading(false)
-        purchaseRef.current = null
-      })
-
-    return () => clearTimeout(timer)
+    setOpenGirlId(newlyPurchasedGirl.id)
+    onNewGirlGreeted?.()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [newlyPurchasedGirl])
 
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [chatMessages])
+  const flash = (msg: string) => { setNotice(msg); setTimeout(() => setNotice(''), 3000) }
 
-  const updateGirl = (updated: MonstGirl) => {
-    onSaveChange({ ...save, girls: girls.map((g) => (g.id === updated.id ? updated : g)) })
-  }
-
-  const handleImageCached = (id: string, url: string) => {
-    const girl = girls.find((g) => g.id === id)
-    if (girl) updateGirl({ ...girl, imageUrl: url })
-  }
-
-  const advanceDay = () => {
-    clearOpeningCache()
-    onSaveChange({
-      ...save,
-      currentDay: save.currentDay + 1,
-      actionsUsedToday: 0,
-      dailyGuests: generateDailyGuests(getGuestCapacity(player.level), player.reputation ?? 0, save.regulars ?? []),
-    })
-  }
-
-  const handleUpgrade = () => {
-    const level = player.level ?? 1
-    const cost = getUpgradeCost(level)
-    if (player.gold < cost) return
-    // 等级提升：魔物娘上限即时生效；每日客人上限自下一天起生效
-    onSaveChange({
-      ...save,
-      player: { ...player, gold: player.gold - cost, level: level + 1 },
-    })
-  }
-
-  // ─── 经营状态派生值 ────────────────────────────────────────────────────────
-  const level = player.level ?? 1
-  const reputation = player.reputation ?? 0
   const actionsUsed = save.actionsUsedToday ?? 0
   const actionsLeft = Math.max(0, MAX_ACTIONS_PER_DAY - actionsUsed)
-  const girlCap = getGirlCapacity(level)
-  const guestCount = save.dailyGuests?.length ?? 0
-  const upgradeCost = getUpgradeCost(level)
-  const canUpgrade = player.gold >= upgradeCost
   const noActionsLeft = actionsLeft <= 0
+  const level = player.level ?? 1
+  const girlCap = getGirlCapacity(level)
+  const guests = save.dailyGuests ?? []
+  const appeared = new Set(save.appearedToday ?? [])
+  const openGirl = girls.find((g) => g.id === openGirlId) ?? null
+  const pickGirl = girls.find((g) => pendingSkillPicks(g) > 0 && !dismissedPicks.includes(g.id) && g.id !== openGirlId)
 
-  const sendChat = async () => {
-    if (!chatInput.trim()) return
-    const text = chatInput.trim()
-    setChatInput('')
-    setChatMessages((prev) => [...prev, { role: 'player', text }])
-    setChatLoading(true)
-    try {
-      const apiKey = settings.chatModel.startsWith('grok') ? settings.grokApiKey : settings.chatApiKey
-      const history = chatMessages.map((m) => ({ role: m.role === 'player' ? 'user' : 'assistant', content: m.text }))
-      const system = `你是魔物娘娼馆的叙事引擎。玩家是 ${player.name}（特性：${player.traits.join('、') || '无'}）。馆内魔物娘：${girls.map((g) => g.name + '（' + g.race + '）').join('、') || '无'}。以简短的第三人称叙述回应玩家的行为（50字以内）。`
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'system', content: system }, ...history, { role: 'user', content: text }], model: settings.chatModel, apiKey, stream: false }),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        const reply = (data.content ?? data.text ?? '').trim()
-        if (reply) setChatMessages((prev) => [...prev, { role: 'system', text: reply }])
-      }
-    } catch { /* ignore */ }
-    finally { setChatLoading(false) }
+  const handleUpgrade = () => {
+    const cost = getUpgradeCost(level)
+    if (player.gold < cost) return
+    onSaveChange({ ...save, player: { ...player, gold: player.gold - cost, level: level + 1 } })
+  }
+  const handleDorm = () => {
+    const r = upgradeDorm(save)
+    if (r.ok) { onSaveChange(r.save); flash(r.message) } else flash(r.error)
+  }
+  const handleRoom = (kind: 'service' | 'training') => {
+    const r = kind === 'service' ? upgradeServiceRoom(save) : upgradeTrainingRoom(save)
+    if (r.ok) { onSaveChange(r.save); flash(r.message) } else flash(r.error)
+  }
+  const handleRest = (girlId: string) => {
+    const r = restGirl(save, girlId)
+    setRestPicking(false)
+    if (r.ok) { onSaveChange(r.save); flash(r.message) } else flash(r.error)
+  }
+  const handleEndDay = () => {
+    clearOpeningCache()
+    onSaveChange(endDay(save))
+    flash(`第 ${save.currentDay + 1} 天开始了，宿舍让大家恢复了体力`)
   }
 
+  const dorm = getDormInfo(player.dormLevel)
+  const roomLv = player.serviceRoomLevel ?? 1
+  const trainLv = player.trainingRoomLevel ?? 1
+  const roomCost = getUpgradeCostFor(SERVICE_ROOM_UPGRADE_COSTS, roomLv)
+  const trainCost = getUpgradeCostFor(TRAINING_ROOM_UPGRADE_COSTS, trainLv)
+
   return (
-    <div className="flex flex-col h-full bg-background">
+    <div className="flex flex-col h-full bg-background relative">
+      {/* 顶栏：天数 / 金币 / 剩余行动 */}
       <header className="border-b border-border px-4 py-2.5 flex items-center justify-between shrink-0">
-        <button
-          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-md hover:bg-secondary/50"
-          onClick={() => setGirlsDrawerOpen(true)}
-        >
-          <Users className="w-3.5 h-3.5" />
-          <span>魔物娘</span>
-          <Badge variant="secondary" className="text-[9px] h-4 px-1.5 ml-0.5">{girls.length}</Badge>
-        </button>
-
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5">
-              <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">第 {save.currentDay} 天</span>
-            </div>
-            <button
-              className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-amber-400 border border-border hover:border-amber-400/40 rounded-md px-1.5 py-0.5 transition-colors"
-              onClick={advanceDay}
-              title="结束今天，进入下一天"
-            >
-              <Moon className="w-3 h-3" />
-              结束今天
-            </button>
-          </div>
-          <h1 className="text-sm font-bold gold-text tracking-wide">{player.name}的娼馆</h1>
-          <div className="flex items-center gap-1.5">
-            <Coins className="w-3.5 h-3.5 text-amber-400" />
-            <span className="text-xs gold-text font-semibold">{player.gold} G</span>
-          </div>
-        </div>
-
+        <span className="flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="day">
+          <Calendar className="w-3.5 h-3.5" />第 {save.currentDay} 天
+        </span>
+        <span className="flex items-center gap-1.5" data-testid="gold">
+          <Coins className="w-3.5 h-3.5 text-amber-400" />
+          <span className="text-xs gold-text font-semibold">{player.gold} G</span>
+        </span>
+        <span className={cn('flex items-center gap-1 text-xs', noActionsLeft ? 'text-rose-400' : 'text-emerald-300')} data-testid="actions">
+          <Zap className="w-3.5 h-3.5" />行动 {actionsLeft}/{MAX_ACTIONS_PER_DAY}
+        </span>
         <Button variant="ghost" size="icon" className="w-7 h-7" onClick={onOpenSettings}>
           <Settings className="w-4 h-4" />
         </Button>
       </header>
 
-      {/* 经营状态条 */}
-      <div className="border-b border-border px-4 py-2 flex items-center gap-3 text-[11px] max-w-2xl mx-auto w-full">
-        <span className={cn('flex items-center gap-1', noActionsLeft ? 'text-rose-400' : 'text-muted-foreground')} title="每天最多 3 次接客/调教">
-          <Zap className="w-3 h-3" />行动 {actionsUsed}/{MAX_ACTIONS_PER_DAY}
-        </span>
-        <span className="flex items-center gap-1 text-muted-foreground" title="魔物娘持有上限（升级提升）">
-          <Users className="w-3 h-3" />{girls.length}/{girlCap}
-        </span>
-        <span className="flex items-center gap-1 text-muted-foreground" title="今日剩余客人">
-          <Store className="w-3 h-3" />客 {guestCount}
-        </span>
-        <span className="flex items-center gap-1 text-pink-300/80" title="声望：由客人满意度累积，提升客人质量与付费">
-          <Star className="w-3 h-3" />声望 {reputation}
-        </span>
-        <div className="flex-1" />
-        <span className="flex items-center gap-1 gold-text font-semibold" title="娼馆等级">
-          <Crown className="w-3 h-3" />Lv.{level}
-        </span>
-        <button
-          onClick={handleUpgrade}
-          disabled={!canUpgrade}
-          title={`升级娼馆：魔物娘上限 ${girlCap}→${girlCap + 1}，每日客人上限 ${getGuestCapacity(level)}→${getGuestCapacity(level + 1)}`}
-          className={cn(
-            'flex items-center gap-1 px-2 py-0.5 rounded-md border transition-colors',
-            canUpgrade
-              ? 'border-amber-400/40 text-amber-400 hover:bg-amber-400/10'
-              : 'border-border text-muted-foreground/50 cursor-not-allowed'
+      {/* 魔物娘横条 */}
+      <div className="border-b border-border px-3 py-2 shrink-0">
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {girls.length === 0 && (
+            <button className="text-xs text-muted-foreground px-2 py-3" onClick={() => onNavigate('market')}>馆内还没有魔物娘，去奴隶市场看看 →</button>
           )}
-        >
-          <ArrowUpCircle className="w-3 h-3" />升级 {upgradeCost}G
-        </button>
-      </div>
-
-      <div className="flex-1 flex flex-col min-h-0 max-w-2xl mx-auto w-full">
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-          {chatLoading && chatMessages.length === 0 && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>娼馆正在开门…</span>
-            </div>
-          )}
-          {chatMessages.map((msg, i) => (
-            <div key={i} className={cn('flex', msg.role === 'player' ? 'justify-end' : 'justify-start')}>
-              <div className={cn(
-                'max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed',
-                msg.role === 'system'
-                  ? 'bg-card border border-border text-foreground/90'
-                  : 'bg-primary/20 text-primary border border-primary/20'
-              )}>
-                {msg.text}
-              </div>
-            </div>
-          ))}
-          {chatLoading && chatMessages.length > 0 && (
-            <div className="flex justify-start">
-              <div className="bg-card border border-border rounded-xl px-3.5 py-2.5">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
-              </div>
-            </div>
-          )}
-          <div ref={chatEndRef} />
-        </div>
-
-        {/* Action buttons as bottom tab bar */}
-        <div className="px-4 pb-2">
-          {noActionsLeft && (
-            <p className="text-[10px] text-rose-400/80 text-center mb-1.5">今日行动已用尽，点击「结束今天」进入下一天</p>
-          )}
-          <div className="grid grid-cols-3 gap-2">
-            <ActionButton
-              icon={Store}
-              label="开张营业"
-              color="primary"
-              onClick={() => onNavigate('service')}
-              disabled={girls.length === 0 || noActionsLeft || guestCount === 0}
-            />
-            <ActionButton
-              icon={Sword}
-              label="调教魔物娘"
-              color="rose"
-              onClick={() => onNavigate('training')}
-              disabled={girls.length === 0 || noActionsLeft}
-            />
-            <ActionButton
-              icon={ShoppingBag}
-              label="奴隶市场"
-              color="amber"
-              onClick={() => onNavigate('market')}
-            />
-          </div>
-        </div>
-
-        <div className="border-t border-border px-4 py-3 flex gap-2">
-          <input
-            value={chatInput}
-            onChange={(e) => setChatInput(e.target.value)}
-            className="flex-1 bg-input border border-border rounded-md px-3 h-9 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-            placeholder="和娼馆说点什么…"
-            onKeyDown={(e) => { if (e.key === 'Enter') sendChat() }}
-          />
-          <Button size="icon" className="h-9 w-9 shrink-0" onClick={sendChat} disabled={!chatInput.trim() || chatLoading}>
-            <Send className="w-4 h-4" />
-          </Button>
-        </div>
-      </div>
-
-      {girlsDrawerOpen && (
-        <div className="absolute inset-0 z-50 flex">
-          {/* Drawer slides from the LEFT */}
-          <div className="w-80 bg-card border-r border-border flex flex-col h-full shadow-2xl">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
-              <h2 className="text-sm font-bold gold-text">馆内魔物娘</h2>
-              <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => setGirlsDrawerOpen(false)}>
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-3 space-y-2">
-              {girls.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-40 gap-2">
-                  <p className="text-sm text-muted-foreground text-center">馆内还没有魔物娘</p>
-                  <Button variant="outline" size="sm" onClick={() => { setGirlsDrawerOpen(false); onNavigate('market') }}>
-                    前往奴隶市场
-                  </Button>
+          {girls.map((g) => {
+            const st = g.stamina ?? 100
+            return (
+              <div key={g.id} role="button" tabIndex={0} data-testid={`girl-${g.name}`} onClick={() => restPicking ? handleRest(g.id) : setOpenGirlId(g.id)}
+                onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); if (restPicking) { handleRest(g.id) } else { setOpenGirlId(g.id) } } }}
+                className={cn('w-16 shrink-0 rounded-lg border bg-card p-1 text-left transition-colors cursor-pointer',
+                  restPicking ? 'border-emerald-400/60 hover:bg-emerald-400/10' : 'border-border hover:border-primary/50')}>
+                <div className="relative w-full aspect-square rounded-md overflow-hidden">
+                  <ImageDisplay tags={g.imageTags} settings={settings} cachedUrl={g.imageUrl}
+                    onUrlCached={(url) => onSaveChange({ ...save, girls: girls.map((x) => x.id === g.id ? { ...x, imageUrl: url } : x) })}
+                    alt={g.name} className="w-full h-full object-cover" />
+                  {appeared.has(g.id) && <span className="absolute top-0 right-0 text-[8px] bg-black/70 text-amber-300 px-1 rounded-bl">已出场</span>}
+                  {pendingSkillPicks(g) > 0 && <span className="absolute top-0.5 left-0.5 w-2 h-2 rounded-full bg-amber-400" />}
                 </div>
-              ) : (
-                girls.map((girl) => (
-                  <div key={girl.id} className="bg-background rounded-xl border border-border p-3 flex gap-3">
-                    {/* Left: character image */}
-                    <div className="w-16 shrink-0 rounded-lg overflow-hidden self-stretch">
-                      <ImageDisplay
-                        tags={girl.imageTags}
-                        settings={settings}
-                        cachedUrl={girl.imageUrl}
-                        onUrlCached={(url) => handleImageCached(girl.id, url)}
-                        alt={girl.name}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0 space-y-1.5">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-xs font-semibold gold-text">{girl.name}</span>
-                        <Badge variant="secondary" className="text-[8px] h-3.5 px-1">{girl.race}</Badge>
-                      </div>
-                      {(girl.bust || girl.waist || girl.hip) && (
-                        <p className="text-xs text-muted-foreground/80 font-mono tracking-wide">
-                          B{girl.bust} W{girl.waist} H{girl.hip}
-                        </p>
-                      )}
-                      <StatBar label="好感" value={girl.affection} color="pink" size="sm" />
-                      <StatBar label="服从" value={girl.obedience} color="blue" size="sm" />
-                      <StatBar label="淫乱" value={girl.lewdness} color="rose" size="sm" />
-                      {girl.skills.length > 0 && (
-                        <div className="flex flex-wrap gap-1 pt-0.5">
-                          {girl.skills.map((s) => (
-                            <Badge key={s} variant="secondary" className="text-[8px] h-3.5 px-1 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">{s}</Badge>
-                          ))}
-                        </div>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className="h-6 text-[10px] w-full mt-1"
-                        onClick={() => { setGirlsDrawerOpen(false); setInteractingWith(girl) }}
-                      >
-                        <Heart className="w-3 h-3 mr-1" />互动
-                      </Button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-          {/* Backdrop */}
-          <div className="flex-1 bg-black/50" onClick={() => setGirlsDrawerOpen(false)} />
+                <p className="text-[10px] truncate mt-0.5 gold-text">{g.name}</p>
+                <div className="h-1 rounded-full bg-secondary overflow-hidden" title={`体力 ${st}`}>
+                  <div className={cn('h-full', st >= 50 ? 'bg-emerald-400' : st >= 25 ? 'bg-amber-400' : 'bg-rose-500')} style={{ width: `${st}%` }} />
+                </div>
+                <p className="text-[9px] text-muted-foreground" data-testid={`stamina-${g.name}`}>体力 {st}</p>
+              </div>
+            )
+          })}
+        </div>
+        {restPicking && (
+          <p className="text-[10px] text-emerald-300 mt-1">选择要休息的魔物娘（体力 +{REST_STAMINA}，占 1 次行动）
+            <button className="ml-2 underline text-muted-foreground" onClick={() => setRestPicking(false)}>取消</button></p>
+        )}
+      </div>
+
+      {notice && <div className="mx-4 mt-2 bg-primary/10 border border-primary/30 rounded-lg px-3 py-1.5 text-xs text-primary" data-testid="notice">{notice}</div>}
+
+      {pickGirl && (
+        <div className="mx-4 mt-2">
+          <SkillPicker girl={pickGirl} onPicked={(g) => onSaveChange({ ...save, girls: girls.map((x) => x.id === g.id ? g : x) })} />
+          <button className="text-[10px] text-muted-foreground underline mt-1" onClick={() => setDismissedPicks((d) => [...d, pickGirl.id])}>稍后再选</button>
         </div>
       )}
 
-      {interactingWith && (
-        <InteractionPanel
-          girl={interactingWith}
-          player={save.player}
-          settings={settings}
-          onClose={() => setInteractingWith(null)}
-          onGirlUpdated={(updated) => { updateGirl(updated); setInteractingWith(updated) }}
-        />
+      {/* 三页：今日客人 / 设施 / 商店 */}
+      <Tabs defaultValue="guests" className="flex-1 min-h-0 flex flex-col">
+        <TabsList className="mx-4 mt-2 shrink-0">
+          <TabsTrigger value="guests" className="text-xs">今日客人（{guests.length}）</TabsTrigger>
+          <TabsTrigger value="facilities" className="text-xs">设施</TabsTrigger>
+          <TabsTrigger value="shop" className="text-xs">商店</TabsTrigger>
+        </TabsList>
+        <div className="flex-1 overflow-y-auto px-4 py-3">
+          <TabsContent value="guests" className="space-y-2 mt-0" data-testid="guest-list">
+            {guests.length === 0 && <p className="text-xs text-muted-foreground">今天的客人都接待完了。</p>}
+            {guests.map((gu) => (
+              <div key={gu.id} className="rounded-lg border border-border bg-card px-3 py-2 space-y-1" data-testid="guest-card">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold gold-text">{gu.name}</span>
+                  <Badge variant="secondary" className="text-[9px] h-4 px-1">{gu.race}</Badge>
+                  {(gu.visits ?? 0) > 0 && <Badge variant="secondary" className="text-[9px] h-4 px-1 bg-pink-500/15 text-pink-300">回头客</Badge>}
+                  <span className="flex-1" />
+                  <span className="text-[10px] gold-text">预算 {gu.budget ?? 80}G</span>
+                </div>
+                <p className="text-[11px] text-foreground/80">{gu.desires}</p>
+                <div className="flex flex-wrap gap-1 text-[9px]">
+                  {gu.desireService && <Badge variant="secondary" className="text-[9px] h-4 px-1">主需求 {gu.desireService}</Badge>}
+                  {gu.desireKind && <Badge variant="secondary" className="text-[9px] h-4 px-1">{KIND_LABEL[gu.desireKind]}</Badge>}
+                  {gu.prefOutfit && <Badge variant="secondary" className="text-[9px] h-4 px-1">服装喜好 {gu.prefOutfit}</Badge>}
+                  {gu.prefRace && <Badge variant="secondary" className="text-[9px] h-4 px-1">偏好 {gu.prefRace}</Badge>}
+                  {gu.prefTrait && <Badge variant="secondary" className="text-[9px] h-4 px-1">偏好 {gu.prefTrait}</Badge>}
+                </div>
+              </div>
+            ))}
+          </TabsContent>
+
+          <TabsContent value="facilities" className="grid grid-cols-2 gap-2 mt-0">
+            <FacilityCard icon={Crown} title="娼馆" level={level} desc={`魔物娘 ${girls.length}/${girlCap} · 每日客人 ${getGuestCapacity(level)}`}
+              cost={getUpgradeCost(level)} gold={player.gold} onUpgrade={handleUpgrade} testId="upgrade-brothel" />
+            <FacilityCard icon={BedDouble} title={`宿舍 · ${dorm.name}`} level={dorm.level}
+              desc={`每晚体力 +${dorm.nightly}${dorm.clearsExhaustion ? '，解除疲惫' : ''}${dorm.bestBedBonus ? `，指定一人再 +${dorm.bestBedBonus}` : ''}`}
+              cost={dorm.upgradeCost} gold={player.gold} onUpgrade={handleDorm} testId="upgrade-dorm" />
+            <FacilityCard icon={DoorOpen} title="服务房间" level={roomLv} desc={`额外 play 槽 ${getPlaySlots(roomLv)}`}
+              cost={roomCost} gold={player.gold} onUpgrade={() => handleRoom('service')} testId="upgrade-room" />
+            <FacilityCard icon={Sword} title="调教室" level={trainLv} desc={`收益倍率 ×${TRAINING_ROOM_MULT[trainLv - 1]} · 道具槽 ${TRAINING_ROOM_PROP_SLOTS[trainLv - 1]}`}
+              cost={trainCost} gold={player.gold} onUpgrade={() => handleRoom('training')} testId="upgrade-training" />
+            <Button variant="outline" size="sm" className="col-span-2 h-8 text-xs" onClick={() => onNavigate('market')}>
+              <ShoppingBag className="w-3.5 h-3.5 mr-1.5" />前往奴隶市场
+            </Button>
+          </TabsContent>
+
+          <TabsContent value="shop" className="mt-0">
+            <ShopPanel save={save} onSaveChange={onSaveChange} onOpenMarket={() => onNavigate('market')} />
+          </TabsContent>
+        </div>
+      </Tabs>
+
+      {/* 底部四个按钮 */}
+      <div className="border-t border-border px-4 py-2 shrink-0">
+        {noActionsLeft && <p className="text-[10px] text-rose-400/80 text-center mb-1.5">今日行动已用尽，点击「结束今天」进入下一天</p>}
+        <div className="grid grid-cols-4 gap-2">
+          <ActionButton icon={Store} label="接客" color="primary" onClick={() => onNavigate('service')}
+            disabled={girls.length === 0 || noActionsLeft || guests.length === 0} />
+          <ActionButton icon={Sword} label="调教" color="rose" onClick={() => onNavigate('training')}
+            disabled={girls.length === 0 || noActionsLeft} />
+          <ActionButton icon={Bed} label="休息" color="emerald" onClick={() => setRestPicking((v) => !v)}
+            disabled={girls.length === 0 || noActionsLeft} testId="btn-rest" />
+          <ActionButton icon={Moon} label="结束今天" color="amber" onClick={handleEndDay} testId="btn-endday" />
+        </div>
+      </div>
+
+      {openGirl && (
+        <GirlSheet key={openGirl.id} girl={openGirl} save={save} settings={settings} onSaveChange={onSaveChange} onClose={() => setOpenGirlId(null)} />
       )}
     </div>
   )
 }
 
-function ActionButton({ icon: Icon, label, color, onClick, disabled }: {
+function FacilityCard({ icon: Icon, title, level, desc, cost, gold, onUpgrade, locked, testId }: {
+  icon: typeof Store; title: string; level: number; desc: string; cost: number | null; gold: number
+  onUpgrade?: () => void; locked?: boolean; testId?: string
+}) {
+  const can = !locked && cost !== null && gold >= cost
+  return (
+    <div className="rounded-xl border border-border bg-card p-3 flex flex-col gap-1.5">
+      <div className="flex items-center gap-1.5">
+        <Icon className="w-3.5 h-3.5 text-amber-400" />
+        <span className="text-xs font-semibold">{title}</span>
+        <span className="flex-1" />
+        <span className="text-[10px] gold-text">Lv.{level}</span>
+      </div>
+      <p className="text-[10px] text-muted-foreground leading-snug flex-1">{desc}</p>
+      <button data-testid={testId} disabled={!can} onClick={onUpgrade}
+        className={cn('text-[10px] rounded-md border px-2 py-1 transition-colors',
+          can ? 'border-amber-400/40 text-amber-400 hover:bg-amber-400/10' : 'border-border text-muted-foreground/50 cursor-not-allowed')}>
+        {cost === null ? '已满级' : locked ? `升级 ${cost}G（即将开放）` : `升级 ${cost}G`}
+      </button>
+    </div>
+  )
+}
+
+function ActionButton({ icon: Icon, label, color, onClick, disabled, testId }: {
   icon: typeof Store
   label: string
-  color: 'primary' | 'rose' | 'amber'
+  color: 'primary' | 'rose' | 'amber' | 'emerald'
   onClick: () => void
   disabled?: boolean
+  testId?: string
 }) {
   const c = {
-    primary: { bg: 'bg-primary/10 hover:bg-primary/20 border-primary/30 hover:border-primary/60', text: 'text-primary', icon: 'text-primary' },
-    rose: { bg: 'bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 hover:border-rose-500/60', text: 'text-rose-400', icon: 'text-rose-400' },
-    amber: { bg: 'bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30 hover:border-amber-500/60', text: 'text-amber-400', icon: 'text-amber-400' },
+    primary: 'bg-primary/10 hover:bg-primary/20 border-primary/30 hover:border-primary/60 text-primary',
+    rose: 'bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 hover:border-rose-500/60 text-rose-400',
+    amber: 'bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30 hover:border-amber-500/60 text-amber-400',
+    emerald: 'bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/30 hover:border-emerald-500/60 text-emerald-400',
   }[color]
   return (
-    <button
-      className={cn('flex items-center justify-center gap-2 rounded-xl border py-2.5 transition-all duration-150 text-xs font-medium', c.bg, c.text, disabled && 'opacity-40 pointer-events-none')}
-      onClick={onClick}
-      disabled={disabled}
-    >
-      <Icon className={cn('w-4 h-4', c.icon)} />
+    <button data-testid={testId}
+      className={cn('flex items-center justify-center gap-1.5 rounded-xl border py-2.5 transition-all duration-150 text-xs font-medium', c, disabled && 'opacity-40 pointer-events-none')}
+      onClick={onClick} disabled={disabled}>
+      <Icon className="w-4 h-4" />
       {label}
     </button>
   )
