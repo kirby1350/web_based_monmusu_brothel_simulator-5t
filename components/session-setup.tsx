@@ -108,7 +108,7 @@ export function SessionSetup({ save, onSkip, onLive }: SessionSetupProps) {
                 const st = g.stamina ?? 100
                 return (
                   <button key={g.id} onClick={() => setGirlId(g.id)} data-testid={`pick-girl-${g.name}`}
-                    className={cn('w-full text-left rounded-lg border bg-card px-3 py-2 flex items-center gap-3 transition-colors',
+                    className={cn('w-full text-left rounded-lg border bg-card px-3 py-2 flex items-center gap-3 transition-colors select-none [&_*]:pointer-events-none',
                       g.id === girlId ? 'border-amber-400/70' : 'border-border hover:border-primary/50')}>
                     <div className="flex-1 min-w-0 space-y-0.5">
                       <div className="flex items-center gap-1.5">
@@ -300,7 +300,7 @@ export function TrainingSetup({ save, onSkip, onLive }: TrainingSetupProps) {
             <p className="text-[10px] text-muted-foreground uppercase tracking-widest">调教对象（一场只安排一名）</p>
             {girls.map((g) => (
               <button key={g.id} onClick={() => setGirlId(g.id)} data-testid={`pick-girl-${g.name}`}
-                className={cn('w-full text-left rounded-lg border bg-card px-3 py-2 transition-colors',
+                className={cn('w-full text-left rounded-lg border bg-card px-3 py-2 transition-colors select-none [&_*]:pointer-events-none',
                   g.id === girlId ? 'border-amber-400/70' : 'border-border hover:border-primary/50')}>
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs font-semibold gold-text">{g.name}</span>
