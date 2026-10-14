@@ -304,6 +304,24 @@ export const STEP_ACTION_MAX = 20
 export const INCIDENT_TEMPLATES: string[] = [
   '打碎了客人的酒杯', '偷懒被抓到', '和别的魔物娘吵架', '偷吃了厨房的点心', '把客人的外套弄脏了', '迟到了半个时辰',
 ]
+/** 种族专属闯祸：只会落到对应种族身上 */
+export const RACE_INCIDENT_TEMPLATES: Record<string, string[]> = {
+  犬娘: ['把客人的鞋子叼去院子里埋了'],
+  狐娘: ['用幻术捉弄客人，把对方吓得不轻'],
+  史莱姆: ['渗进了地板缝，把账本泡烂了'],
+  哈比: ['从窗口飞出去追蝴蝶，一下午没回来'],
+  龙娘: ['偷偷把金币藏进了自己的窝里'],
+  吸血鬼: ['大白天拉开窗帘晒伤，躺了半天不肯干活'],
+  牛娘: ['奶水洒了一走廊，害客人滑了一跤'],
+  魔女: ['熬药炸了锅，把厨房熏得一片漆黑'],
+}
+/** 按好感分档的闯祸：低好感（<30）是故意作对，高好感（≥70）是想引起你注意 */
+export const INCIDENT_LOW_AFFECTION = 30
+export const INCIDENT_HIGH_AFFECTION = 70
+export const AFFECTION_INCIDENT_TEMPLATES: { low: string[]; high: string[] } = {
+  low: ['当着客人的面顶撞了你', '趁夜想翻墙逃跑，被抓了回来'],
+  high: ['为了吸引你的注意故意打翻茶水', '吃醋把别的魔物娘的衣服藏了起来'],
+}
 export const SERVICE_FAIL_INCIDENT_CHANCE = 0.5
 export const DAILY_MISCHIEF_CHANCE = 0.15
 export const PUNISH_EXTRA_OBEDIENCE = 3
