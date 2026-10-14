@@ -17,6 +17,7 @@ import { MAX_ACTIONS_PER_DAY, getGirlCapacity, getGuestCapacity, getUpgradeCost 
 import { endDay, restGirl, upgradeDorm, getDormInfo, pendingSkillPicks, pickArrivalLeader, arrivalFallbackText, arrivalPromptNote, setBestBed, bannerPath, shortfallText, upgradeChangeText, type FacilityKey } from '@/lib/hub-logic'
 import { SERVICE_ROOM_UPGRADE_COSTS, TRAINING_ROOM_UPGRADE_COSTS, getUpgradeCostFor, getPlaySlots, TRAINING_ROOM_MULT, TRAINING_ROOM_PROP_SLOTS, REST_STAMINA } from '@/lib/catalog'
 import { clearOpeningCache } from '@/lib/storage'
+import { contextImageTags } from '@/lib/prompt-context'
 import { TUTORIAL_STEPS, isTutorialVisible, advanceTutorial, dismissTutorial } from '@/lib/tutorial'
 import { cn } from '@/lib/utils'
 import type { GameTab } from '@/app/game/page'
@@ -171,7 +172,7 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
                 className={cn('w-16 shrink-0 rounded-lg border bg-card p-1 text-left transition-colors cursor-pointer',
                   restPicking ? 'border-emerald-400/60 hover:bg-emerald-400/10' : 'border-border hover:border-primary/50')}>
                 <div className="relative w-full aspect-square rounded-md overflow-hidden">
-                  <ImageDisplay tags={g.imageTags} settings={settings} cachedUrl={g.imageUrl}
+                  <ImageDisplay tags={contextImageTags(g, { exhausted: g.exhausted || (g.stamina ?? 100) < 30, incident: !!g.incident })} settings={settings} cachedUrl={g.imageUrl}
                     onUrlCached={(url) => onSaveChange({ ...save, girls: girls.map((x) => x.id === g.id ? { ...x, imageUrl: url } : x) })}
                     alt={g.name} className="w-full h-full object-cover" />
                   {appeared.has(g.id) && <span className="absolute top-0 right-0 text-[8px] bg-black/70 text-amber-300 px-1 rounded-bl">已出场</span>}
