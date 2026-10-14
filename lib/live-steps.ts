@@ -1,9 +1,9 @@
 // 亲自上场的步骤状态（纯函数）：迎客 → 挑逗 → 前戏 → 正戏 → 清洗
 import type { OutfitId, StockingId } from './types'
-import {
+import { serviceDetailLine,
   resolveService, getAvailablePlays, SERVICE_STEPS, serviceStaminaCost, serviceReward, type ServiceInput, type ServiceResult,
 } from './resolve-service'
-import { getPlaySlots, LIVE_SERVICE_STAMINA_LONG, LIVE_SERVICE_STAMINA_SHORT, STEP_MAX } from './catalog'
+import { getPlaySlots, LIVE_SERVICE_STAMINA_LONG, LIVE_SERVICE_STAMINA_SHORT, STEP_MAX, OUTFITS, STOCKINGS } from './catalog'
 import { getSatisfactionTier } from './game-engine'
 
 export const MAIN_STEP_INDEX = 3
@@ -98,6 +98,10 @@ export function resolveLiveSteps(plan: Plan, s: LiveState): ServiceResult {
     standardScore,
     satisfaction,
     tier,
+    memoryDetail: serviceDetailLine(plan.girl.name, plan.guest.name, {
+      satisfaction, tierLabel: tier.label, outfitMatched: base.outfitMatched, plays: base.plays.map((p) => p.name), steps: steps.slice(0, lastReached + 1),
+      outfitName: `${OUTFITS.find((o) => o.id === s.outfit)?.name ?? '常服'}${s.stockings !== 'none' ? '+' + (STOCKINGS.find((x) => x.id === s.stockings)?.name ?? '') : ''}`,
+    }),
     reward: serviceReward(plan.guest, plan.girl, satisfaction),
     staminaCost: serviceStaminaCost(
       (totalTurns <= LIVE_SHORT_TURNS ? LIVE_SERVICE_STAMINA_SHORT : LIVE_SERVICE_STAMINA_LONG) + (s.outfitChanged ? OUTFIT_CHANGE_STAMINA : 0),

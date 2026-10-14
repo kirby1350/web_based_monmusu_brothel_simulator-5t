@@ -1,5 +1,10 @@
 import { Player, MonstGirl, Guest, ServiceSession, GameSave, ProseStyle } from '@/lib/types'
 import { ALL_PLAYS as PLAYS, getSensitivityLevel, getSkillRank } from '@/lib/catalog'
+import type { OutfitId, StockingId } from '@/lib/types'
+import { girlStateCard, guestPrefLine, VALID_RACES } from '@/lib/prompt-context'
+
+/** 系统提示词的可选游戏状态：天数、当前服装（客人偏好命中用） */
+export interface PromptState { day?: number; outfit?: OutfitId; stockings?: StockingId }
 
 // ─── 文风控制（去油黑名单常驻 + 可切换文风片段） ───────────────────────────────
 
@@ -122,16 +127,18 @@ export function buildServiceSystemPrompt(
   player: Player,
   session: ServiceSession,
   proseStyle: ProseStyle = 'standard',
-  stepContext?: string
+  stepContext?: string,
+  state: PromptState = {}
 ): string {
-  if (stepContext) return buildServiceSystemPromptBase(player, session, proseStyle) + '\n\n' + stepContext
-  return buildServiceSystemPromptBase(player, session, proseStyle)
+  const base = buildServiceSystemPromptBase(player, session, proseStyle, state)
+  return stepContext ? base + '\n\n' + stepContext : base
 }
 
 function buildServiceSystemPromptBase(
   player: Player,
   session: ServiceSession,
-  proseStyle: ProseStyle = 'standard'
+  proseStyle: ProseStyle = 'standard',
+  state: PromptState = {}
 ): string {
   // 重油堆叠需要更多篇幅来铺密度，故 dense 模式下提高字数上限
   const proseWordCount = proseStyle === 'dense' ? '500-800' : '300-500'
@@ -139,7 +146,7 @@ function buildServiceSystemPromptBase(
     .map(
       (g, i) => {
         const bwh = girlBWH(g)
-        return `魔物娘${i + 1}：${g.name}（${g.race}）\n  外貌：${g.bodyDesc}${bwh ? `，三围 ${bwh}` : ''}\n  性格：${g.personality}\n  服装：${g.outfit}\n  服从度：${g.obedience}/100，淫乱度：${g.lewdness}/100，好感度：${g.affection}/100\n  技能：${g.skills.length > 0 ? g.skills.join('、') : '无'}${g.sexualDesc ? `\n  色色设定：${g.sexualDesc}` : ''}`
+        return `魔物娘${i + 1}：${g.name}（${g.race}）\n  外貌：${g.bodyDesc}${bwh ? `，三围 ${bwh}` : ''}\n  性格：${g.personality}\n  服装：${g.outfit}\n  服从度：${g.obedience}/100，淫乱度：${g.lewdness}/100，好感度：${g.affection}/100\n  状态：${girlStateCard(g, state.day)}${g.sexualDesc ? `\n  色色设定：${g.sexualDesc}` : ''}`
       }
     )
     .join('\n')
@@ -182,7 +189,7 @@ ${girlDescriptions}
 【客人信息】
 姓名：${g.name}　种族：${g.race}　性格：${g.personality}
 特性：${g.traits.join('、') || '无'}
-需求：${g.desires}
+需求：${g.desires}${session.girls.map((x) => guestPrefLine(g, x, state.outfit, state.stockings)).filter(Boolean).map((l) => '\n' + l).join('')}${(g.visits ?? 0) > 0 ? `\n来访：第 ${(g.visits ?? 0) + 1} 次` : ''}
 当前状态 — 肉棒快感 ${stats?.pleasure ?? 0}/100，体力 ${stats?.stamina ?? 100}/100${stats?.isExhausted ? '（射精过度、阴茎抽搐）' : ''}，射精满足度 ${g.satisfaction}/100
 ${g.memories && Object.keys(g.memories).length > 0 ? `
 【关系记忆（老客人档案，必须自然融入叙述语气）】
@@ -233,7 +240,7 @@ ${proseSection(proseStyle)}
   if (session.type === 'training') {
     const trainer = session.trainer
     const trainerDesc = trainer
-      ? `调教者：${trainer.name}（${trainer.race}），服从度 ${trainer.obedience}/100，好感度 ${trainer.affection}/100，技能：${trainer.skills.join('、') || '无'}`
+      ? `调教者：${trainer.name}（${trainer.race}），服从度 ${trainer.obedience}/100，好感度 ${trainer.affection}/100，状态：${girlStateCard(trainer)}`
       : `调教者：${player.name}（玩家）`
     const trainerStats = session.trainerStats
       ? `，肉棒快感 ${session.trainerStats.pleasure}/100，体力 ${session.trainerStats.stamina}/100`
@@ -375,6 +382,7 @@ export function buildGuestGenerationPrompt(
   return `你是一个色情角色生成AI。为一款魔物娘娼馆经营游戏生成一个饥渴的客人。
 
 玩家偏好：${preference || '随机'}
+（客人自身种族可自由设定；若写偏好的魔物娘种族，只能从：${VALID_RACES.join('、')}）
 已有客人（避免重复）：${existingGuests.join('、') || '无'}
 
 请生成JSON格式的客人信息，字段：
@@ -401,7 +409,7 @@ export function buildMarketGirlPrompt(preference: string, existingNames: string[
 生成JSON数组格式，包含 ${count} 个对象，每个对象字段如下：
 {
   "name": "名字（2-3字中文名，每个角色不同）",
-  "race": "魔物娘种族（例如：猫娘、魅魔、触手娘，每个角色不同种族）",
+  "race": "魔物娘种族，必须从以下列表选择、每个角色不同：${VALID_RACES.join('、')}",
   "age": "年龄数字字符串",
   "bodyDesc": "极度色情的身材外貌描述（一句话，强调乳交、臀交潜力）",
   "bodyTags": "英文体型tag（巨乳、肥臀、淫纹等）",
@@ -431,13 +439,16 @@ export function buildMarketGirlPrompt(preference: string, existingNames: string[
 export function buildSuggestionPrompt(
   sessionType: 'service' | 'training',
   lastMessage: string,
-  playerTraits: string[]
+  playerTraits: string[],
+  ctx: { step?: string; standardAction?: string; desires?: string } = {}
 ): string {
   const context = sessionType === 'service' ? '操弄客人' : '调教并干翻魔物娘'
+  // 先去掉隐藏数据块再截取，取结尾（最新画面）
+  const clean = lastMessage.replace(/<!--(STATS|ACTIONS):[\s\S]*?-->/g, '').trim()
   return `根据以下${context}场景的最新淫靡叙述，生成3个简短的玩家色情行动指令。
 
-叙述：${lastMessage.slice(0, 200)}
-玩家特性：${playerTraits.join('、') || '无'}
+叙述：${clean.slice(-200)}
+玩家特性：${playerTraits.join('、') || '无'}${ctx.step ? `\n当前步骤：${ctx.step}${ctx.standardAction ? `（标准做法：${ctx.standardAction}，第一条请写它）` : ''}` : ''}${ctx.desires ? `\n客人需求：${ctx.desires}` : ''}
 
 要求：
 - 每个指令5-15字，直白下流
@@ -453,7 +464,7 @@ export function buildOpeningDialoguePrompt(
   scene: 'game-start' | 'service' | 'training' | 'market' | 'interaction' | 'purchase',
   player: Player,
   girls: MonstGirl[],
-  extra?: { guest?: Guest; girl?: MonstGirl; currentDay?: number }
+  extra?: { guest?: Guest; girl?: MonstGirl; currentDay?: number; house?: string }
 ): string {
   const girlNames = girls.map((g) => `${g.name}（${g.race}）`).join('、')
   const mainGirl = extra?.girl ?? girls[0]
@@ -490,7 +501,7 @@ export function buildOpeningDialoguePrompt(
 
 【场景】魔物娘娼馆开业第 ${currentDay} 天清晨，阳光透过彩色玻璃窗洒进大厅，空气中混着淡淡的香薰与早餐的香气
 【馆主】${player.name}（特性：${playerTraitsFull(player)}）
-【今日出场魔物娘】${girlsWithAffection || girlNames || '无'}
+【今日出场魔物娘】${girlsWithAffection || girlNames || '无'}${extra?.house ? `\n${extra.house}（可自然带一句）` : ''}
 
 要求：
 - 以第三人称叙述，60-90字

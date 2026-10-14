@@ -126,7 +126,7 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish }: Ses
     plays: preview.plays.map((p) => p.name),
   })
   const behaviour = buildBehaviourLines(girl.name, stepBehaviour(girl, live.stepIndex, currentStep.zone, currentStep.note, preview.plays.map((p) => p.id)))
-  const systemPrompt = buildServiceSystemPrompt(player, { ...session, messages }, settings.proseStyle, behaviour ? `${stepContext}\n${behaviour}` : stepContext)
+  const systemPrompt = buildServiceSystemPrompt(player, { ...session, messages }, settings.proseStyle, behaviour ? `${stepContext}\n${behaviour}` : stepContext, { outfit: live.outfit, stockings: live.stockings })
   const shownSuggestions: [string, string, string] = [stepActions[live.stepIndex], suggestions?.[1] ?? '与她贴身调情', suggestions?.[2] ?? '她主动靠近']
   const owned = new Set(wardrobe)
   const outfitOpts = OUTFITS.filter((o) => o.id === 'regular' || owned.has(o.id))
@@ -255,10 +255,12 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish }: Ses
 
 // ─── 调教的亲自上场（仍用旧调教提示词，无步骤条） ──────────────────────────────
 
-export function TrainingScene({ player, girl, directionLabel, extraPrompt, settings, onFinish }: {
+export function TrainingScene({ player, girl, directionLabel, trainingInfo, extraPrompt, settings, onFinish }: {
   player: Player
   girl: MonstGirl
   directionLabel: string
+  /** 调教上下文（方向效果 / 道具 / 调教室 / 目标），缺省只写方向名 */
+  trainingInfo?: string
   /** 附在提示词末尾（惩罚缘由等） */
   extraPrompt?: string
   settings: AppSettings
@@ -276,7 +278,7 @@ export function TrainingScene({ player, girl, directionLabel, extraPrompt, setti
   const [suggestions, setSuggestions] = useState<[string, string, string] | null>(['命令她跪下', '抬起她的下巴', '她低声求饶'])
   const [inputValue, setInputValue] = useState('')
   const chatRef = useRef<ChatEngineHandle>(null)
-  const systemPrompt = buildServiceSystemPrompt(player, { ...session, messages }, settings.proseStyle) + `\n\n【本次调教方向】${directionLabel}` + (extraPrompt ? `\n${extraPrompt}` : '')
+  const systemPrompt = buildServiceSystemPrompt(player, { ...session, messages }, settings.proseStyle) + `\n\n${trainingInfo ?? `【本次调教方向】${directionLabel}`}` + (extraPrompt ? `\n${extraPrompt}` : '')
 
   const onRaw = useCallback((raw: string) => {
     const a = parseActionsFromReply(raw)

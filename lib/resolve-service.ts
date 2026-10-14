@@ -36,6 +36,8 @@ export interface StepResult { key: ServiceStepKey; label: string; score: number;
 export interface PlayResult { id: string; name: string; score: number; matched: boolean; rank: SkillRank; zone?: SensitivityZone }
 
 export interface ServiceResult {
+  /** 写进关系记忆的要点行 */
+  memoryDetail?: string
   canSkip: boolean
   steps: StepResult[]
   standardScore: number
@@ -85,7 +87,7 @@ function hipBonus(girl: MonstGirl) { return Math.max(0, Math.min(5, Math.floor((
 
 const BEAST_RACES = ['猫娘', '犬娘', '狐娘', '兔娘', '牛娘', '狼娘']
 
-function traitMatched(guest: Guest, girl: MonstGirl): boolean {
+export function traitMatched(guest: Guest, girl: MonstGirl): boolean {
   switch (guest.prefTrait) {
     case '巨乳': return (girl.bust ?? 0) >= 95
     case '贫乳': return (girl.bust ?? 0) > 0 && (girl.bust ?? 0) <= 82
@@ -262,6 +264,10 @@ export function resolveService(input: ServiceInput): ServiceResult {
     staminaExtra, staminaMult, staminaRefund, satisfactionBonus, matchBonus, matchParts, raceNotes,
     affectionDelta: 1,
     summary: buildServiceSummary(girl.name, guest.name, tier.key, plays.length),
+    memoryDetail: serviceDetailLine(girl.name, guest.name, {
+      satisfaction, tierLabel: tier.label, outfitMatched, plays: plays.map((p) => p.name), steps,
+      outfitName: `${OUTFITS.find((o) => o.id === outfit)?.name ?? '常服'}${stockings !== 'none' ? '+' + (STOCKINGS.find((x) => x.id === stockings)?.name ?? '') : ''}`,
+    }),
   }
 }
 
@@ -284,7 +290,24 @@ const SUMMARY_TEMPLATES: Record<SatisfactionTier['key'], string> = {
   ecstatic: '{g}让{c}彻底沉溺其中，{c}一边结账一边念叨着下次还要来。',
 }
 
-export function buildServiceSummary(girlName: string, guestName: string, tierKey: SatisfactionTier['key'], playCount: number): string {
+export interface SummaryDetail { satisfaction?: number; tierLabel?: string; outfitName?: string; outfitMatched?: boolean; plays?: string[]; steps?: Pick<StepResult, 'label' | 'score'>[] }
+
+export function buildServiceSummary(girlName: string, guestName: string, tierKey: SatisfactionTier['key'], playCount: number, detail?: SummaryDetail): string {
   const base = SUMMARY_TEMPLATES[tierKey].replaceAll('{g}', girlName).replaceAll('{c}', guestName)
-  return playCount > 0 ? `${base}本场追加了 ${playCount} 个花样。` : base
+  const text = playCount > 0 ? `${base}本场追加了 ${playCount} 个花样。` : base
+  return detail ? `${text}\n${serviceDetailLine(girlName, guestName, detail)}` : text
+}
+
+/** 写给关系记忆的一行要点：满意度｜服装命中｜play｜最出彩 / 最敷衍的步骤 */
+export function serviceDetailLine(girlName: string, guestName: string, d: SummaryDetail): string {
+  const parts = [`${girlName}×${guestName}：${d.tierLabel ?? ''}${d.satisfaction !== undefined ? `（${d.satisfaction}）` : ''}`]
+  if (d.outfitName && d.outfitName !== '常服') parts.push(`${d.outfitName}${d.outfitMatched ? '命中偏好' : '未对口'}`)
+  if (d.plays?.length) parts.push(`play：${d.plays.join('、')}`)
+  const steps = (d.steps ?? []).filter((x) => x.score !== undefined)
+  if (steps.length) {
+    const best = steps.reduce((a, b) => (b.score > a.score ? b : a))
+    const worst = steps.reduce((a, b) => (b.score < a.score ? b : a))
+    parts.push(best === worst ? `${best.label} ${best.score}/${STEP_MAX}` : `${best.label} ${best.score}/${STEP_MAX} 最出彩，${worst.label} ${worst.score}/${STEP_MAX} 最弱`)
+  }
+  return parts.join('｜')
 }
