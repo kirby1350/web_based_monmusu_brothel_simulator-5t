@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Key, Bot, Palette, ChevronDown, ChevronUp, Check, RefreshCw, Loader2 } from 'lucide-react'
 import {
   AppSettings,
@@ -16,7 +16,8 @@ import {
   ProseStyle,
   DzmmModel,
 } from '@/lib/types'
-import { saveSettings } from '@/lib/storage'
+import { saveSettings, getGameSave, saveGameSave } from '@/lib/storage'
+import { exportSaveJson, importSaveJson, SAVE_VERSION } from '@/lib/migrate-save'
 import { cn } from '@/lib/utils'
 
 type ChatModelInfo = (typeof CHAT_MODELS)[number]
@@ -501,6 +502,48 @@ export function SettingsPanel({ settings, onSettingsChange }: SettingsPanelProps
           )}
         </button>
       </div>
+
+      <SaveDataSection />
+    </div>
+  )
+}
+
+/** 存档导出 / 导入（JSON 文件，导入时自动迁移旧版本） */
+function SaveDataSection() {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [msg, setMsg] = useState('')
+
+  const handleExport = () => {
+    const save = getGameSave()
+    if (!save) { setMsg('当前没有存档'); return }
+    const blob = new Blob([exportSaveJson(save)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `monmusu-save-day${save.currentDay}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    setMsg('已导出')
+  }
+
+  const handleImport = async (file: File) => {
+    const r = importSaveJson(await file.text())
+    if ('error' in r) { setMsg(`导入失败：${r.error}`); return }
+    if (!window.confirm(`导入将覆盖当前存档（第 ${r.save.currentDay} 天，${r.save.girls.length} 名魔物娘），确定？`)) return
+    saveGameSave(r.save)
+    window.location.reload()
+  }
+
+  return (
+    <div className="pt-4 border-t border-border mt-6">
+      <SectionTitle>存档数据（v{SAVE_VERSION}）</SectionTitle>
+      <div className="flex gap-2">
+        <button onClick={handleExport} className="flex-1 py-2 rounded-lg border border-border bg-secondary text-xs hover:border-primary/40">导出 JSON</button>
+        <button onClick={() => fileRef.current?.click()} className="flex-1 py-2 rounded-lg border border-border bg-secondary text-xs hover:border-primary/40">导入 JSON</button>
+        <input ref={fileRef} type="file" accept="application/json,.json" className="hidden"
+          onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void handleImport(f) }} />
+      </div>
+      {msg && <p className="text-[11px] text-muted-foreground mt-2">{msg}</p>}
     </div>
   )
 }

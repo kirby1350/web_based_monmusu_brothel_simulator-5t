@@ -1,7 +1,7 @@
 // 阶段 10：事件生成与惩罚资格（纯函数，随机数可注入）
 import type { GameSave, Guest, Incident, MonstGirl } from './types'
 import {
-  INCIDENT_TEMPLATES, SERVICE_FAIL_INCIDENT_CHANCE, DAILY_MISCHIEF_CHANCE, INCIDENT_OVERNIGHT_OBEDIENCE, getSkillRank,
+  INCIDENT_TEMPLATES, RACE_INCIDENT_TEMPLATES, AFFECTION_INCIDENT_TEMPLATES, INCIDENT_LOW_AFFECTION, INCIDENT_HIGH_AFFECTION, SERVICE_FAIL_INCIDENT_CHANCE, DAILY_MISCHIEF_CHANCE, INCIDENT_OVERNIGHT_OBEDIENCE, getSkillRank,
 } from './catalog'
 
 type Rng = () => number
@@ -20,8 +20,20 @@ export function nightlyIncidents(girls: MonstGirl[], day: number, rng: Rng = Mat
   const free = after.filter((g) => !g.incident)
   if (!free.length) return after
   const who = free[Math.min(free.length - 1, Math.floor(rng() * free.length))]
-  const text = INCIDENT_TEMPLATES[Math.min(INCIDENT_TEMPLATES.length - 1, Math.floor(rng() * INCIDENT_TEMPLATES.length))]
+  const pool = mischiefPool(who)
+  const text = pool[Math.min(pool.length - 1, Math.floor(rng() * pool.length))]
   return after.map((g) => (g.id === who.id ? { ...g, incident: { kind: '闯祸', text, day } } : g))
+}
+
+/** 这名魔物娘可能闯的祸：通用 + 本种族专属 + 按好感分档 */
+export function mischiefPool(girl: MonstGirl): string[] {
+  const aff = girl.affection ?? 0
+  return [
+    ...INCIDENT_TEMPLATES,
+    ...(RACE_INCIDENT_TEMPLATES[girl.race] ?? []),
+    ...(aff < INCIDENT_LOW_AFFECTION ? AFFECTION_INCIDENT_TEMPLATES.low : []),
+    ...(aff >= INCIDENT_HIGH_AFFECTION ? AFFECTION_INCIDENT_TEMPLATES.high : []),
+  ]
 }
 
 /** M 性熟练及以上：没有事件也可以惩罚 */

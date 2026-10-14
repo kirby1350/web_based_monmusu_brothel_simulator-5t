@@ -17,6 +17,7 @@ import { MAX_ACTIONS_PER_DAY, getGirlCapacity, getGuestCapacity, getUpgradeCost 
 import { endDay, restGirl, upgradeDorm, getDormInfo, pendingSkillPicks, pickArrivalLeader, arrivalFallbackText, arrivalPromptNote, setBestBed, bannerPath, shortfallText, upgradeChangeText, type FacilityKey } from '@/lib/hub-logic'
 import { SERVICE_ROOM_UPGRADE_COSTS, TRAINING_ROOM_UPGRADE_COSTS, getUpgradeCostFor, getPlaySlots, TRAINING_ROOM_MULT, TRAINING_ROOM_PROP_SLOTS, REST_STAMINA } from '@/lib/catalog'
 import { clearOpeningCache } from '@/lib/storage'
+import { TUTORIAL_STEPS, isTutorialVisible, advanceTutorial, dismissTutorial } from '@/lib/tutorial'
 import { cn } from '@/lib/utils'
 import type { GameTab } from '@/app/game/page'
 
@@ -135,6 +136,26 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
           <Settings className="w-4 h-4" />
         </Button>
       </header>
+
+      {/* 第一天新手引导（可跳过，进度存档） */}
+      {isTutorialVisible(save) && (() => {
+        const i = Math.min(save.tutorial!.step, TUTORIAL_STEPS.length - 1)
+        const st = TUTORIAL_STEPS[i]
+        const last = i === TUTORIAL_STEPS.length - 1
+        return (
+          <div className="mx-3 mt-2 rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 shrink-0" data-testid="tutorial">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-primary">{st.title}</span>
+              <span className="text-[10px] text-muted-foreground">{i + 1}/{TUTORIAL_STEPS.length}</span>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">{st.body}</p>
+            <div className="flex justify-end gap-2 mt-1.5">
+              {!last && <button className="text-[11px] text-muted-foreground hover:text-foreground" data-testid="tutorial-skip" onClick={() => onSaveChange(dismissTutorial(save))}>跳过引导</button>}
+              <button className="text-[11px] text-primary font-semibold" data-testid="tutorial-next" onClick={() => onSaveChange(advanceTutorial(save))}>{last ? '开始经营' : '下一步 →'}</button>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* 魔物娘横条 */}
       <div className="border-b border-border px-3 py-2 shrink-0">
