@@ -9,6 +9,7 @@ import { GameSave, AppSettings } from '@/lib/types'
 import { migrateSave } from '@/lib/migrate-save'
 import { DailyHub } from '@/components/daily-hub'
 import { ServiceScreen } from '@/components/service-screen'
+import { ServiceFlow } from '@/components/service-flow'
 import { MarketScreen } from '@/components/market-screen'
 import { SettingsPanel } from '@/components/settings-panel'
 import { Button } from '@/components/ui/button'
@@ -97,11 +98,19 @@ export default function GamePage() {
             onNewGirlGreeted={() => setNewlyPurchasedGirl(null)}
           />
         )}
-        {(activeTab === 'service' || activeTab === 'training') && (
+        {activeTab === 'service' && (
+          <ServiceFlow
+            save={save}
+            settings={settings}
+            onSaveChange={handleSaveChange}
+            onBack={() => setActiveTab('hub')}
+          />
+        )}
+        {activeTab === 'training' && (
           <ServiceScreen
             key={activeTab}
             save={save}
-            type={activeTab === 'service' ? 'service' : 'training'}
+            type="training"
             settings={settings}
             onSaveChange={handleSaveChange}
             onBack={() => setActiveTab('hub')}

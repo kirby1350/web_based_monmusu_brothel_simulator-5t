@@ -86,9 +86,8 @@ export function ServiceScreen({ save, type, settings, onSaveChange, onBack }: Se
   // ─── Helpers ────────────────────────────────────────────────────────────────
 
   const toggleGirl = (id: string) => {
-    setSelectedGirls((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    )
+    // 一场只安排一名魔物娘
+    setSelectedGirls((prev) => (prev.includes(id) ? [] : [id]))
   }
 
   // 当天的客人池（开局一次性随机生成，存于存档）；接待后会从池中移除
