@@ -9,13 +9,14 @@ import { Badge } from '@/components/ui/badge'
 import { ChatEngine, ChatEngineHandle } from '@/components/chat-engine'
 import { SuggestionBar } from '@/components/suggestion-bar'
 import { getStepActions } from '@/lib/custom-props'
-import { buildServiceSystemPrompt, buildOpeningDialoguePrompt, buildBehaviourLines, stepBehaviour } from '@/lib/prompt-builder'
+import { buildServiceSystemPrompt, buildOpeningDialoguePrompt, buildSuggestionPrompt, buildBehaviourLines, stepBehaviour } from '@/lib/prompt-builder'
 import {
   createServiceSession, applyStatDelta, estimateStatDelta, parseStatsFromReply, getGirlDelta,
   updateGuestSatisfaction, parseActionsFromReply, computeInitialSatisfaction,
 } from '@/lib/game-engine'
 import { parseLooseJson, cn } from '@/lib/utils'
-import { OUTFITS, STOCKINGS, getSensitivityLevel, playIconPath } from '@/lib/catalog'
+import { OUTFITS, STOCKINGS, STEP_MAX, getSensitivityLevel, playIconPath } from '@/lib/catalog'
+import { buildStepRecap } from '@/lib/prompt-context'
 import { ItemIcon } from '@/components/item-icon'
 import { SERVICE_STEPS } from '@/lib/resolve-service'
 import {
@@ -94,7 +95,22 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish }: Ses
   const handleRawReply = useCallback((raw: string) => {
     const actions = parseActionsFromReply(raw)
     if (actions) setSuggestions(actions)
-    else setSuggestions((prev) => prev ?? ['继续当前行动', '加深刺激力度', '改变姿势角度'])
+    else {
+      setSuggestions((prev) => prev ?? ['继续当前行动', '加深刺激力度', '改变姿势角度'])
+      // 模型漏了 ACTIONS 块：再用建议提示词补一次（失败就保留兜底）
+      const ctx = sugCtxRef.current
+      const apiKey = settings.chatModel.startsWith('grok') ? settings.grokApiKey : settings.chatApiKey
+      fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: [{ role: 'user', content: buildSuggestionPrompt('service', raw, player.traits, ctx) }], model: settings.chatModel, apiKey, stream: false }) })
+        .then(async (res) => {
+          if (!res.ok) return
+          const text = String((await res.json()).content ?? '')
+          const m = text.match(/[[［][\s\S]*?[\]］]/)
+          const arr = m ? parseLooseJson<string[]>(m[0]) : null
+          if (Array.isArray(arr) && arr.length >= 3) setSuggestions([arr[0], arr[1], arr[2]])
+        })
+        .catch(() => { /* 离线：保留兜底建议 */ })
+    }
     const multi = parseStatsFromReply(raw)
     const fallback = multi ? null : estimateStatDelta(raw)
     setSession((prev) => {
@@ -111,6 +127,7 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish }: Ses
   }, [girl.id, girl.name])
 
   const finish = (state: LiveState) => onFinish({ state, messages })
+  const sugCtxRef = useRef<{ step?: string; standardAction?: string; desires?: string }>({})
   const stepDef = SERVICE_STEPS[live.stepIndex]
   const stepActions = getStepActions(player, girl)
   const preview = resolveLiveSteps(plan, live)
@@ -126,7 +143,12 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish }: Ses
     plays: preview.plays.map((p) => p.name),
   })
   const behaviour = buildBehaviourLines(girl.name, stepBehaviour(girl, live.stepIndex, currentStep.zone, currentStep.note, preview.plays.map((p) => p.id)))
-  const systemPrompt = buildServiceSystemPrompt(player, { ...session, messages }, settings.proseStyle, behaviour ? `${stepContext}\n${behaviour}` : stepContext)
+  const systemPrompt = buildServiceSystemPrompt(player, { ...session, messages }, settings.proseStyle, behaviour ? `${stepContext}\n${behaviour}` : stepContext, { outfit: live.outfit, stockings: live.stockings })
+  const recap = buildStepRecap(preview.steps.map((st, i) => ({
+    label: SERVICE_STEPS[i].label, score: st.score, max: STEP_MAX, turns: live.turns[i],
+    key: i === 3 && preview.plays.length ? `${st.note ?? ''}+${preview.plays.map((p) => p.name).join('、')}` : (st.zone ?? stepActions[i]?.slice(0, 8)),
+  })), live.stepIndex)
+  sugCtxRef.current = { step: stepDef.label, standardAction: stepActions[live.stepIndex], desires: guest.desires }
   const shownSuggestions: [string, string, string] = [stepActions[live.stepIndex], suggestions?.[1] ?? '与她贴身调情', suggestions?.[2] ?? '她主动靠近']
   const owned = new Set(wardrobe)
   const outfitOpts = OUTFITS.filter((o) => o.id === 'regular' || owned.has(o.id))
@@ -234,7 +256,7 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish }: Ses
 
       {/* 对话区 */}
       <div className="flex-1 flex flex-col min-h-0">
-        <ChatEngine ref={chatRef} systemPrompt={systemPrompt} messages={messages} onMessagesChange={setMessages}
+        <ChatEngine ref={chatRef} systemPrompt={systemPrompt} recap={recap} messages={messages} onMessagesChange={setMessages}
           settings={settings} onRawStreamComplete={handleRawReply} showInput={false} className="flex-1 min-h-0" />
         <SuggestionBar suggestions={shownSuggestions} onSelect={(t) => setInputValue(t)} />
         <div className="border-t border-border px-3 pb-3 pt-2 flex gap-2 items-end">
@@ -255,10 +277,12 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish }: Ses
 
 // ─── 调教的亲自上场（仍用旧调教提示词，无步骤条） ──────────────────────────────
 
-export function TrainingScene({ player, girl, directionLabel, extraPrompt, settings, onFinish }: {
+export function TrainingScene({ player, girl, directionLabel, trainingInfo, extraPrompt, settings, onFinish }: {
   player: Player
   girl: MonstGirl
   directionLabel: string
+  /** 调教上下文（方向效果 / 道具 / 调教室 / 目标），缺省只写方向名 */
+  trainingInfo?: string
   /** 附在提示词末尾（惩罚缘由等） */
   extraPrompt?: string
   settings: AppSettings
@@ -276,7 +300,7 @@ export function TrainingScene({ player, girl, directionLabel, extraPrompt, setti
   const [suggestions, setSuggestions] = useState<[string, string, string] | null>(['命令她跪下', '抬起她的下巴', '她低声求饶'])
   const [inputValue, setInputValue] = useState('')
   const chatRef = useRef<ChatEngineHandle>(null)
-  const systemPrompt = buildServiceSystemPrompt(player, { ...session, messages }, settings.proseStyle) + `\n\n【本次调教方向】${directionLabel}` + (extraPrompt ? `\n${extraPrompt}` : '')
+  const systemPrompt = buildServiceSystemPrompt(player, { ...session, messages }, settings.proseStyle) + `\n\n${trainingInfo ?? `【本次调教方向】${directionLabel}`}` + (extraPrompt ? `\n${extraPrompt}` : '')
 
   const onRaw = useCallback((raw: string) => {
     const a = parseActionsFromReply(raw)

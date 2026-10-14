@@ -1,7 +1,7 @@
 // 接客结算（纯函数）：五步标准流程 + 额外 play → 满意度 / 档位 / 收入 / 体力
 import type { Guest, MonstGirl, OutfitId, SensitivityZone, ServingSkill, SkillRank, StockingId } from './types'
 import {
-  GREET_HOSTING_SCORE, STEP_SCORE, STEP_MAX, PLAY_SCORE, PLAYS, RACE_PLAYS, SKIP_MATCH_BONUS, racePlayMatched, PlayDef, WRONG_SIDE_PLAY_PENALTY,
+  GREET_HOSTING_SCORE, STEP_SCORE, STEP_MAX, SKILL_RANK_BONUS, PLAY_SCORE, PLAYS, RACE_PLAYS, SKIP_MATCH_BONUS, racePlayMatched, PlayDef, WRONG_SIDE_PLAY_PENALTY,
   OUTFITS, STOCKINGS, RACE_TRAITS, getPlaySlots, getGuestProfile, getSkillRank, getInclination,
   getSensitivityLevel, SENSITIVITY_STEP_MOD, SENSITIVITY_STAMINA_MOD, SKIP_SERVICE_STAMINA,
   SKIP_OBEDIENCE_MIN, DRAGON_SKIP_OBEDIENCE_MULT, ANAL_UNLOCK,
@@ -36,6 +36,8 @@ export interface StepResult { key: ServiceStepKey; label: string; score: number;
 export interface PlayResult { id: string; name: string; score: number; matched: boolean; rank: SkillRank; zone?: SensitivityZone }
 
 export interface ServiceResult {
+  /** 写进关系记忆的要点行 */
+  memoryDetail?: string
   canSkip: boolean
   steps: StepResult[]
   standardScore: number
@@ -85,7 +87,7 @@ function hipBonus(girl: MonstGirl) { return Math.max(0, Math.min(5, Math.floor((
 
 const BEAST_RACES = ['猫娘', '犬娘', '狐娘', '兔娘', '牛娘', '狼娘']
 
-function traitMatched(guest: Guest, girl: MonstGirl): boolean {
+export function traitMatched(guest: Guest, girl: MonstGirl): boolean {
   switch (guest.prefTrait) {
     case '巨乳': return (girl.bust ?? 0) >= 95
     case '贫乳': return (girl.bust ?? 0) > 0 && (girl.bust ?? 0) <= 82
@@ -161,14 +163,37 @@ export function autoPickPlays(girl: MonstGirl, guest: Guest, slots: number): str
     .map((r) => r.id)
 }
 
+/** 技能档对口加成（熟练 +5 / 精通 +9） */
+export function skillRankBonus(girl: MonstGirl, main: ServingSkill): { total: number; notes: string[] } {
+  const notes: string[] = []
+  let total = 0
+  for (const [step, skill] of [['迎客', '待客'], ['前戏', '手技'], ['正戏', main]] as const) {
+    const r = getSkillRank(girl, skill)
+    const b = r ? SKILL_RANK_BONUS[r] : 0
+    if (b) { total += b; notes.push(`${step}·${skill}${r}：满意度 +${b}`) }
+  }
+  return { total, notes }
+}
+
+/** 精通特权「游刃有余」：该技能对应的步骤直接满分，不受低体力、迟钝敏感带拖累 */
+export function masteryFullSteps(steps: StepResult[], girl: MonstGirl, main: ServingSkill, notes: string[]): StepResult[] {
+  const skillOf: Record<string, ServingSkill> = { greet: '待客', foreplay: '手技', main }
+  return steps.map((st) => {
+    const k = skillOf[st.key]
+    if (!k || getSkillRank(girl, k) !== '精通' || st.score >= STEP_MAX) return st
+    notes.push(`游刃有余：${st.label}·${k}精通，此步满分`)
+    return { ...st, score: STEP_MAX }
+  })
+}
+
 // ─── 主结算 ───────────────────────────────────────────────────────────────────
 
 export function resolveService(input: ServiceInput): ServiceResult {
   const { girl, guest, skip } = input
   const outfit = input.outfit ?? 'regular'
   const stockings = input.stockings ?? 'none'
-  const slots = getPlaySlots(input.roomLevel)
   const main = getMainService(guest)
+  const slots = getPlaySlots(input.roomLevel)
   const obedience = skip && girl.race === '龙娘' ? Math.floor(girl.obedience * DRAGON_SKIP_OBEDIENCE_MULT) : girl.obedience
 
   // 迎客
@@ -194,7 +219,7 @@ export function resolveService(input: ServiceInput): ServiceResult {
   const bodyBonus = main === '身侍' && ['哈比', '鬼娘', '狼娘'].includes(girl.race) ? 2 : 0
   if (bodyBonus) raceNotes.push(`${girl.race === '哈比' ? '轻身' : girl.race === '鬼娘' ? '怪力' : '野性'}：身侍 +2`)
 
-  const steps: StepResult[] = [
+  const rawSteps: StepResult[] = [
     { key: 'greet', label: '迎客', score: clampStep(greet) },
     { key: 'tease', label: '挑逗', zone: '耳朵',
       score: clampStep(STEP_SCORE[statToRank(girl.lewdness)] + ((girl.waist ?? 99) <= 60 ? 2 : 0) + zoneMod(girl, '耳朵') - lowPen) },
@@ -206,6 +231,7 @@ export function resolveService(input: ServiceInput): ServiceResult {
         + zoneMod(girl, MAIN_ZONE[main]) + bodyBonus - lowPen) },
     { key: 'cleanup', label: '清洗', score: clampStep(STEP_SCORE[statToRank(obedience)] - lowPen) },
   ]
+  const steps = masteryFullSteps(rawSteps, girl, main, raceNotes)
   const standardScore = steps.reduce((s, x) => s + x.score, 0)
 
   // play
@@ -219,8 +245,12 @@ export function resolveService(input: ServiceInput): ServiceResult {
   const playScore = plays.reduce((s, p) => s + p.score, 0)
 
   // 黑暗精灵「夜习」：当天第 2、3 场额外满意度 +5
-  const satisfactionBonus = girl.race === '黑暗精灵' && (input.sessionIndexToday ?? 0) >= 1 ? 5 : 0
+  let satisfactionBonus = girl.race === '黑暗精灵' && (input.sessionIndexToday ?? 0) >= 1 ? 5 : 0
   if (satisfactionBonus) raceNotes.push('夜习：满意度 +5')
+  // 技能档对口加成：迎客·待客、前戏·手技、正戏·主类型
+  const sk = skillRankBonus(girl, main)
+  if (sk.total) { satisfactionBonus += sk.total; raceNotes.push(...sk.notes) }
+
   // 跳过结算的匹配加成：主类型、play、服装三个维度可叠加（亲自上场不加）
   const matchParts: string[] = []
   let matchBonus = 0
@@ -233,7 +263,13 @@ export function resolveService(input: ServiceInput): ServiceResult {
     if (!mp && !outfitMatched) matchBonus = Math.max(0, Math.min(matchBonus, 70 - (standardScore + playScore + satisfactionBonus)))
     if (!matchBonus) matchParts.length = 0
   }
-  const satisfaction = Math.max(0, Math.min(100, standardScore + playScore + satisfactionBonus + matchBonus))
+  // 高档客人更挑剔：直接扣 demand（并入 satisfactionBonus，亲自上场同样生效）
+  if (guest.demand) { satisfactionBonus -= guest.demand; raceNotes.push(`挑剔的客人：满意度 −${guest.demand}`) }
+  let satisfaction = Math.max(0, Math.min(100, standardScore + playScore + satisfactionBonus + matchBonus))
+  // 同一条验收：没对口 play、没对口服装的跳过，技能加成也不把它推过 70
+  if (skip && !outfitMatched && !plays.some((p) => p.matched && p.score > 0) && sk.total) {
+    satisfaction = Math.min(satisfaction, Math.max(70, standardScore + playScore + satisfactionBonus - sk.total))
+  }
   const tier = getSatisfactionTier(satisfaction)
   const reward = serviceReward(guest, girl, satisfaction)
 
@@ -262,6 +298,10 @@ export function resolveService(input: ServiceInput): ServiceResult {
     staminaExtra, staminaMult, staminaRefund, satisfactionBonus, matchBonus, matchParts, raceNotes,
     affectionDelta: 1,
     summary: buildServiceSummary(girl.name, guest.name, tier.key, plays.length),
+    memoryDetail: serviceDetailLine(girl.name, guest.name, {
+      satisfaction, tierLabel: tier.label, outfitMatched, plays: plays.map((p) => p.name), steps,
+      outfitName: `${OUTFITS.find((o) => o.id === outfit)?.name ?? '常服'}${stockings !== 'none' ? '+' + (STOCKINGS.find((x) => x.id === stockings)?.name ?? '') : ''}`,
+    }),
   }
 }
 
@@ -284,7 +324,24 @@ const SUMMARY_TEMPLATES: Record<SatisfactionTier['key'], string> = {
   ecstatic: '{g}让{c}彻底沉溺其中，{c}一边结账一边念叨着下次还要来。',
 }
 
-export function buildServiceSummary(girlName: string, guestName: string, tierKey: SatisfactionTier['key'], playCount: number): string {
+export interface SummaryDetail { satisfaction?: number; tierLabel?: string; outfitName?: string; outfitMatched?: boolean; plays?: string[]; steps?: Pick<StepResult, 'label' | 'score'>[] }
+
+export function buildServiceSummary(girlName: string, guestName: string, tierKey: SatisfactionTier['key'], playCount: number, detail?: SummaryDetail): string {
   const base = SUMMARY_TEMPLATES[tierKey].replaceAll('{g}', girlName).replaceAll('{c}', guestName)
-  return playCount > 0 ? `${base}本场追加了 ${playCount} 个花样。` : base
+  const text = playCount > 0 ? `${base}本场追加了 ${playCount} 个花样。` : base
+  return detail ? `${text}\n${serviceDetailLine(girlName, guestName, detail)}` : text
+}
+
+/** 写给关系记忆的一行要点：满意度｜服装命中｜play｜最出彩 / 最敷衍的步骤 */
+export function serviceDetailLine(girlName: string, guestName: string, d: SummaryDetail): string {
+  const parts = [`${girlName}×${guestName}：${d.tierLabel ?? ''}${d.satisfaction !== undefined ? `（${d.satisfaction}）` : ''}`]
+  if (d.outfitName && d.outfitName !== '常服') parts.push(`${d.outfitName}${d.outfitMatched ? '命中偏好' : '未对口'}`)
+  if (d.plays?.length) parts.push(`play：${d.plays.join('、')}`)
+  const steps = (d.steps ?? []).filter((x) => x.score !== undefined)
+  if (steps.length) {
+    const best = steps.reduce((a, b) => (b.score > a.score ? b : a))
+    const worst = steps.reduce((a, b) => (b.score < a.score ? b : a))
+    parts.push(best === worst ? `${best.label} ${best.score}/${STEP_MAX}` : `${best.label} ${best.score}/${STEP_MAX} 最出彩，${worst.label} ${worst.score}/${STEP_MAX} 最弱`)
+  }
+  return parts.join('｜')
 }

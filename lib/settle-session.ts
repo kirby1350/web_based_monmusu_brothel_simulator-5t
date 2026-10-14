@@ -1,3 +1,4 @@
+import { logService, currentDayLog } from './day-summary'
 import { serviceFailIncident } from './incidents'
 // 接客结算写档（纯函数）：把 resolveService 的结果落进存档
 import type { GameSave, Guest } from './types'
@@ -49,10 +50,11 @@ export function applyServiceToSave(
   }
   const appeared = save.appearedToday ?? []
   const incident = serviceFailIncident(girl, guest, tier.key, save.currentDay, rng)
+  const logged = logService(save, { girl: girl.name, guest: guest.name, tier: tier.label, sat: result.satisfaction, pay: result.reward, regular: becameRegular, rep: applyReputationDelta(save.player.reputation, tier.reputationDelta) - (save.player.reputation ?? 0) })
   return {
     info: { incident: incident ?? undefined, reward: result.reward, tierLabel: tier.label, reputationDelta: tier.reputationDelta, becameRegular, staminaBefore: before, staminaAfter: after },
     save: {
-      ...save,
+      ...logged,
       player: {
         ...save.player,
         gold: save.player.gold + result.reward,
@@ -83,6 +85,7 @@ export function applyTrainingToSave(save: GameSave, result: TrainingResult, poti
   const id = result.girl.id
   return {
     ...save,
+    dayLog: currentDayLog(save),  // 调教前先拍当天快照，小结里才看得到数值变化
     player: { ...save.player, inventory: inv },
     girls: save.girls.map((g) => (g.id === id ? result.girl : g)),
     actionsUsedToday: Math.min(MAX_ACTIONS_PER_DAY, (save.actionsUsedToday ?? 0) + 1),

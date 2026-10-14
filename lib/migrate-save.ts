@@ -1,6 +1,7 @@
 // 旧存档迁移：补齐新字段默认值（幂等，可重复调用）。由 game/page.tsx 载入时调用。
 import type { GameSave, Guest, MonstGirl, Player } from './types'
 import { defaultSensitivities, getDesireProfile } from './catalog'
+import { normalizeDayLog, freshDayLog } from './day-summary'
 
 export function migratePlayer(p: Player): Player {
   return {
@@ -54,7 +55,7 @@ export const SAVE_VERSION = 1
 
 export function migrateSave(save: GameSave): GameSave {
   const from = save.saveVersion ?? 0
-  return {
+  const out: GameSave = {
     ...save,
     saveVersion: Math.max(from, SAVE_VERSION),
     // v0 → v1：已经过了第一天的老存档不再弹引导
@@ -65,6 +66,7 @@ export function migrateSave(save: GameSave): GameSave {
     dailyGuests: save.dailyGuests?.map(migrateGuest),
     regulars: save.regulars?.map(migrateGuest),
   }
+  return { ...out, dayLog: normalizeDayLog(out) }
 }
 
 /** 导出：带版本号的 JSON 文本 */
@@ -81,5 +83,7 @@ export function importSaveJson(text: string): { save: GameSave } | { error: stri
     return { error: '缺少 player / girls，不像是本游戏的存档' }
   }
   if ((o.saveVersion ?? 0) > SAVE_VERSION) return { error: `存档版本 v${o.saveVersion} 比当前游戏 v${SAVE_VERSION} 新，请先更新游戏` }
-  return { save: migrateSave(o as GameSave) }
+  // 导入的存档从此刻起重开当天账本：导入本身造成的金币/声望跳变不计入小结
+  const m = migrateSave(o as GameSave)
+  return { save: { ...m, dayLog: freshDayLog(m), lastDaySummary: null } }
 }

@@ -1,3 +1,4 @@
+import { buildDaySummary, freshDayLog } from './day-summary'
 // 大厅经营动作（纯函数）：送礼、休息、宿舍升级、结束今天、技能选择
 import type { GameSave, Guest, MonstGirl, SkillKey } from './types'
 import {
@@ -100,8 +101,12 @@ export function endDay(save: GameSave, rng: () => number = Math.random): GameSav
   }))
   // 事件：过夜未处理扣服从；再按概率随机一人闯祸（记在新的一天）
   const girls = nightlyIncidents(rested, save.currentDay + 1, rng)
+  const lastDaySummary = buildDaySummary(save, girls)
+  const next = { ...save, currentDay: save.currentDay + 1, girls }
   return {
     ...save,
+    lastDaySummary,
+    dayLog: freshDayLog(next),
     currentDay: save.currentDay + 1,
     actionsUsedToday: 0,
     appearedToday: [],

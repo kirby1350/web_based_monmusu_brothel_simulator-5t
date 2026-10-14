@@ -37,7 +37,7 @@ export function SessionResult({ mode, girl, guest, outfit, stockings, result, in
   // 「保存为常客」：生成双方印象写入关系记忆（对话 API 不通时用本地摘要）
   const saveRegular = async () => {
     setMemState('saving')
-    const summary = `${result.summary}；评价「${result.tier.label}」${transcript ? `；对话摘录：${transcript.slice(-600)}` : ''}`
+    const summary = `${result.summary}；评价「${result.tier.label}」${result.memoryDetail ? `\n要点：${result.memoryDetail}` : ''}${transcript ? `；对话摘录：${transcript.slice(-600)}` : ''}`
     let parsed: { guestAboutGirl?: string; girlAboutGuest?: string } = {
       guestAboutGirl: `${girl.name}这次让我${result.satisfaction >= 70 ? '很满足' : result.satisfaction >= 40 ? '还算满意' : '有点失望'}。`,
       girlAboutGuest: `${guest.name}是个${guest.personality || '普通'}的客人。`,

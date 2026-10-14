@@ -1,5 +1,7 @@
 'use client'
 
+import { trimHistory } from '@/lib/prompt-context'
+
 import {
   useState,
   useRef,
@@ -22,6 +24,8 @@ export interface ChatEngineHandle {
 
 interface ChatEngineProps {
   systemPrompt: string
+  /** 历史被裁剪时用来替代旧轮次的一行前情（缺省按玩家原话拼） */
+  recap?: string
   messages: ChatMessage[]
   onMessagesChange: (msgs: ChatMessage[]) => void
   settings: AppSettings
@@ -38,6 +42,7 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
   function ChatEngine(
     {
       systemPrompt,
+      recap,
       messages,
       onMessagesChange,
       settings,
@@ -95,7 +100,8 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
             body: JSON.stringify({
               messages: [
                 { role: 'system', content: systemPrompt },
-                ...next,
+                // 只改发送内容：旧回复去掉隐藏数据块、保留最近 6 轮（界面与存档里的历史不变）
+                ...trimHistory(next, 6, recap),
               ],
               model: settings.chatModel,
               apiKey,
@@ -155,7 +161,7 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
           abortRef.current = null
         }
       },
-      [messages, streaming, systemPrompt, settings, onMessagesChange, onAssistantReply, onStreamComplete]
+      [messages, streaming, systemPrompt, recap, settings, onMessagesChange, onAssistantReply, onStreamComplete]
     )
 
     useImperativeHandle(ref, () => ({ sendMessage }))

@@ -16,7 +16,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { MAX_ACTIONS_PER_DAY, getGirlCapacity, getGuestCapacity, getUpgradeCost } from '@/lib/game-engine'
 import { endDay, restGirl, upgradeDorm, getDormInfo, pendingSkillPicks, pickArrivalLeader, arrivalFallbackText, arrivalPromptNote, setBestBed, bannerPath, shortfallText, upgradeChangeText, type FacilityKey } from '@/lib/hub-logic'
 import { SERVICE_ROOM_UPGRADE_COSTS, TRAINING_ROOM_UPGRADE_COSTS, getUpgradeCostFor, getPlaySlots, TRAINING_ROOM_MULT, TRAINING_ROOM_PROP_SLOTS, REST_STAMINA } from '@/lib/catalog'
-import { clearOpeningCache } from '@/lib/storage'
+import { clearOpeningCache, getOpeningCache, saveOpeningCache } from '@/lib/storage'
+import { contextImageTags, hubOpeningPrompt } from '@/lib/prompt-context'
+import { dismissDaySummary } from '@/lib/day-summary'
 import { TUTORIAL_STEPS, isTutorialVisible, advanceTutorial, dismissTutorial } from '@/lib/tutorial'
 import { cn } from '@/lib/utils'
 import type { GameTab } from '@/app/game/page'
@@ -43,6 +45,31 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
   const [intro, setIntro] = useState<{ girlId: string; speaker: string; text: string; loading: boolean } | null>(null)
 
   // 新买的魔物娘：打开她的魔物娘页，并由好感最高（≥50）的魔物娘或馆主带她入馆
+  // 第 2 天起的开场白：懒加载、按天缓存；模型不可用时静默不显示
+  const [opening, setOpening] = useState<string>(() => { const c = getOpeningCache(); return c && c.day === save.currentDay ? c.text : '' })
+  useEffect(() => {
+    let ignore = false
+    const cache = getOpeningCache()
+    if (cache?.day === save.currentDay) { setOpening(cache.text); return }
+    setOpening('')
+    const timer = setTimeout(async () => {
+      try {
+        const prompt = await hubOpeningPrompt(save, cache?.day ?? null)
+        if (!prompt || ignore) return
+        const apiKey = settings.chatModel.startsWith('grok') ? settings.grokApiKey : settings.chatApiKey
+        const res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], model: settings.chatModel, apiKey, stream: false }) })
+        const data = res.ok ? await res.json().catch(() => null) : null
+        const text = String(data?.content ?? '').trim()
+        // 失败也记一笔空缓存：当天不再重试，避免每次回大厅都报一次 500
+        saveOpeningCache(save.currentDay, text)
+        if (text && !ignore) setOpening(text)
+      } catch { saveOpeningCache(save.currentDay, '') /* 离线：静默不显示开场白 */ }
+    }, 800)
+    return () => { ignore = true; clearTimeout(timer) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [save.currentDay])
+
   useEffect(() => {
     if (!newlyPurchasedGirl) return
     const ng = newlyPurchasedGirl
@@ -137,6 +164,34 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
         </Button>
       </header>
 
+      {/* 昨日小结（结束今天后弹出，关闭即清空） */}
+      {save.lastDaySummary && (() => {
+        const d = save.lastDaySummary
+        const sign = (n: number) => (n > 0 ? `+${n}` : `${n}`)
+        return (
+          <div className="absolute inset-0 z-30 bg-black/60 flex items-start justify-center pt-16 px-4" data-testid="day-summary" onClick={() => onSaveChange(dismissDaySummary(save))}>
+            <div className="w-full max-w-sm rounded-xl border border-border bg-card p-4 space-y-2 text-xs" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold gold-text">第 {d.day} 天小结</span>
+                <span className="text-muted-foreground">声望 {sign(d.repDelta)}</span>
+              </div>
+              <p>收入 <span className="gold-text font-semibold">{d.income} G</span>{d.spent ? <span className="text-muted-foreground">　支出 {d.spent} G</span> : null}</p>
+              <p>接客 {Object.values(d.tiers).reduce((a, b) => a + b, 0)} 场{Object.keys(d.tiers).length ? '：' + Object.entries(d.tiers).map(([k, v]) => `${k}×${v}`).join('、') : ''}</p>
+              {d.best && <p>最佳：{d.best.girl}（{d.best.sat}，{d.best.guest}）</p>}
+              {d.regulars.length > 0 && <p>回头客：{d.regulars.map((r) => `${r.guest}${r.rolled ? '✔' : `（${r.sat}，差一点）`}`).join('、')}</p>}
+              {d.incidents.length > 0 && <p className="text-rose-300">事件：{d.incidents.map((x) => `${x.status === '已处理' ? '✔已处理 ' : ''}${x.girl}${x.kind}·${x.text}`).join('；')}</p>}
+              {!!d.unresolved && <p className="text-rose-300/70">仍有 {d.unresolved} 件旧事件未处理</p>}
+              {d.stats.length > 0 && <p className="text-muted-foreground">{d.stats.map((x) => `${x.girl} ${[x.ob && `服${sign(x.ob)}`, x.lw && `淫${sign(x.lw)}`, x.aff && `好${sign(x.aff)}`].filter(Boolean).join(' ')}`).join('｜')}</p>}
+              <div className="flex justify-end pt-1">
+                <button className="text-primary font-semibold" data-testid="day-summary-close" onClick={() => onSaveChange(dismissDaySummary(save))}>知道了</button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {opening && <p className="mx-3 mt-2 text-[11px] italic text-muted-foreground leading-relaxed shrink-0" data-testid="hub-opening">{opening}</p>}
+
       {/* 第一天新手引导（可跳过，进度存档） */}
       {isTutorialVisible(save) && (() => {
         const i = Math.min(save.tutorial!.step, TUTORIAL_STEPS.length - 1)
@@ -171,7 +226,7 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
                 className={cn('w-16 shrink-0 rounded-lg border bg-card p-1 text-left transition-colors cursor-pointer',
                   restPicking ? 'border-emerald-400/60 hover:bg-emerald-400/10' : 'border-border hover:border-primary/50')}>
                 <div className="relative w-full aspect-square rounded-md overflow-hidden">
-                  <ImageDisplay tags={g.imageTags} settings={settings} cachedUrl={g.imageUrl}
+                  <ImageDisplay tags={contextImageTags(g, { exhausted: g.exhausted || (g.stamina ?? 100) < 30, incident: !!g.incident })} settings={settings} cachedUrl={g.imageUrl}
                     onUrlCached={(url) => onSaveChange({ ...save, girls: girls.map((x) => x.id === g.id ? { ...x, imageUrl: url } : x) })}
                     alt={g.name} className="w-full h-full object-cover" />
                   {appeared.has(g.id) && <span className="absolute top-0 right-0 text-[8px] bg-black/70 text-amber-300 px-1 rounded-bl">已出场</span>}

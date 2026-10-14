@@ -22,6 +22,9 @@ export const GREET_HOSTING_SCORE: Record<SkillRank | '无', number> = { 无: 2, 
 /** 对口 play：初学 6 / 熟练 8 / 精通 10；不对口减半 */
 export const PLAY_SCORE: Record<SkillRank, number> = { 初学: 6, 熟练: 8, 精通: 10 }
 export const STEP_MAX = 14
+/** 技能档对口加成（满意度，直接加，不受单步 14 上限）：迎客看待客、前戏看手技、正戏看主类型 */
+export const SKILL_RANK_BONUS: Record<SkillRank, number> = { 初学: 0, 熟练: 5, 精通: 9 }
+
 export const STANDARD_MAX = 70
 export const WRONG_SIDE_PLAY_PENALTY = -12
 /** 特训：每 2 点进度升一档 */

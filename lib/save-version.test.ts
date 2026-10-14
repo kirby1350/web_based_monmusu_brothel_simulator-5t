@@ -38,7 +38,11 @@ test('导出 → 导入 往返一致', () => {
   const m = migrateSave(v0())
   const r = importSaveJson(exportSaveJson(m))
   assert.ok('save' in r)
-  if ('save' in r) assert.deepEqual(r.save, m)
+  if ('save' in r) {
+    const strip = ({ dayLog: _a, lastDaySummary: _b, ...rest }: GameSave) => rest
+    assert.deepEqual(strip(r.save), strip(m))
+    assert.equal(r.save.lastDaySummary, null)
+  }
 })
 
 test('导入 v0 JSON 会自动迁移', () => {
