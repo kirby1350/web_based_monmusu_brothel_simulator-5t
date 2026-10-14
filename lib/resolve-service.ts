@@ -105,7 +105,7 @@ export function getMainService(guest: Guest): '口侍' | '胸侍' | '身侍' {
 
 // ─── play ─────────────────────────────────────────────────────────────────────
 
-/** 她能选的 play（已会技能 / M·S / 种族特技），正戏占用的主类型除外 */
+/** 她能选的 play（已会技能 / M·S / 本种族专属 play），正戏占用的主类型除外 */
 export function getAvailablePlays(girl: MonstGirl, guest: Guest): PlayDef[] {
   const main = getMainService(guest)
   const inc = getInclination(girl)
