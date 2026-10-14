@@ -1,4 +1,4 @@
-import { MonstGirl, Guest, ParticipantStats, ServiceSession, Player } from '@/lib/types'
+import { MonstGirl, Guest, GuestClass, ParticipantStats, ServiceSession, Player } from '@/lib/types'
 import { parseLooseJson } from '@/lib/utils'
 import { GUEST_RACES, GUEST_PERSONALITIES, GUEST_TRAITS, RACES } from '@/lib/game-data'
 import { nanoid } from 'nanoid'
@@ -67,10 +67,48 @@ function rollGuestBudget(reputation: number): number {
   return BASE_GUEST_BUDGET + Math.round(reputation * 1.2) + Math.floor(Math.random() * 40)
 }
 
-/** 随机生成一名客人（本地随机，不调用 AI）。reputation 越高，预算越高 */
+// ─── 客人身份档（按声望） ─────────────────────────────────────────────────────
+export interface GuestClassDef { key: GuestClass; label: string; budgetMult: number; demand: number; tags: string }
+export const GUEST_CLASSES: Record<GuestClass, GuestClassDef> = {
+  commoner: { key: 'commoner', label: '平民', budgetMult: 1, demand: 0, tags: 'commoner, plain clothes' },
+  merchant: { key: 'merchant', label: '商人', budgetMult: 1.35, demand: 4, tags: 'merchant, fine clothes' },
+  adventurer: { key: 'adventurer', label: '冒险者', budgetMult: 1.35, demand: 4, tags: 'adventurer, armor' },
+  noble: { key: 'noble', label: '贵族', budgetMult: 1.8, demand: 8, tags: 'nobleman, aristocrat, luxurious clothes' },
+  captain: { key: 'captain', label: '冒险者队长', budgetMult: 1.8, demand: 8, tags: 'knight captain, cape, armor' },
+}
+export const GUEST_TIER_MID_REP = 40
+export const GUEST_TIER_HIGH_REP = 70
+
+/** 按声望抽身份：<40 全是平民（不消耗随机数，早期不变）；40–69 六成商人/冒险者；70+ 一半贵族/队长、三成中档 */
+export function rollGuestClass(reputation: number, rng: () => number = Math.random): GuestClass {
+  if (reputation < GUEST_TIER_MID_REP) return 'commoner'
+  const r = rng()
+  const mid = (): GuestClass => (rng() < 0.5 ? 'merchant' : 'adventurer')
+  if (reputation < GUEST_TIER_HIGH_REP) return r < 0.6 ? mid() : 'commoner'
+  if (r < 0.5) return rng() < 0.5 ? 'noble' : 'captain'
+  return r < 0.8 ? mid() : 'commoner'
+}
+
+/** 随机生成一名客人（本地随机，不调用 AI）。reputation 越高，预算越高；高档客人更挑剔（满意度扣 demand、一定有服装喜好） */
 export function createRandomGuest(reputation = 0): Guest {
   const desires = pick(GUEST_DESIRES)
   const profile = getDesireProfile(desires)
+  const base = createCommonGuest(desires, profile, reputation)
+  const cls = rollGuestClass(reputation)
+  if (cls === 'commoner') return base
+  const def = GUEST_CLASSES[cls]
+  return {
+    ...base,
+    guestClass: cls,
+    demand: def.demand,
+    race: `${def.label}·${base.race}`,
+    budget: Math.round((base.budget ?? BASE_GUEST_BUDGET) * def.budgetMult),
+    prefOutfit: def.demand >= 8 ? (base.prefOutfit ?? pick(OUTFIT_PREFS)) : base.prefOutfit,
+    imageTags: `1man, ${def.tags}, anime, masterpiece, best quality`,
+  }
+}
+
+function createCommonGuest(desires: string, profile: ReturnType<typeof getDesireProfile>, reputation: number): Guest {
   return {
     id: nanoid(),
     name: pick(GUEST_NAMES),

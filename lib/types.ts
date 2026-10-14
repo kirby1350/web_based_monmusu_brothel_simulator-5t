@@ -253,7 +253,11 @@ export interface Guest {
   desireKind?: DesireKind        // M（想施虐）/ S（想被榨）/ 中性
   desireService?: DesireService  // 主需求类型
   prefOutfit?: OutfitPref | null // 服装喜好；约一半客人为 null
+  guestClass?: GuestClass        // 身份档（缺省 = 平民）
+  demand?: number                // 挑剔度：结算满意度直接扣这么多
 }
+
+export type GuestClass = 'commoner' | 'merchant' | 'adventurer' | 'noble' | 'captain'
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant'

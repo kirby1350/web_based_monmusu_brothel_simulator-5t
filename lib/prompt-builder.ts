@@ -377,11 +377,12 @@ Requirements:
 
 export function buildGuestGenerationPrompt(
   preference: string,
-  existingGuests: string[]
+  existingGuests: string[],
+  guestClass?: string
 ): string {
   return `你是一个色情角色生成AI。为一款魔物娘娼馆经营游戏生成一个饥渴的客人。
 
-玩家偏好：${preference || '随机'}
+玩家偏好：${preference || '随机'}${guestClass ? `\n客人身份：${guestClass}（身份越高越体面、出手越阔绰，但也越挑剔，desires 要更讲究）` : ''}
 （客人自身种族可自由设定；若写偏好的魔物娘种族，只能从：${VALID_RACES.join('、')}）
 已有客人（避免重复）：${existingGuests.join('、') || '无'}
 

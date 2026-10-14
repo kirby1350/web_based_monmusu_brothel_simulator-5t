@@ -263,6 +263,8 @@ export function resolveService(input: ServiceInput): ServiceResult {
     if (!mp && !outfitMatched) matchBonus = Math.max(0, Math.min(matchBonus, 70 - (standardScore + playScore + satisfactionBonus)))
     if (!matchBonus) matchParts.length = 0
   }
+  // 高档客人更挑剔：直接扣 demand（并入 satisfactionBonus，亲自上场同样生效）
+  if (guest.demand) { satisfactionBonus -= guest.demand; raceNotes.push(`挑剔的客人：满意度 −${guest.demand}`) }
   let satisfaction = Math.max(0, Math.min(100, standardScore + playScore + satisfactionBonus + matchBonus))
   // 同一条验收：没对口 play、没对口服装的跳过，技能加成也不把它推过 70
   if (skip && !outfitMatched && !plays.some((p) => p.matched && p.score > 0) && sk.total) {
