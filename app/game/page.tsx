@@ -6,6 +6,7 @@ import { X, Trash2 } from 'lucide-react'
 import { getGameSave, saveGameSave, getSettings, saveSettings, clearGameSave } from '@/lib/storage'
 import { generateDailyGuests, getGuestCapacity } from '@/lib/game-engine'
 import { GameSave, AppSettings } from '@/lib/types'
+import { migrateSave } from '@/lib/migrate-save'
 import { DailyHub } from '@/components/daily-hub'
 import { ServiceScreen } from '@/components/service-screen'
 import { MarketScreen } from '@/components/market-screen'
@@ -51,8 +52,10 @@ export default function GamePage() {
         regulars: s.regulars ?? [],
         dailyGuests: s.dailyGuests ?? generateDailyGuests(getGuestCapacity(s.player.level), s.player.reputation ?? 0, s.regulars ?? []),
       }
-      saveGameSave(migrated)
     }
+    // 新经营字段（体力、设施、衣橱、敏感带、客人标签…）统一补默认值
+    migrated = migrateSave(migrated)
+    saveGameSave(migrated)
     setSave(migrated)
     setSettings(getSettings())
     setLoaded(true)
