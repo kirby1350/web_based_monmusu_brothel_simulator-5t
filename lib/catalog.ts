@@ -312,7 +312,13 @@ export const PUNISH_M_AFFECTION = 3
 export const INCIDENT_OVERNIGHT_OBEDIENCE = 3
 
 // ─── play 图标：美术到位后把 id 加进集合，文件放 public/icons/play/<id>.webp；没有时显示文字徽章 ───
-export const PLAY_ICONS_READY = new Set<string>([])
+export const PLAY_ICONS_READY = new Set<string>([
+  'deepthroat', 'paizuri', 'positions', 'long_massage', 'lewd_dance', 'endure', 'drain',
+  'race_cat_lick', 'race_cat_tail', 'race_dog_beg', 'race_dog_obey', 'race_fox_tails', 'race_fox_illusion', 'race_bunny_ride',
+  'race_slime_wrap', 'race_slime_inner', 'race_lamia_coil', 'race_lamia_gaze', 'race_lamia_hair', 'race_harpy_wing', 'race_harpy_air',
+  'race_spider_bind', 'race_dragon_press', 'race_elf_whisper', 'race_drow_night', 'race_vamp_kiss', 'race_witch_crest', 'race_oni_press',
+  'race_cow_milk', 'race_wolf_wild',
+])
 export function playIconPath(id: string): string | undefined {
   return PLAY_ICONS_READY.has(id) ? `/icons/play/${id}.webp` : undefined
 }
