@@ -639,7 +639,7 @@ function RaceTraitLine({ race }: { race: string }) {
   return (
     <p className="text-[10px] text-amber-300/80">
       {RACE_TRAITS[race] && <>天赋「{RACE_TRAITS[race]}」</>}
-      {RACE_ZONE_NAMES[race] && <> · 敏感带「{RACE_ZONE_NAMES[race]}」</>}
+      {RACE_ZONE_NAMES[race] && <>{RACE_TRAITS[race] ? ' · ' : ''}敏感带「{RACE_ZONE_NAMES[race]}」</>}
     </p>
   )
 }

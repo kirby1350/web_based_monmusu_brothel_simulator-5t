@@ -73,3 +73,10 @@ test('美杜莎：种族表删除；旧档迁移为拉米亚，三条 play 可�
   assert.equal(getAvailablePlays(m.girls[0], M).filter((p) => p.race === '拉米亚').length, 3)
   assert.deepEqual(migrateSave(m), m)
 })
+
+test('拉米亚、蜘蛛娘不再有被动天赋；旧档照常结算', () => {
+  assert.equal(RACE_TRAITS['拉米亚'], undefined)
+  assert.equal(RACE_TRAITS['蜘蛛娘'], undefined)
+  assert.equal(RACE_ZONE_NAMES['蜘蛛娘'], '丝腺')
+  assert.ok(resolveService({ girl: girl({ race: '蜘蛛娘' }), guest: M, skip: true, roomLevel: 2 }).plays.some((p) => p.name === '丝线束缚'))
+})

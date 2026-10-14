@@ -5,7 +5,7 @@ import { buildBehaviourLines, stepBehaviour, buildServiceSystemPrompt } from './
 import { pickArrivalLeader, arrivalFallbackText, mergeGirlMemory, mergeRegularMemories } from './hub-logic'
 import { migrateSave } from './migrate-save'
 import { GIRL_TEMPLATES as PRESET_TEMPLATES_FOR_TEST } from './game-data'
-import { RACE_TRAITS } from './catalog'
+import { RACE_PLAYS } from './catalog'
 import { resolveService } from './resolve-service'
 import { createServiceSession } from './game-engine'
 
@@ -74,6 +74,6 @@ test('文香：预设种族为蜘蛛娘；旧档阿拉克涅迁移为蜘蛛娘�
   const m = migrateSave(old)
   assert.equal(m.girls[0].race, '蜘蛛娘')
   assert.equal(m.girls[0].sensitivities!['种族'], 55)
-  assert.ok(RACE_TRAITS[m.girls[0].race])
+  assert.ok(RACE_PLAYS[m.girls[0].race]?.length)
   assert.deepEqual(migrateSave(m), m)
 })
