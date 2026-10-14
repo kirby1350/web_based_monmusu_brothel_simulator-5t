@@ -300,6 +300,10 @@ export interface GameSave {
   bestBedGirlId?: string
   // 今天已出场（接客/调教/休息）的魔物娘 id，结束今天时清空
   appearedToday?: string[]
+  // 存档格式版本（缺省 = 0，旧存档），由 migrateSave 升到 SAVE_VERSION
+  saveVersion?: number
+  // 第一天新手引导：当前步骤（0 起），关闭/跳过后 dismissed=true
+  tutorial?: { step: number; dismissed: boolean }
 }
 
 /** 定制调教道具：名字、描述自填，效果来自固定模板 */

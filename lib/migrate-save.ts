@@ -49,13 +49,37 @@ export function migrateGuest(guest: Guest): Guest {
   }
 }
 
+/** 当前存档格式版本。v1：带 saveVersion + tutorial 字段 */
+export const SAVE_VERSION = 1
+
 export function migrateSave(save: GameSave): GameSave {
+  const from = save.saveVersion ?? 0
   return {
     ...save,
+    saveVersion: Math.max(from, SAVE_VERSION),
+    // v0 → v1：已经过了第一天的老存档不再弹引导
+    tutorial: save.tutorial ?? { step: 0, dismissed: (save.currentDay ?? save.player?.day ?? 1) > 1 },
     player: migratePlayer(save.player),
     girls: (save.girls ?? []).map(migrateGirl),
     actionsUsedToday: save.actionsUsedToday ?? 0,
     dailyGuests: save.dailyGuests?.map(migrateGuest),
     regulars: save.regulars?.map(migrateGuest),
   }
+}
+
+/** 导出：带版本号的 JSON 文本 */
+export function exportSaveJson(save: GameSave): string {
+  return JSON.stringify(migrateSave(save), null, 2)
+}
+
+/** 导入：解析 + 校验 + 迁移。失败返回 { error } */
+export function importSaveJson(text: string): { save: GameSave } | { error: string } {
+  let parsed: unknown
+  try { parsed = JSON.parse(text) } catch { return { error: '不是合法的 JSON' } }
+  const o = parsed as Partial<GameSave> | null
+  if (!o || typeof o !== 'object' || !o.player || typeof o.player !== 'object' || !Array.isArray(o.girls)) {
+    return { error: '缺少 player / girls，不像是本游戏的存档' }
+  }
+  if ((o.saveVersion ?? 0) > SAVE_VERSION) return { error: `存档版本 v${o.saveVersion} 比当前游戏 v${SAVE_VERSION} 新，请先更新游戏` }
+  return { save: migrateSave(o as GameSave) }
 }
