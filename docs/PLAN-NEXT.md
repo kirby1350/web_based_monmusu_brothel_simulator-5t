@@ -251,3 +251,14 @@
 | 10 | `lib/incidents.ts`、`lib/resolve-training.ts`、`lib/settle-session.ts`、`lib/hub-logic.ts`、`lib/migrate-save.ts`、`lib/types.ts`、`lib/catalog.ts`、`components/session-setup.tsx`、`components/session-scene.tsx`、`components/daily-hub.tsx`、`components/girl-sheet.tsx` |
 
 每个阶段结束都在浏览器里走一遍主路径：阶段 6 跳过一场接客和一场调教，确认改过的数值在预览和结算卡上一致；阶段 7 看商店图标、缺图回退和升级横幅；阶段 8 看定制道具购买和特训效果，以及改过的标准做法出现在推荐行动里；阶段 9 看种族专属 play 出现在向导并计分；阶段 10 看接客失败生成事件、惩罚处理事件、过夜扣服从。
+
+## 平衡调整：跳过结算的匹配加成（用户选方案 A）
+
+模拟 30 天（`scripts/sim-30days.ts`）发现跳过结算从不超过「一般」。改为跳过时按匹配维度叠加加成，亲自上场计分不变，「一般」仍 0% 成为回头客。
+
+- 主类型：她已学会客人正戏主类型（口侍/胸侍/身侍）+6。
+- play：每条对口且得分为正的 play +4，最多 2 条。
+- 服装：主装或丝袜对上客人喜好 +5。
+- 数值在 `lib/catalog.ts` 的 `SKIP_MATCH_BONUS`，计算在 `resolveService`（只在 `skip` 时）。向导预览和结算卡显示「匹配加成」。
+- 保留 PLAN.md 阶段 0 的验收：一级房、常服、无 play 时只有主类型加成，不会把满意度推过 70。
+- 目标：训练过的魔物娘三项全对上落在 70–80（满意），不对口的组合保持一般/不满。

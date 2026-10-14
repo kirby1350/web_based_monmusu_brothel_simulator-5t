@@ -1,7 +1,7 @@
 // 接客结算（纯函数）：五步标准流程 + 额外 play → 满意度 / 档位 / 收入 / 体力
 import type { Guest, MonstGirl, OutfitId, SensitivityZone, ServingSkill, SkillRank, StockingId } from './types'
 import {
-  GREET_HOSTING_SCORE, STEP_SCORE, STEP_MAX, PLAY_SCORE, PLAYS, RACE_PLAYS, racePlayMatched, PlayDef, WRONG_SIDE_PLAY_PENALTY,
+  GREET_HOSTING_SCORE, STEP_SCORE, STEP_MAX, PLAY_SCORE, PLAYS, RACE_PLAYS, SKIP_MATCH_BONUS, racePlayMatched, PlayDef, WRONG_SIDE_PLAY_PENALTY,
   OUTFITS, STOCKINGS, RACE_TRAITS, getPlaySlots, getGuestProfile, getSkillRank, getInclination,
   getSensitivityLevel, SENSITIVITY_STEP_MOD, SENSITIVITY_STAMINA_MOD, SKIP_SERVICE_STAMINA,
   SKIP_OBEDIENCE_MIN, DRAGON_SKIP_OBEDIENCE_MULT, ANAL_UNLOCK,
@@ -50,6 +50,9 @@ export interface ServiceResult {
   staminaExtra: number
   staminaMult: number
   staminaRefund: number
+  /** 跳过结算的匹配加成（已算进 satisfaction；亲自上场为 0） */
+  matchBonus: number
+  matchParts: string[]
   /** 种族特技带来的满意度加成（已算进 satisfaction） */
   satisfactionBonus: number
   raceNotes: string[]
@@ -218,7 +221,19 @@ export function resolveService(input: ServiceInput): ServiceResult {
   // 黑暗精灵「夜习」：当天第 2、3 场额外满意度 +5
   const satisfactionBonus = girl.race === '黑暗精灵' && (input.sessionIndexToday ?? 0) >= 1 ? 5 : 0
   if (satisfactionBonus) raceNotes.push('夜习：满意度 +5')
-  const satisfaction = Math.max(0, Math.min(100, standardScore + playScore + satisfactionBonus))
+  // 跳过结算的匹配加成：主类型、play、服装三个维度可叠加（亲自上场不加）
+  const matchParts: string[] = []
+  let matchBonus = 0
+  if (skip) {
+    if (getSkillRank(girl, main)) { matchBonus += SKIP_MATCH_BONUS.service; matchParts.push(`主类型 +${SKIP_MATCH_BONUS.service}`) }
+    const mp = Math.min(SKIP_MATCH_BONUS.maxPlays, plays.filter((p) => p.matched && p.score > 0).length)
+    if (mp) { matchBonus += mp * SKIP_MATCH_BONUS.play; matchParts.push(`对口 play ×${mp} +${mp * SKIP_MATCH_BONUS.play}`) }
+    if (outfitMatched) { matchBonus += SKIP_MATCH_BONUS.outfit; matchParts.push(`服装 +${SKIP_MATCH_BONUS.outfit}`) }
+    // PLAN.md 阶段 0 验收：一级房、常服、无 play 的跳过不超过 70——只有主类型加成时不越过 70
+    if (!mp && !outfitMatched) matchBonus = Math.max(0, Math.min(matchBonus, 70 - (standardScore + playScore + satisfactionBonus)))
+    if (!matchBonus) matchParts.length = 0
+  }
+  const satisfaction = Math.max(0, Math.min(100, standardScore + playScore + satisfactionBonus + matchBonus))
   const tier = getSatisfactionTier(satisfaction)
   const reward = serviceReward(guest, girl, satisfaction)
 
@@ -244,7 +259,7 @@ export function resolveService(input: ServiceInput): ServiceResult {
     canSkip: canSkipService(girl),
     steps, standardScore, plays, playScore, outfitMatched,
     satisfaction, tier, reward, staminaCost,
-    staminaExtra, staminaMult, staminaRefund, satisfactionBonus, raceNotes,
+    staminaExtra, staminaMult, staminaRefund, satisfactionBonus, matchBonus, matchParts, raceNotes,
     affectionDelta: 1,
     summary: buildServiceSummary(girl.name, guest.name, tier.key, plays.length),
   }

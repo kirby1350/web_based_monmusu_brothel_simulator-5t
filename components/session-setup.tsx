@@ -179,7 +179,8 @@ export function SessionSetup({ save, onSkip, onLive }: SessionSetupProps) {
               <Row label="跳过预计" value={`${preview.skip.tier.label}（满意度 ${preview.skip.satisfaction}）`} />
               <Row label="收入区间" value={`${preview.rewardRange[0]}–${preview.rewardRange[1]} G（跳过 ${preview.skip.reward} G）`} />
               <Row label="体力" value={`跳过 −${preview.skip.staminaCost}；亲自上场 −${preview.liveStamina[0]}～−${preview.liveStamina[1]}（当前 ${plan.girl.stamina ?? 100}）`} />
- <Row label="五步预估" value={preview.skip.steps.map((x) => `${x.label}${x.score}`).join(' · ')} />
+ {preview.skip.matchBonus > 0 && <Row label="跳过匹配加成" value={`+${preview.skip.matchBonus}（${preview.skip.matchParts.join('，')}）`} />}
+              <Row label="五步预估" value={preview.skip.steps.map((x) => `${x.label}${x.score}`).join(' · ')} />
               {preview.skip.raceNotes.length > 0 && <Row label="种族/状态" value={preview.skip.raceNotes.join('；')} />}
               {preview.skip.plays.length > 0 && <Row label="自动 play" value={preview.skip.plays.map((p) => p.name).join('、')} />}
             </div>

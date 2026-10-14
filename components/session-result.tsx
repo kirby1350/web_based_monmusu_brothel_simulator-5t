@@ -100,6 +100,7 @@ export function SessionResult({ mode, girl, guest, outfit, stockings, result, in
           <span className="text-muted-foreground">满意度</span>
           <span className="text-sm font-semibold text-amber-400" data-testid="result-satisfaction">{result.satisfaction} / 100（{result.tier.label}）</span>
         </div>
+        {result.matchBonus > 0 && <p className="text-[11px] text-emerald-300" data-testid="result-match-bonus">匹配加成 +{result.matchBonus}（{result.matchParts.join('，')}）</p>}
         <div className="flex justify-between"><span className="text-muted-foreground">收入</span><span className="gold-text font-semibold" data-testid="result-gold">+{info.reward} G</span></div>
         {info.reputationDelta !== 0 && (
           <div className="flex justify-between"><span className="text-muted-foreground">声望</span>

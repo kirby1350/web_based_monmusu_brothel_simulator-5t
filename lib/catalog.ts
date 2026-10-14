@@ -316,3 +316,7 @@ export const PLAY_ICONS_READY = new Set<string>([])
 export function playIconPath(id: string): string | undefined {
   return PLAY_ICONS_READY.has(id) ? `/icons/play/${id}.webp` : undefined
 }
+
+// ─── 跳过结算的匹配加成（只用于跳过，亲自上场不加） ───────────────────────────
+/** 正戏主类型她会（已学）+6；每条对口且得分为正的 play +4（最多 2 条）；服装/丝袜对上喜好 +5 */
+export const SKIP_MATCH_BONUS = { service: 6, play: 4, maxPlays: 2, outfit: 5 }
