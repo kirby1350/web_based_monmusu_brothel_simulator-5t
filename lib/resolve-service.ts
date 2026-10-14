@@ -1,7 +1,7 @@
 // 接客结算（纯函数）：五步标准流程 + 额外 play → 满意度 / 档位 / 收入 / 体力
 import type { Guest, MonstGirl, OutfitId, SensitivityZone, ServingSkill, SkillRank, StockingId } from './types'
 import {
-  GREET_HOSTING_SCORE, STEP_SCORE, STEP_MAX, PLAY_SCORE, PLAYS, RACE_PLAYS, SKIP_MATCH_BONUS, racePlayMatched, PlayDef, WRONG_SIDE_PLAY_PENALTY,
+  GREET_HOSTING_SCORE, STEP_SCORE, STEP_MAX, SKILL_RANK_BONUS, PLAY_SCORE, PLAYS, RACE_PLAYS, SKIP_MATCH_BONUS, racePlayMatched, PlayDef, WRONG_SIDE_PLAY_PENALTY,
   OUTFITS, STOCKINGS, RACE_TRAITS, getPlaySlots, getGuestProfile, getSkillRank, getInclination,
   getSensitivityLevel, SENSITIVITY_STEP_MOD, SENSITIVITY_STAMINA_MOD, SKIP_SERVICE_STAMINA,
   SKIP_OBEDIENCE_MIN, DRAGON_SKIP_OBEDIENCE_MULT, ANAL_UNLOCK,
@@ -163,14 +163,37 @@ export function autoPickPlays(girl: MonstGirl, guest: Guest, slots: number): str
     .map((r) => r.id)
 }
 
+/** 技能档对口加成（熟练 +5 / 精通 +9） */
+export function skillRankBonus(girl: MonstGirl, main: ServingSkill): { total: number; notes: string[] } {
+  const notes: string[] = []
+  let total = 0
+  for (const [step, skill] of [['迎客', '待客'], ['前戏', '手技'], ['正戏', main]] as const) {
+    const r = getSkillRank(girl, skill)
+    const b = r ? SKILL_RANK_BONUS[r] : 0
+    if (b) { total += b; notes.push(`${step}·${skill}${r}：满意度 +${b}`) }
+  }
+  return { total, notes }
+}
+
+/** 精通特权「游刃有余」：该技能对应的步骤直接满分，不受低体力、迟钝敏感带拖累 */
+export function masteryFullSteps(steps: StepResult[], girl: MonstGirl, main: ServingSkill, notes: string[]): StepResult[] {
+  const skillOf: Record<string, ServingSkill> = { greet: '待客', foreplay: '手技', main }
+  return steps.map((st) => {
+    const k = skillOf[st.key]
+    if (!k || getSkillRank(girl, k) !== '精通' || st.score >= STEP_MAX) return st
+    notes.push(`游刃有余：${st.label}·${k}精通，此步满分`)
+    return { ...st, score: STEP_MAX }
+  })
+}
+
 // ─── 主结算 ───────────────────────────────────────────────────────────────────
 
 export function resolveService(input: ServiceInput): ServiceResult {
   const { girl, guest, skip } = input
   const outfit = input.outfit ?? 'regular'
   const stockings = input.stockings ?? 'none'
-  const slots = getPlaySlots(input.roomLevel)
   const main = getMainService(guest)
+  const slots = getPlaySlots(input.roomLevel)
   const obedience = skip && girl.race === '龙娘' ? Math.floor(girl.obedience * DRAGON_SKIP_OBEDIENCE_MULT) : girl.obedience
 
   // 迎客
@@ -196,7 +219,7 @@ export function resolveService(input: ServiceInput): ServiceResult {
   const bodyBonus = main === '身侍' && ['哈比', '鬼娘', '狼娘'].includes(girl.race) ? 2 : 0
   if (bodyBonus) raceNotes.push(`${girl.race === '哈比' ? '轻身' : girl.race === '鬼娘' ? '怪力' : '野性'}：身侍 +2`)
 
-  const steps: StepResult[] = [
+  const rawSteps: StepResult[] = [
     { key: 'greet', label: '迎客', score: clampStep(greet) },
     { key: 'tease', label: '挑逗', zone: '耳朵',
       score: clampStep(STEP_SCORE[statToRank(girl.lewdness)] + ((girl.waist ?? 99) <= 60 ? 2 : 0) + zoneMod(girl, '耳朵') - lowPen) },
@@ -208,6 +231,7 @@ export function resolveService(input: ServiceInput): ServiceResult {
         + zoneMod(girl, MAIN_ZONE[main]) + bodyBonus - lowPen) },
     { key: 'cleanup', label: '清洗', score: clampStep(STEP_SCORE[statToRank(obedience)] - lowPen) },
   ]
+  const steps = masteryFullSteps(rawSteps, girl, main, raceNotes)
   const standardScore = steps.reduce((s, x) => s + x.score, 0)
 
   // play
@@ -221,8 +245,12 @@ export function resolveService(input: ServiceInput): ServiceResult {
   const playScore = plays.reduce((s, p) => s + p.score, 0)
 
   // 黑暗精灵「夜习」：当天第 2、3 场额外满意度 +5
-  const satisfactionBonus = girl.race === '黑暗精灵' && (input.sessionIndexToday ?? 0) >= 1 ? 5 : 0
+  let satisfactionBonus = girl.race === '黑暗精灵' && (input.sessionIndexToday ?? 0) >= 1 ? 5 : 0
   if (satisfactionBonus) raceNotes.push('夜习：满意度 +5')
+  // 技能档对口加成：迎客·待客、前戏·手技、正戏·主类型
+  const sk = skillRankBonus(girl, main)
+  if (sk.total) { satisfactionBonus += sk.total; raceNotes.push(...sk.notes) }
+
   // 跳过结算的匹配加成：主类型、play、服装三个维度可叠加（亲自上场不加）
   const matchParts: string[] = []
   let matchBonus = 0
@@ -235,7 +263,11 @@ export function resolveService(input: ServiceInput): ServiceResult {
     if (!mp && !outfitMatched) matchBonus = Math.max(0, Math.min(matchBonus, 70 - (standardScore + playScore + satisfactionBonus)))
     if (!matchBonus) matchParts.length = 0
   }
-  const satisfaction = Math.max(0, Math.min(100, standardScore + playScore + satisfactionBonus + matchBonus))
+  let satisfaction = Math.max(0, Math.min(100, standardScore + playScore + satisfactionBonus + matchBonus))
+  // 同一条验收：没对口 play、没对口服装的跳过，技能加成也不把它推过 70
+  if (skip && !outfitMatched && !plays.some((p) => p.matched && p.score > 0) && sk.total) {
+    satisfaction = Math.min(satisfaction, Math.max(70, standardScore + playScore + satisfactionBonus - sk.total))
+  }
   const tier = getSatisfactionTier(satisfaction)
   const reward = serviceReward(guest, girl, satisfaction)
 
