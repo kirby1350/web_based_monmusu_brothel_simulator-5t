@@ -123,3 +123,12 @@ test('种族特技', () => {
   // 兽耳偏好：猫娘迎客 +2
   assert.equal(base('猫娘', {}, { prefTrait: '兽耳' }).steps[0].score, base('猫娘').steps[0].score + 2)
 })
+
+test('同一魔物娘 + 同一客人：耳朵 30 → 40 后挑逗预览分严格更高', () => {
+  const g = girl({ sensitivities: { 耳朵: 30, 阴蒂: 30, 唇舌: 30, 乳房: 30, 小穴: 30, 后庭: 15 } })
+  const c = guest()
+  const before = resolveService({ girl: g, guest: c, skip: true }).steps[1]
+  const after = resolveService({ girl: { ...g, sensitivities: { ...g.sensitivities, 耳朵: 40 } }, guest: c, skip: true }).steps[1]
+  assert.equal(before.key, 'tease')
+  assert.ok(after.score > before.score, `${before.score} → ${after.score}`)
+})
