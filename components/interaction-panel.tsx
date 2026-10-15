@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { GIFT_OPTIONS } from '@/lib/hub-logic'
+import { recordQuote } from '@/lib/girl-memory'
 
 interface InteractionPanelProps {
   girl: MonstGirl
@@ -23,12 +24,14 @@ interface InteractionPanelProps {
   /** 送礼走大厅的 giveGift（全馆每天一次、当场扣钱），由魔物娘页传入 */
   onGift: (giftIndex: number) => string | null
   giftBlockedReason?: string
+  /** 当前天数（「让她记住」记在哪一天） */
+  day?: number
 }
 
 type InteractionType = 'chat' | 'gift'
 
 
-export function InteractionPanel({ girl, player, settings, onClose, onGirlUpdated, onGift, giftBlockedReason }: InteractionPanelProps) {
+export function InteractionPanel({ girl, player, settings, onClose, onGirlUpdated, onGift, giftBlockedReason, day }: InteractionPanelProps) {
   const [started, setStarted] = useState(false)
   const [mode, setMode] = useState<InteractionType>('chat')
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -218,6 +221,7 @@ export function InteractionPanel({ girl, player, settings, onClose, onGirlUpdate
                     settings={settings}
                     className="flex-1 min-h-0"
                     placeholder={`和 ${girl.name} 说点什么…`}
+                    onRememberUser={(t) => onGirlUpdated(recordQuote(girl, t, day ?? player.day))}
                   />
                 )
               )}

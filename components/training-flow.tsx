@@ -14,6 +14,7 @@ import { TrainingResultCard } from '@/components/session-result'
 import { resolveTraining, resolveLiveTraining, TRAINING_DIRECTIONS, type TrainingResult } from '@/lib/resolve-training'
 import { applyTrainingToSave } from '@/lib/settle-session'
 import { getScene } from '@/lib/scenes'
+import { recordQuote } from '@/lib/girl-memory'
 
 type Phase =
   | { kind: 'setup' }
@@ -50,6 +51,7 @@ export function TrainingFlow({ save, settings, onSaveChange, onBack }: {
         <TrainingScene player={save.player} girl={phase.plan.girl} settings={settings}
           directionLabel={TRAINING_DIRECTIONS.find((d) => d.key === phase.plan.direction)!.label}
           scene={phase.plan.scene} day={save.currentDay}
+          onRemember={(t) => onSaveChange({ ...save, girls: save.girls.map((g) => (g.id === phase.plan.girl.id ? recordQuote(g, t, save.currentDay) : g)) })}
           trainingInfo={trainingContext({ ...phase.plan, skip: true, customProps: save.player.customProps })}
           extraPrompt={phase.plan.direction === 'punish' ? incidentPromptLine(phase.plan.girl) : undefined}
           onFinish={(turns, pleasure) => settle(phase.plan, 'live', resolveLiveTraining(phase.plan, turns, pleasure))} />

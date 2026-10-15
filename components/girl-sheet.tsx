@@ -22,6 +22,7 @@ import { getStepActions } from '@/lib/custom-props'
 import { cn } from '@/lib/utils'
 import { SpeechStyleBlock } from '@/components/speech-style-block'
 import { awakenedFetishes, shadowScenes, getScene } from '@/lib/scenes'
+import { MemoryTab } from '@/components/memory-tab'
 
 interface GirlSheetProps {
   girl: MonstGirl
@@ -99,6 +100,7 @@ export function GirlSheet({ girl, save, settings, onSaveChange, onClose, intro }
             技能{pendingSkillPicks(girl) > 0 && <span className="ml-1 w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />}
           </TabsTrigger>
           <TabsTrigger value="sens" className="text-xs">敏感带</TabsTrigger>
+          <TabsTrigger value="memory" className="text-xs" data-testid="tab-memory">回忆</TabsTrigger>
         </TabsList>
 
         <div className="flex-1 overflow-y-auto px-4 py-3">
@@ -261,6 +263,10 @@ export function GirlSheet({ girl, save, settings, onSaveChange, onClose, intro }
             })}
             <p className="text-[10px] text-muted-foreground pt-1"><Sparkles className="w-3 h-3 inline mr-1" />敏感开发在调教里进行。</p>
           </TabsContent>
+
+          <TabsContent value="memory" className="mt-0">
+            <MemoryTab girl={girl} onChange={updateGirl} />
+          </TabsContent>
         </div>
       </Tabs>
 
@@ -273,6 +279,7 @@ export function GirlSheet({ girl, save, settings, onSaveChange, onClose, intro }
           onGirlUpdated={updateGirl}
           onGift={doGift}
           giftBlockedReason={giftBlockedReason}
+          day={save.currentDay}
         />
       )}
     </div>

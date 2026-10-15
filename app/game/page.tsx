@@ -8,6 +8,9 @@ import { generateDailyGuests, getGuestCapacity } from '@/lib/game-engine'
 import { GameSave, AppSettings } from '@/lib/types'
 import { migrateSave } from '@/lib/migrate-save'
 import { shouldGenerateAiGuests, generateAiGuests, applyAiGuests } from '@/lib/ai-guests'
+import { syncMemory, needsAiSummary, buildGirlSummaryPrompt, generateMemorySummaries, applyMemorySummaries } from '@/lib/girl-memory'
+import { speechBrief } from '@/lib/speech-style'
+import { fetishPromptLine } from '@/lib/scenes'
 import { DailyHub } from '@/components/daily-hub'
 import { TrainingFlow } from '@/components/training-flow'
 import { ServiceFlow } from '@/components/service-flow'
@@ -16,6 +19,9 @@ import { SettingsPanel } from '@/components/settings-panel'
 import { Button } from '@/components/ui/button'
 
 export type GameTab = 'hub' | 'service' | 'training' | 'market'
+
+/** 已发出的心里话请求（day:girlId），保证每人每天最多一次 */
+const summaryInflight = new Set<string>()
 
 export default function GamePage() {
   const router = useRouter()
@@ -90,9 +96,38 @@ export default function GamePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [day, loaded])
 
+  // 每位魔物娘的「心里话」：新的一天对昨天有新经历的人各请求一次（非流式，同「保存为常客」的请求格式）；
+  // 失败保留结束今天时写好的本地版；无论成败都记 aiDay，刷新不重复请求。
+  useEffect(() => {
+    if (!save || !settings) return
+    const targetDay = save.currentDay
+    const due = save.girls.filter((g) => needsAiSummary(g, targetDay) && !summaryInflight.has(`${targetDay}:${g.id}`))
+    if (!due.length) return
+    for (const g of due) summaryInflight.add(`${targetDay}:${g.id}`)  // 严格模式下 effect 会跑两次：同一天同一人只发一次
+    const apiKey = settings.chatModel.startsWith('grok') ? settings.grokApiKey : settings.chatApiKey
+    const prompts = Object.fromEntries(due.map((g) => [g.id, buildGirlSummaryPrompt(g, save.player, speechBrief(g), fetishPromptLine(g))]))
+    generateMemorySummaries(save, prompts, async (prompt) => {
+      const res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], model: settings.chatModel, apiKey, stream: false }) })
+      if (!res.ok) throw new Error(String(res.status))
+      const data = await res.json().catch(() => null)
+      return String(data?.content ?? '')
+    }).catch(() => ({})).then((results) => {
+      setSave((prev) => {
+        if (!prev) return prev
+        const next = applyMemorySummaries(prev, targetDay, due.map((g) => g.id), results)
+        if (next !== prev) saveGameSave(next)
+        return next
+      })
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [day, loaded])
+
   const handleSaveChange = (updated: GameSave) => {
-    setSave(updated)
-    saveGameSave(updated)
+    // 入馆 / 数值里程碑 / 新事件 → 写进各自的记忆
+    const synced = syncMemory(save, updated)
+    setSave(synced)
+    saveGameSave(synced)
   }
 
   const handleSettingsChange = (updated: AppSettings) => {

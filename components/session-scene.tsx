@@ -33,6 +33,8 @@ export interface SceneOutcome {
 }
 
 interface SessionSceneProps {
+  /** 玩家消息上的「让她记住」 */
+  onRemember?: (text: string) => void
   player: Player
   plan: ServicePlan
   wardrobe: string[]
@@ -40,7 +42,7 @@ interface SessionSceneProps {
   onFinish: (outcome: SceneOutcome) => void
 }
 
-export function SessionScene({ player, plan, wardrobe, settings, onFinish }: SessionSceneProps) {
+export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRemember }: SessionSceneProps) {
   const { girl, guest } = plan
   const [live, setLive] = useState<LiveState>(() => initLiveState(plan))
   const [panel, setPanel] = useState<'none' | 'outfit' | 'play'>('none')
@@ -258,7 +260,7 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish }: Ses
 
       {/* 对话区 */}
       <div className="flex-1 flex flex-col min-h-0">
-        <ChatEngine ref={chatRef} systemPrompt={systemPrompt} recap={recap} messages={messages} onMessagesChange={setMessages}
+        <ChatEngine ref={chatRef} systemPrompt={systemPrompt} recap={recap} messages={messages} onMessagesChange={setMessages} onRememberUser={onRemember}
           settings={settings} onRawStreamComplete={handleRawReply} showInput={false} className="flex-1 min-h-0" />
         <SuggestionBar suggestions={shownSuggestions} onSelect={(t) => setInputValue(t)} />
         <div className="border-t border-border px-3 pb-3 pt-2 flex gap-2 items-end">
@@ -279,7 +281,8 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish }: Ses
 
 // ─── 调教的亲自上场（仍用旧调教提示词，无步骤条） ──────────────────────────────
 
-export function TrainingScene({ player, girl, directionLabel, trainingInfo, extraPrompt, settings, onFinish, scene, day }: {
+export function TrainingScene({ player, girl, directionLabel, trainingInfo, extraPrompt, settings, onFinish, scene, day, onRemember }: {
+  onRemember?: (text: string) => void
   player: Player
   girl: MonstGirl
   directionLabel: string
@@ -332,7 +335,7 @@ export function TrainingScene({ player, girl, directionLabel, trainingInfo, extr
           结束调教
         </Button>
       </div>
-      <ChatEngine ref={chatRef} systemPrompt={systemPrompt} messages={messages} onMessagesChange={setMessages}
+      <ChatEngine ref={chatRef} systemPrompt={systemPrompt} messages={messages} onMessagesChange={setMessages} onRememberUser={onRemember}
         settings={settings} onRawStreamComplete={onRaw} showInput={false} className="flex-1 min-h-0" />
       <SuggestionBar suggestions={suggestions} onSelect={(t) => setInputValue(t)} />
       <div className="border-t border-border px-3 pb-3 pt-2 flex gap-2 items-end">
