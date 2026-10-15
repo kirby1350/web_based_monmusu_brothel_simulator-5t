@@ -91,3 +91,21 @@ export function setDefaultFlow(save: GameSave, id: string): FlowResult {
 }
 
 export const blankActions = blank
+
+/** 这一场实际用的流程（准备页定下，交给亲自上场与结果页的叙述） */
+export interface SessionFlow { choice: string; name: string; actions: string[]; playSteps?: Record<string, number> }
+
+/** 把挂到某一步的 play 写进那一步的做法文字（只进提示词）：「上前迎接（穿插：深喉）」 */
+export function stepActionsWithPlays(actions: string[], playSteps: Record<string, number> | undefined, playName: (id: string) => string | undefined): string[] {
+  return actions.map((a, i) => {
+    const names = Object.entries(playSteps ?? {}).filter(([, s]) => s === i).map(([id]) => playName(id)).filter(Boolean)
+    return names.length ? `${a}（穿插：${names.join('、')}）` : a
+  })
+}
+
+/** 选模板时预选它的偏好 play：只取这一场可选的，最多 slots 个 */
+export function preferredPlays(flowPlays: { step: number; playId: string }[], available: string[], slots: number): { plays: string[]; playSteps: Record<string, number> } {
+  const avail = new Set(available)
+  const picked = flowPlays.filter((p) => avail.has(p.playId)).filter((p, i, a) => a.findIndex((x) => x.playId === p.playId) === i).slice(0, Math.max(0, slots))
+  return { plays: picked.map((p) => p.playId), playSteps: Object.fromEntries(picked.map((p) => [p.playId, p.step])) }
+}

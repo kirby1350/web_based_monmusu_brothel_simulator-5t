@@ -10,13 +10,14 @@ import { Badge } from '@/components/ui/badge'
 import { ChatEngine, ChatEngineHandle } from '@/components/chat-engine'
 import { SuggestionBar } from '@/components/suggestion-bar'
 import { getStepActions } from '@/lib/custom-props'
+import { stepActionsWithPlays } from '@/lib/service-flows'
 import { buildServiceSystemPrompt, buildOpeningDialoguePrompt, buildSuggestionPrompt, buildBehaviourLines, stepBehaviour } from '@/lib/prompt-builder'
 import {
   createServiceSession, applyStatDelta, estimateStatDelta, parseStatsFromReply, getGirlDelta,
   updateGuestSatisfaction, parseActionsFromReply, computeInitialSatisfaction,
 } from '@/lib/game-engine'
 import { parseLooseJson, cn } from '@/lib/utils'
-import { OUTFITS, STOCKINGS, STEP_MAX, getSensitivityLevel, playIconPath } from '@/lib/catalog'
+import { OUTFITS, STOCKINGS, STEP_MAX, getSensitivityLevel, playIconPath, ALL_PLAYS } from '@/lib/catalog'
 import { buildStepRecap, provokeSection } from '@/lib/prompt-context'
 import { ItemIcon } from '@/components/item-icon'
 import { SERVICE_STEPS } from '@/lib/resolve-service'
@@ -133,14 +134,16 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
   const finish = (state: LiveState) => onFinish({ state, messages })
   const sugCtxRef = useRef<{ step?: string; standardAction?: string; desires?: string }>({})
   const stepDef = SERVICE_STEPS[live.stepIndex]
-  const stepActions = getStepActions(player, girl)
+  // 准备页定下的这一场流程（没有就按她的专属 → 全馆默认）；挂到某步的 play 只写进那一步的做法提示
+  const stepActions = plan.flow?.actions ?? getStepActions(player, girl)
+  const promptActions = stepActionsWithPlays(stepActions, plan.flow?.playSteps, (id) => ALL_PLAYS.find((p) => p.id === id)?.name)
   const preview = resolveLiveSteps(plan, live)
   const currentStep = preview.steps[live.stepIndex]
   const zoneVal = currentStep.zone ? girl.sensitivities?.[currentStep.zone] : undefined
   const outfitName = `${OUTFITS.find((o) => o.id === live.outfit)?.name ?? '常服'}${live.stockings !== 'none' ? ' + ' + STOCKINGS.find((x) => x.id === live.stockings)?.name : ''}`
   const stepContext = buildStepContext({
     stepLabel: stepDef.label,
-    standardAction: stepActions[live.stepIndex],
+    standardAction: promptActions[live.stepIndex],
     outfitName,
     zoneLabel: currentStep.zone,
     zoneLevel: zoneVal !== undefined ? getSensitivityLevel(zoneVal) : undefined,
@@ -152,7 +155,7 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
     label: SERVICE_STEPS[i].label, score: st.score, max: STEP_MAX, turns: live.turns[i],
     key: i === 3 && preview.plays.length ? `${st.note ?? ''}+${preview.plays.map((p) => p.name).join('、')}` : (st.zone ?? stepActions[i]?.slice(0, 8)),
   })), live.stepIndex)
-  sugCtxRef.current = { step: stepDef.label, standardAction: stepActions[live.stepIndex], desires: guest.desires }
+  sugCtxRef.current = { step: stepDef.label, standardAction: promptActions[live.stepIndex], desires: guest.desires }
   const shownSuggestions: [string, string, string] = [stepActions[live.stepIndex], suggestions?.[1] ?? '与她贴身调情', suggestions?.[2] ?? '她主动靠近']
   const owned = new Set(wardrobe)
   const outfitOpts = OUTFITS.filter((o) => o.id === 'regular' || owned.has(o.id))

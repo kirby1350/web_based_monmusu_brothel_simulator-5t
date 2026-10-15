@@ -33,9 +33,11 @@ interface SessionResultProps {
   /** 写入关系记忆后回调（同步回头客池） */
   onSaveRegular?: (guest: Guest) => void
   onBack: () => void
+  /** 这一场的五步做法（只进叙述提示词） */
+  flowActions?: string[]
 }
 
-export function SessionResult({ mode, girl, guest, outfit, stockings, result, info, settings, transcript, onSaveRegular, onBack }: SessionResultProps) {
+export function SessionResult({ mode, girl, guest, outfit, stockings, result, info, settings, transcript, onSaveRegular, onBack, flowActions }: SessionResultProps) {
   const [memState, setMemState] = useState<'idle' | 'saving' | 'saved'>('idle')
   // 「保存为常客」：生成双方印象写入关系记忆（对话 API 不通时用本地摘要）
   const saveRegular = async () => {
@@ -77,7 +79,7 @@ export function SessionResult({ mode, girl, guest, outfit, stockings, result, in
     setLoading(true)
     const apiKey = settings.chatModel.startsWith('grok') ? settings.grokApiKey : settings.chatApiKey
     const prompt = `用中文写一段约200字的第三人称叙事，描写魔物娘${girl.name}（${girl.race}，性格：${girl.personality}${speechLine(girl, '；')}）接待客人${guest.name}（${guest.race}，需求：${guest.desires}）的经过。` +
-      `流程依次是：${result.steps.map((s) => s.label).join('、')}${result.plays.length ? `，中间追加了${result.plays.map((p) => p.name).join('、')}` : ''}。` +
+      `流程依次是：${result.steps.map((s, i) => (flowActions?.[i] ? `${s.label}（${flowActions[i]}）` : s.label)).join('、')}${result.plays.length ? `，中间追加了${result.plays.map((p) => p.name).join('、')}` : ''}。` +
       `她穿着${OUTFITS.find((o) => o.id === outfit)?.name}。客人最终评价为「${result.tier.label}」。只输出正文，不要输出任何数据块。`
     try {
       const res = await fetch('/api/chat', {

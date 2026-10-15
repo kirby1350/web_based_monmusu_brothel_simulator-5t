@@ -17,14 +17,19 @@ import { PROF_SKILLS, proficiencyFromLegacy, profShow, profTierLabel, SERVICE_PR
 import { canSkipService, getAvailablePlays, getMainService, scorePlay } from '@/lib/resolve-service'
 import { previewService } from '@/lib/settle-session'
 import { cn } from '@/lib/utils'
+import { BottomSheet } from '@/components/bottom-sheet'
+import { SERVICE_STEPS } from '@/lib/resolve-service'
+import { ALL_PLAYS, STEP_ACTION_MAX } from '@/lib/catalog'
+import { getFlows, getDefaultFlow, hasGirlFlow, defaultFlowChoice, resolveFlow, preferredPlays, FLOW_GIRL, type SessionFlow } from '@/lib/service-flows'
 
-/** 选人行左侧的小立绘（44×58）；还没生成立绘时显示种族首字 */
 export interface ServicePlan {
   girl: MonstGirl
   guest: Guest
   outfit: OutfitId
   stockings: StockingId
   plays: string[]
+  /** 这一场的流程（只影响叙述与推荐，不计分） */
+  flow?: SessionFlow
   roomLevel: number
   sessionIndexToday: number
   girlSessionsToday: number
@@ -49,6 +54,10 @@ export function SessionSetup({ save, onSkip, onLive }: SessionSetupProps) {
   const [outfit, setOutfit] = useState<OutfitId>('regular')
   const [stockings, setStockings] = useState<StockingId>('none')
   const [plays, setPlays] = useState<string[]>([])
+  const [flowChoice, setFlowChoice] = useState<string | null>(null)
+  const [stepEdits, setStepEdits] = useState<Record<number, string>>({})
+  const [playSteps, setPlaySteps] = useState<Record<string, number>>({})
+  const [cell, setCell] = useState<number | null>(null)
   const guest = guests.find((g) => g.id === guestId) ?? null
   const girl = girls.find((g) => g.id === girlId) ?? null
   const roomLevel = player.serviceRoomLevel ?? 1
@@ -57,8 +66,25 @@ export function SessionSetup({ save, onSkip, onLive }: SessionSetupProps) {
   const outfits = OUTFITS.filter((o) => o.id === 'regular' || owned.has(o.id))
   const stockingOpts = STOCKINGS.filter((s) => s.id === 'none' || owned.has(s.id))
 
+  const choice = flowChoice ?? (girl ? defaultFlowChoice(player, girl) : '')
+  const resolved = girl ? resolveFlow(player, girl, choice) : null
+  const sessionFlow: SessionFlow | undefined = resolved ? {
+    choice: resolved.choice,
+    name: resolved.name + (Object.values(stepEdits).some((x) => x.trim()) ? '（本场改动）' : ''),
+    actions: resolved.actions.map((a, i) => stepEdits[i]?.trim() || a),
+    playSteps: Object.fromEntries(plays.map((id) => [id, playSteps[id] ?? 3])),
+  } : undefined
+  const pickFlow = (c: string) => {
+    setFlowChoice(c); setStepEdits({})
+    const r = girl ? resolveFlow(player, girl, c) : null
+    if (r && guest && r.plays.length) {
+      const pp = preferredPlays(r.plays, getAvailablePlays(girl!, guest).map((p) => p.id), slots)
+      setPlays(pp.plays); setPlaySteps(pp.playSteps)
+    }
+  }
+
   const plan: ServicePlan | null = girl && guest ? {
-    girl, guest, outfit, stockings, plays, roomLevel,
+    girl, guest, outfit, stockings, plays, roomLevel, flow: sessionFlow,
     sessionIndexToday: save.actionsUsedToday ?? 0,
     girlSessionsToday: (save.appearedToday ?? []).includes(girl.id) ? 1 : 0,
   } : null
@@ -114,7 +140,7 @@ export function SessionSetup({ save, onSkip, onLive }: SessionSetupProps) {
                 const sens = main ? g.sensitivities?.[MAIN_ZONE[main]] : undefined
                 const st = g.stamina ?? 100
                 return (
-                  <button key={g.id} onClick={() => setGirlId(g.id)} data-testid={`pick-girl-${g.name}`}
+                  <button key={g.id} onClick={() => { if (g.id !== girlId) { setFlowChoice(null); setStepEdits({}); setPlaySteps({}) } setGirlId(g.id) }} data-testid={`pick-girl-${g.name}`}
                     className={cn('w-full text-left rounded-lg border bg-card px-3 py-2 flex items-center gap-3 transition-colors select-none [&_*]:pointer-events-none',
                       g.id === girlId ? 'border-amber-400/70' : 'border-border hover:border-primary/50')}>
                     <GirlThumb g={g} />
@@ -140,6 +166,18 @@ export function SessionSetup({ save, onSkip, onLive }: SessionSetupProps) {
 
         {step === 1 && plan && (
           <>
+            <section className="space-y-2" data-testid="flow-block">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-widest">流程</p>
+                <select data-testid="flow-select" value={choice} onChange={(e) => pickFlow(e.target.value)}
+                  className="rounded-md border border-border bg-background px-1.5 py-0.5 text-[11px] max-w-[60%]">
+                  {hasGirlFlow(plan.girl) && <option value={FLOW_GIRL}>{plan.girl.name}的专属做法</option>}
+                  {getFlows(player).map((f) => <option key={f.id} value={f.id}>{f.name}{f.id === getDefaultFlow(player)?.id ? '（全馆默认）' : ''}{f.plays?.length ? ' · 偏好 play' : ''}</option>)}
+                </select>
+              </div>
+              <FlowStrip actions={plan.flow!.actions} mainLabel={`正戏：${getMainService(plan.guest)}（客人指定）`} playSteps={plan.flow!.playSteps} edited={stepEdits} onCell={setCell} />
+              <p className="text-[10px] text-muted-foreground">点某一步：只为这一场改做法，或把额外 play 挂到这一步。做法只影响叙述，不计分。</p>
+            </section>
             <section className="space-y-2">
               <p className="text-[10px] text-muted-foreground uppercase tracking-widest">主装</p>
               <div className="flex flex-wrap gap-1.5">
@@ -185,7 +223,10 @@ export function SessionSetup({ save, onSkip, onLive }: SessionSetupProps) {
               <Row label="收入区间" value={`${preview.rewardRange[0]}–${preview.rewardRange[1]} G（跳过 ${preview.skip.reward} G）`} />
               <Row label="体力" value={`跳过 −${preview.skip.staminaCost}；亲自上场 −${preview.liveStamina[0]}～−${preview.liveStamina[1]}（当前 ${plan.girl.stamina ?? 100}）`} />
  {preview.skip.matchBonus > 0 && <Row label="跳过匹配加成" value={`+${preview.skip.matchBonus}（${preview.skip.matchParts.join('，')}）`} />}
-              <Row label="五步预估" value={preview.skip.steps.map((x) => `${x.label}${x.score}`).join(' · ')} />
+              <div className="space-y-1">
+                <span className="text-muted-foreground text-[11px]">五步预估（跳过）· {plan.flow?.name}</span>
+                <FlowStrip actions={plan.flow!.actions} mainLabel={`正戏：${getMainService(plan.guest)}`} playSteps={plan.flow!.playSteps} scores={preview.skip.steps.map((x) => x.score)} />
+              </div>
               {preview.skip.raceNotes.length > 0 && <Row label="种族/状态" value={preview.skip.raceNotes.join('；')} />}
               {preview.skip.plays.length > 0 && <Row label="自动 play" value={preview.skip.plays.map((p) => p.name).join('、')} />}
               <Row label="熟练度" value={`${profGainText(preview.skip.profGains)}（亲自上场 ×1.5；接客最多练到 ${SERVICE_PROF_CAP}）`} />
@@ -196,6 +237,42 @@ export function SessionSetup({ save, onSkip, onLive }: SessionSetupProps) {
           </section>
         )}
       </div>
+
+      <BottomSheet open={cell !== null && step === 1 && !!plan} onClose={() => setCell(null)} testId="flow-cell-sheet"
+        title={cell !== null ? `${SERVICE_STEPS[cell].label} · 只改这一场` : ''}>
+        {cell !== null && plan && resolved && (
+          <>
+            <input data-testid="flow-cell-input" value={stepEdits[cell] ?? ''} maxLength={STEP_ACTION_MAX} placeholder={resolved.actions[cell]}
+              onChange={(e) => setStepEdits((m) => ({ ...m, [cell]: e.target.value }))}
+              className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs" />
+            {cell === 3 && <p className="text-[10px] text-muted-foreground">正戏类型由客人决定：{getMainService(plan.guest)}。</p>}
+            {slots > 0 ? (
+              <div className="space-y-1">
+                <p className="text-[10px] text-muted-foreground">挂到这一步的额外 play（共 {slots} 槽，已用 {plays.length}）</p>
+                {getAvailablePlays(plan.girl, plan.guest).map((p) => {
+                  const on = plays.includes(p.id)
+                  const here = on && (playSteps[p.id] ?? 3) === cell
+                  return (
+                    <button key={p.id} data-testid={`flow-cell-play-${p.id}`}
+                      onClick={() => {
+                        if (here) { setPlays((cur) => cur.filter((x) => x !== p.id)); return }
+                        if (!on && plays.length >= slots) return
+                        if (!on) setPlays((cur) => [...cur, p.id])
+                        setPlaySteps((m) => ({ ...m, [p.id]: cell }))
+                      }}
+                      className={cn('w-full flex items-center justify-between rounded-lg border px-3 py-1.5 text-xs',
+                        here ? 'border-amber-400/70 text-amber-300' : on ? 'border-border text-foreground/70' : 'border-border', !on && plays.length >= slots && 'opacity-40')}>
+                      <span className="flex items-center gap-1.5"><ItemIcon src={playIconPath(p.id)} name={p.name} size={18} />{p.name}</span>
+                      <span className="text-[10px]">{here ? '已挂在这一步 · 点击移除' : on ? `在「${SERVICE_STEPS[playSteps[p.id] ?? 3].label}」· 移到这一步` : '挂到这一步'}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            ) : <p className="text-[10px] text-muted-foreground">服务房间升级后才有额外 play 槽。</p>}
+            <button className="w-full h-8 text-xs rounded-lg border border-amber-400/40 text-amber-400" onClick={() => setCell(null)} data-testid="flow-cell-done">完成</button>
+          </>
+        )}
+      </BottomSheet>
 
       {/* 底部按钮 */}
       <div className="border-t border-border px-4 py-2 flex gap-2 shrink-0">
@@ -500,4 +577,28 @@ export function profChangeText(changes: NonNullable<TrainingResult['profChanges'
 /** 接客熟练度基础增量：「口侍 +2、待客 +1、手技 +1」 */
 function profGainText(g: Proficiency): string {
   return Object.entries(g).filter(([, v]) => v).map(([k, v]) => `${k} +${Math.round((v as number) * 10) / 10}`).join('、') || '—'
+}
+
+/** 五格步骤带（与亲自上场的 step-bar 同样式）：做法 + 挂上的 play；有分数时显示预估 */
+function FlowStrip({ actions, mainLabel, playSteps, scores, edited, onCell }: {
+  actions: string[]; mainLabel: string; playSteps?: Record<string, number>; scores?: number[]; edited?: Record<number, string>; onCell?: (i: number) => void
+}) {
+  return (
+    <div className="flex gap-1" data-testid={scores ? 'flow-strip-scores' : 'flow-strip'}>
+      {SERVICE_STEPS.map((st, i) => {
+        const ps = Object.entries(playSteps ?? {}).filter(([, s]) => s === i).map(([id]) => ALL_PLAYS.find((p) => p.id === id)?.name ?? id)
+        return (
+          <button key={st.key} disabled={!onCell} onClick={() => onCell?.(i)} data-testid={`flow-cell-${i}`}
+            className={cn('flex-1 min-w-0 rounded-md border px-1 py-1 text-center transition-colors',
+              edited?.[i]?.trim() ? 'border-amber-400/60 bg-amber-400/10' : 'border-border bg-secondary/20', onCell && 'hover:border-amber-400/50')}>
+            <span className="block text-[11px] font-semibold text-foreground/90">{st.label}</span>
+            {scores && <span className="block text-[11px] tabular-nums gold-text">{scores[i]}/14</span>}
+            <span className="block text-[9px] leading-tight text-muted-foreground line-clamp-3 break-all">{i === 3 ? mainLabel : actions[i]}</span>
+            {i === 3 && <span className="block text-[9px] leading-tight text-muted-foreground/80 line-clamp-2 break-all">{actions[3]}</span>}
+            {ps.length > 0 && <span className="block text-[9px] text-pink-300 leading-tight">+{ps.join('、')}</span>}
+          </button>
+        )
+      })}
+    </div>
+  )
 }

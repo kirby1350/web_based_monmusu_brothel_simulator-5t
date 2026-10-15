@@ -67,3 +67,14 @@ test('这一场的流程：默认取她的专属，否则全馆默认；指定�
   // 不存在的选择退回默认
   assert.equal(resolveFlow(s.player, girl, 'nope').choice, STD_FLOW_ID)
 })
+
+test('这一场：play 挂到步骤只改做法文字；偏好 play 只取可选的、受槽数限制', async () => {
+  const { stepActionsWithPlays, preferredPlays } = await import('./service-flows')
+  const acts = ['a', 'b', 'c', 'd', 'e']
+  const out = stepActionsWithPlays(acts, { deepthroat: 3, paizuri: 3, lewd_dance: 0 }, (id) => ({ deepthroat: '深喉', paizuri: '乳交', lewd_dance: '色气舞蹈' } as Record<string, string>)[id])
+  assert.deepEqual(out, ['a（穿插：色气舞蹈）', 'b', 'c', 'd（穿插：深喉、乳交）', 'e'])
+  assert.deepEqual(stepActionsWithPlays(acts, undefined, () => 'x'), acts)
+  const pp = preferredPlays([{ step: 3, playId: 'deepthroat' }, { step: 1, playId: 'nope' }, { step: 2, playId: 'paizuri' }, { step: 0, playId: 'deepthroat' }], ['deepthroat', 'paizuri'], 1)
+  assert.deepEqual(pp, { plays: ['deepthroat'], playSteps: { deepthroat: 3 } })
+  assert.deepEqual(preferredPlays([{ step: 3, playId: 'deepthroat' }], ['deepthroat'], 0).plays, [])
+})
