@@ -31,6 +31,8 @@ export interface SceneDef {
   tags: string
   /** 叙事提示：这一场由谁主导（放权场景：她主导） */
   roleNote?: string
+  /** 性格里含这些词也算亲和（种族之外的亲和来源） */
+  affinityPersona?: string[]
 }
 
 export const TRAINING_SCENES: SceneDef[] = [
@@ -127,6 +129,17 @@ export const TRAINING_SCENES: SceneDef[] = [
     tags: 'throne, queen, crown, sitting on throne, crossed legs, looking down, red carpet, from below',
     roleNote: '这一场由她主导：她端坐王座，被仰望、被侍奉，命令馆主与台下的人；写出她第一次尝到支配滋味时的高昂',
   },
+  {
+    id: 'cradle', name: '摇篮寝殿', price: 900, upkeep: 1, directions: ['release'],
+    fetish: '母性沉溺', fetishDesc: '把对方当成要疼、要喂、要管的孩子时最满足——温柔地替他决定一切，被依赖得越深越离不开',
+    affinity: ['牛娘', '精灵', '拉米亚'], aversion: ['猫娘'], unlock: { dorm: 2 }, affection: 3, staminaExtra: -5,
+    affinityPersona: ['母性', '大姐姐', '姐姐', '包容', '照顾', '妈妈'],
+    effect: '放权：S性 +6、淫乱 +2；好感 +3；体力只耗 15；母性/大姐姐性格也算亲和',
+    desc: '铺满软垫与毛毯的寝殿，暖炉、摇椅和一张大得过分的床——今晚由她来照顾你。',
+    place: '娼馆楼上的摇篮寝殿，暖炉噼啪作响，四处是软垫、毛毯与摇椅，空气里是热牛奶与安眠香的味道，一张宽大的床铺得像巢',
+    tags: 'cozy bedroom, fireplace, soft blankets, lap pillow, headpat, motherly, warm lighting, embrace, gentle femdom',
+    roleNote: '这一场由她主导，但方式是母性的：把馆主当成需要疼爱和管教的孩子——喂他、哄他、夸他、替他决定一切，温柔却不容拒绝（「乖，听话」「不许逃哦」）；这是叠加在她原有性格上的一面，自称、口癖与说话方式保持她自己的样子',
+  },
 ]
 
 export const DIRECTION_LABEL: Record<TrainingDirection, string> = { tame: '驯服', release: '放权', sculpt: '塑形', drill: '特训', sensitize: '敏感开发', punish: '惩罚' }
@@ -176,6 +189,7 @@ export const SHADOW_TRIGGERS: Record<SceneId, { names: string[]; words: string[]
   onsen: { names: ['温泉'], words: ['热水', '泡汤', '水汽', '池子'] },
   queen_room: { names: ['女王调教室', '女王'], words: ['跪下', '脚凳', '短鞭', '项圈', '命令我', '舔干净'] },
   throne: { names: ['王座'], words: ['陛下', '臣服', '跪拜', '仰望', '王冠', '台阶'] },
+  cradle: { names: ['摇篮', '寝殿'], words: ['妈妈', '乖孩子', '哄睡', '摇篮曲', '不许哭', '喂奶'] },
 }
 /** 阴影层数：积累 3/6/9 → 1/2/3 层 */
 export const SHADOW_LEVEL_STEP = 3
@@ -213,11 +227,12 @@ export function sceneUpkeep(player: GameSave['player']): number {
 
 export type SceneReaction = 'awakened' | 'affinity' | 'aversion' | 'neutral'
 
-export function sceneReaction(girl: Pick<MonstGirl, 'race' | 'awakened'>, id: SceneId): SceneReaction {
+export function sceneReaction(girl: Pick<MonstGirl, 'race' | 'awakened'> & { personality?: string }, id: SceneId): SceneReaction {
   const def = getScene(id)
   if (!def) return 'neutral'
   if (girl.awakened?.includes(id)) return 'awakened'
   if (def.affinity.includes(girl.race)) return 'affinity'
+  if (def.affinityPersona?.some((w) => girl.personality?.includes(w))) return 'affinity'
   if (def.aversion.includes(girl.race)) return 'aversion'
   return 'neutral'
 }
@@ -371,6 +386,7 @@ export function fetishMatchesGuest(id: SceneId, guest: Guest): boolean {
     case 'stage': return guest.prefOutfit === '暴露'
     case 'machine': return /长时间|多次内射/.test(guest.desires ?? '')
     case 'onsen': return p.kind === '中性'
+    case 'cradle': return p.kind === 'M' || /撒娇|宠|温柔|姐姐|妈妈/.test(`${guest.desires ?? ''}${guest.desireDetail ?? ''}`)
   }
 }
 

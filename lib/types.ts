@@ -152,7 +152,7 @@ export type StockingId = 'none' | 'black' | 'white' | 'garter' | 'fishnet' | 'la
 export type OutfitPref = '制服' | '和服' | '黑丝' | '白丝' | '暴露' | '想施虐的客人' | '想被榨的客人' | '兔女郎' | '异域' | '圣洁'
 export type TrainingDirection = 'tame' | 'release' | 'sculpt' | 'drill' | 'sensitize' | 'punish'
 /** 可购买的调教场景（设备）；缺省 = 普通调教室 */
-export type SceneId = 'dungeon' | 'water' | 'stage' | 'machine' | 'tentacle' | 'hypnosis' | 'altar' | 'onsen' | 'queen_room' | 'throne'
+export type SceneId = 'dungeon' | 'water' | 'stage' | 'machine' | 'tentacle' | 'hypnosis' | 'altar' | 'onsen' | 'queen_room' | 'throne' | 'cradle'
 /** 某魔物娘在某场景上的累积：最近使用日（≤7 条）、性癖积累、阴影积累 */
 export interface SceneState { uses: number[]; fp: number; sp: number }
 
@@ -163,6 +163,15 @@ export interface Incident { kind: '接客失败' | '闯祸'; text: string; day: 
 
 export interface Player {
   name: string
+  /** 店铺主题（经营页）；null/缺省 = 无主题 */
+  storeTheme?: string | null
+  /** 上次改主题的天数（冷却） */
+  storeThemeDay?: number
+  /** 店名（开店设定） */
+  storeName?: string
+  /** 开局类型 / 难度 id（见 archetypes.ts） */
+  archetype?: string
+  difficulty?: string
   traits: string[]
   customTraits: string
   fetishes: string[]
@@ -281,6 +290,8 @@ export interface Guest {
   demand?: number                // 挑剔度：结算满意度直接扣这么多
   desireDetail?: string          // AI 润色的需求细节（只做文案；判定仍看 desires）
   aiFlavored?: boolean           // 已由 AI 润色过
+  /** 在主题店期间生成的客人（经营页主题 id） */
+  themeTag?: string
 }
 
 export type GuestClass = 'commoner' | 'merchant' | 'adventurer' | 'noble' | 'captain'
@@ -288,6 +299,9 @@ export type GuestClass = 'commoner' | 'merchant' | 'adventurer' | 'noble' | 'cap
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant'
   content: string
+  /** 自动转场：这条 user 是发给模型的转场指令，界面只显示一条分隔线（label） */
+  hidden?: boolean
+  label?: string
 }
 
 export interface ParticipantStats {
@@ -340,6 +354,8 @@ export interface GameSave {
   lastDaySummary?: import('./day-summary').DaySummary | null
   // AI 润色客人已尝试过的那一天（成功或失败都记，刷新不重复请求）
   aiGuestsDay?: number
+  /** 今天「换一批客人」用了几次 */
+  guestRefresh?: { day: number; count: number }
   // 今晚挂在机械调教室过夜的魔物娘（结束今天时结算并清空）
   machineNightGirlId?: string
 }

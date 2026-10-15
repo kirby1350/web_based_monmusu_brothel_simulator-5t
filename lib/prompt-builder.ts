@@ -3,11 +3,11 @@ import { ALL_PLAYS as PLAYS, getSensitivityLevel, getSkillRank } from '@/lib/cat
 import type { OutfitId, StockingId, SceneId } from '@/lib/types'
 import { fetishPromptLine, getScene } from '@/lib/scenes'
 import { girlMemoryBlock, memOf } from '@/lib/girl-memory'
-import { girlStateCard, guestPrefLine, VALID_RACES } from '@/lib/prompt-context'
+import { girlStateCard, guestPrefLine, VALID_RACES, REPLY_LENGTH } from '@/lib/prompt-context'
 import { speechLine, speechRuleFor } from '@/lib/speech-style'
 
 /** 系统提示词的可选游戏状态：天数、当前服装（客人偏好命中用） */
-export interface PromptState { day?: number; outfit?: OutfitId; stockings?: StockingId; scene?: SceneId }
+export interface PromptState { day?: number; outfit?: OutfitId; stockings?: StockingId; scene?: SceneId; /** 快感由本地【此刻的兴奋与快感】给出，不再写模型累计的快感 */ heatLocal?: boolean }
 
 // ─── 文风控制（去油黑名单常驻 + 可切换文风片段） ───────────────────────────────
 
@@ -139,7 +139,7 @@ function buildServiceSystemPromptBase(
   state: PromptState = {}
 ): string {
   // 重油堆叠需要更多篇幅来铺密度，故 dense 模式下提高字数上限
-  const proseWordCount = proseStyle === 'dense' ? '500-800' : '300-500'
+  const proseWordCount = proseStyle === 'dense' ? '500-800' : `${REPLY_LENGTH.min}-${REPLY_LENGTH.max}`
   const girlDescriptions = session.girls
     .map(
       (g, i) => {
@@ -152,7 +152,7 @@ function buildServiceSystemPromptBase(
   const girlStats = session.girls
     .map(
       (g) =>
-        `${g.name}：小穴快感 ${session.girlsStats[g.id]?.pleasure ?? 50}/100，体力 ${session.girlsStats[g.id]?.stamina ?? 100}/100${session.girlsStats[g.id]?.isExhausted ? '（淫液横流、双腿发软）' : ''}`
+        `${g.name}：${state.heatLocal ? '' : `小穴快感 ${session.girlsStats[g.id]?.pleasure ?? 50}/100，`}体力 ${session.girlsStats[g.id]?.stamina ?? 100}/100${session.girlsStats[g.id]?.isExhausted ? '（淫液横流、双腿发软）' : ''}`
     )
     .join('，')
 
@@ -188,7 +188,7 @@ ${girlDescriptions}
 姓名：${g.name}　种族：${g.race}　性格：${g.personality}
 特性：${g.traits.join('、') || '无'}
 需求：${g.desires}${g.desireDetail ? `（${g.desireDetail}）` : ''}${session.girls.map((x) => guestPrefLine(g, x, state.outfit, state.stockings)).filter(Boolean).map((l) => '\n' + l).join('')}${(g.visits ?? 0) > 0 ? `\n来访：第 ${(g.visits ?? 0) + 1} 次` : ''}
-当前状态 — 肉棒快感 ${stats?.pleasure ?? 0}/100，体力 ${stats?.stamina ?? 100}/100${stats?.isExhausted ? '（射精过度、阴茎抽搐）' : ''}，射精满足度 ${g.satisfaction}/100
+当前状态 — ${state.heatLocal ? '兴奋与快感见下方【此刻的兴奋与快感】' : `肉棒快感 ${stats?.pleasure ?? 0}/100，体力 ${stats?.stamina ?? 100}/100${stats?.isExhausted ? '（射精过度、阴茎抽搐）' : ''}`}，满意度 ${g.satisfaction}/100
 ${g.memories && Object.keys(g.memories).length > 0 ? `
 【关系记忆（老客人档案，必须自然融入叙述语气）】
 （visitCount 越高代表越熟络：老主顾应表现出更随意的亲昵、更直接的指名要求、更默契的配合或更过分的玩法，体现"回头客"的递进关系，而非初次见面的生疏。）
@@ -224,7 +224,7 @@ ${REACTION_MATRIX}
 ${LEWD_VOICE_RULES}${satisfactionRubric(g.desires)}
 ${proseSection(proseStyle)}
 【写作规则】
-1. 以极度沉浸式第三人称叙述，每次回复${proseWordCount}字
+1. 以极度沉浸式第三人称叙述，每次回复正文${proseWordCount}字（不含数据块；明显不足就是不合格），分三到五段：动作推进 → 对白（每个在场角色至少一两句，各按自己的语气说话）→ 身体与心理反应 → 下一步的悬念
 2. 极度强调肉体激烈碰撞、淫液四溅喷射、子宫被顶撞细节，乳浪翻滚、臀肉颤动、精液灌满视觉冲击
 3. 平衡描写客人与魔物娘双向互动：客人主动进攻、言语羞辱/挑逗、变换姿势/玩法，魔物娘被动/主动回应，形成完整性交循环
 4. 服从度低的魔物娘先挣扎羞耻哭喊，淫乱度高的主动摇臀求内射、夹紧吸吮
@@ -273,7 +273,7 @@ ${REACTION_MATRIX}
 ${LEWD_VOICE_RULES}
 ${proseSection(proseStyle)}
 【写作规则】
-1. 以极度沉浸式第三人称叙述，每次回复${proseWordCount}字
+1. 以极度沉浸式第三人称叙述，每次回复正文${proseWordCount}字（不含数据块；明显不足就是不合格），分三到五段：动作推进 → 对白（每个在场角色至少一两句，各按自己的语气说话）→ 身体与心理反应 → 下一步的悬念
 2. 调教核心：用肉棒、粗大玩具、皮鞭、言语羞辱把魔物娘干到彻底臣服，提升服从度、淫乱度并解锁更下流的侍奉技巧
 3. 高服从度魔物娘主动张腿求插、夹紧吸吮，低服从度哭喊抵抗却蜜穴湿透、身体背叛
 4. 体力归零后描写"被干到子宫失禁、意识模糊仍被继续内射、潮吹如尿般喷射不止"，效果翻倍（快感加成、淫乱度暴涨）
@@ -339,7 +339,7 @@ export function buildInteractionSystemPrompt(
 【规则】
 1. 以第一人称扮演魔物娘 ${girl.name} 回应玩家
 2. 好感度高时会主动发情、描述自己湿了或想被插入；好感度低则害羞、扭捏但身体诚实
-3. 回复50-100字，语言自然、下流、带喘息感
+3. 回复${REPLY_LENGTH.min}-${REPLY_LENGTH.max}字，分两三段：以 ${girl.name} 的话语为主，穿插她的动作、神态和心里的小念头（动作神态用括号或短句带出），语言自然、下流、带喘息感，不要只回一两句
 4. 互动越色情越能明显提升好感度，允许轻微呻吟与性暗示${speechRuleFor([girl], '\n5. ')}`
 }
 
@@ -558,7 +558,7 @@ ${isMulti ? `本次共有 ${serviceGirls.length} 位魔物娘一同侍奉同一�
 ${extra?.guest ? `【客人】${extra.guest.name}（${extra.guest.race}），${extra.guest.personality}，需求：${extra.guest.desires}${(extra.guest.prefRace || extra.guest.prefTrait) ? `\n客人偏好：${[extra.guest.prefRace, extra.guest.prefTrait].filter(Boolean).join('、')}——若在场魔物娘命中其偏好（种族相符 / 巨乳·贫乳·丰臀·兽耳等特征相符），开场需明确写出客人一眼相中、眼前一亮、跃跃欲试的神情与反应；若完全不符，则写出他略带挑剔或将就的微妙态度` : ''}` : ''}${regularNote}
 
 要求：
-- ${isMulti ? '60-100' : '40-70'}字，第三人称叙述
+- ${isMulti ? '200-320' : '150-250'}字，第三人称叙述，含一两句她（们）的开口招呼
 - 描写包间环境与人物第一眼的氛围感：客人进入时的神情、魔物娘迎接时的姿态与体态细节
 ${isMulti ? '- 每一位魔物娘都必须在开场白中出现，各自有专属的体态/神情/迎接姿态描写，不可只写其中一位或让某位沦为背景\n' : ''}- 根据好感度与淫乱度调整氛围尺度：
   - 好感度高+淫乱度高：主动撩拨、媚眼如丝，暗含肉欲期待
@@ -618,7 +618,7 @@ ${isMulti ? `- 每一位魔物娘都必须在开场白中出现，各自有专�
 【玩家】${player.name}
 
 要求：
-- 以第一人称写30-60字的日常对话（问候、闲聊或分享小事）
+- 以第一人称写150-250字的日常对话（问候、闲聊或分享小事），可穿插一两句动作神态
 - 根据好感度与淫乱度自然调整聊天尺度与亲密度：
   - 好感度低（<40）：礼貌、拘谨、略带距离感，偶尔透露出好奇或小心翼翼的试探
   - 好感度中（40-69）：友好、带点害羞或小调皮，可能会轻微脸红或不经意靠近
@@ -660,6 +660,38 @@ ${isMulti ? `- 每一位魔物娘都必须在开场白中出现，各自有专�
     default:
       return ''
   }
+}
+
+// ─── 调教开场白（按场景 / 方向 / 她的状态 / 性癖 / 阴影） ─────────────────────
+
+export function buildTrainingOpeningPrompt(player: Player, girl: MonstGirl, opts: {
+  directionLabel: string; scene?: SceneId; day?: number
+  /** trainingContext() 的整段（含方向、道具、场景反应、阴影） */
+  trainingInfo?: string
+  /** 惩罚缘由等 */
+  extra?: string
+}): string {
+  const def = getScene(opts.scene)
+  const bwh = girlBWH(girl)
+  const fetish = fetishPromptLine(girl)
+  return `你是一个成人互动小说写作引擎。为下面这场调教写开场白：场景布置、她被带进来的样子、她和馆主的第一轮交锋，停在调教即将开始的那一刻。
+
+【地点】${def ? `${def.name}——${def.place}` : `${player.name}娼馆的调教室，拘束架、皮鞭、润滑液与各种玩具摆放整齐`}
+【馆主】${player.name}（特性：${playerTraitsFull(player)}）
+【魔物娘】${girl.name}（${girl.race}）
+  外貌：${girl.bodyDesc}${bwh ? `，三围 ${bwh}` : ''}
+  性格：${girl.personality}${speechLine(girl, '\n  ')}
+  服装：${girl.outfit}
+  服从度 ${girl.obedience}/100，淫乱度 ${girl.lewdness}/100，好感度 ${girl.affection}/100
+  状态：${girlStateCard(girl, opts.day, { private: true })}${girl.sexualDesc ? `\n  色色设定：${girl.sexualDesc}` : ''}${fetish ? `\n  ${fetish}` : ''}${memLine(girl, { type: 'training', scene: opts.scene }, '  ')}
+${opts.trainingInfo ?? `【本次调教】${opts.directionLabel}`}${opts.extra ? `\n${opts.extra}` : ''}
+
+要求：
+- 250-400字，第三人称，分两三段；含她的两三句台词（按她的自称、口癖与说话方式）
+- 先写场景本身（光线、气味、声音、道具），再写她进门时的反应，按上面的亲和/抗拒/阴影/性癖与服从、好感来定基调：亲和或已觉醒就期待难掩，抗拒或有阴影就发抖、迟疑但不崩坏，服从低就嘴硬顶撞
+- 点明今天的项目是「${opts.directionLabel}」${def?.roleNote ? '，并按场景说明写出这一场由谁主导' : ''}
+- 不要写到正式调教的过程，停在开始前的张力上${speechRuleFor([girl], '\n- ')}
+- 只输出叙述文本，不要标题、说明或数据块`
 }
 
 // ─── 关系记忆生成提示词 ────────────────────────────────────────────────────────

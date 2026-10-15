@@ -5,6 +5,7 @@ import { generateDailyGuests, getGuestCapacity, getGirlCapacity, getUpgradeCost,
 import { resolveService, canSkipService } from '../lib/resolve-service'
 import { resolveTraining } from '../lib/resolve-training'
 import { applyServiceToSave, applyTrainingToSave } from '../lib/settle-session'
+import { rollDailyGuests } from '../lib/guest-gen'
 import { endDay, upgradeDorm, getDormInfo } from '../lib/hub-logic'
 import { withInitialProficiency, SERVING_PROF_SKILLS, PROF_TIERS } from '../lib/proficiency'
 import { buyRecovery, useRecovery, upgradeServiceRoom, upgradeTrainingRoom, buyWardrobe } from '../lib/shop'
@@ -39,10 +40,14 @@ let save: GameSave = migrateSave({
   player: { name: '馆主', traits: [], customTraits: '', fetishes: [], gold: Number(process.env.SIM_GOLD ?? 500), day: 1, guestPreference: '', marketPreference: '', level: 1, reputation: 0 },
   // 开局 2 人（UX 1）：SIM_START=1 可退回旧的 1 人开局
   girls: Array.from({ length: Number(process.env.SIM_START ?? 2) }, () => newGirl()), currentDay: 1, phase: 'morning', actionsUsedToday: 0,
-  dailyGuests: generateDailyGuests(getGuestCapacity(1), 0, []), regulars: [],
+  dailyGuests: [], regulars: [],
 })
+// 开局客人池与真实开局一致（含早期保底）
+// SIM_THEME=巨乳 等：开局就挂店铺主题
+if (process.env.SIM_THEME) save = { ...save, player: { ...save.player, storeTheme: process.env.SIM_THEME, storeThemeDay: 1 } }
+save = { ...save, dailyGuests: rollDailyGuests(getGuestCapacity(1), 0, [], { day: 1, girls: save.girls, theme: save.player.storeTheme ?? null }) }
 
-const stats = { upkeep: 0, sceneUses: {} as Record<string, number>, awakenings: [] as string[], peakOb: [] as string[], punish: 0, sats: [] as number[], serviceIncome: 0, services: 0, trainings: 0, rests: 0, idle: 0, tiers: {} as Record<string, number>, upgrades: [] as string[], potions: 0, bought: 0, incomeByDay: [] as number[], svcByGirl: {} as Record<string, number>, drills: 0, invest: 0 }
+const stats = { upkeep: 0, sceneUses: {} as Record<string, number>, awakenings: [] as string[], peakOb: [] as string[], punish: 0, sats: [] as number[], serviceIncome: 0, services: 0, trainings: 0, rests: 0, idle: 0, tiers: {} as Record<string, number>, upgrades: [] as string[], potions: 0, bought: 0, incomeByDay: [] as number[], svcByGirl: {} as Record<string, number>, drills: 0, invest: 0, early: [] as number[] }
 const firstAffordable: Record<string, number | undefined> = {}
 
 const DAYS = Number(process.env.SIM_DAYS ?? 30)
@@ -132,7 +137,7 @@ for (let day = 1; day <= DAYS; day++) {
       const guest = guests[b.gi]
       const r = resolveService({ girl: b.g, guest, skip: true, roomLevel: save.player.serviceRoomLevel, sessionIndexToday: save.actionsUsedToday ?? 0, outfit: b.outfit, stockings: b.stockings })
       save = applyServiceToSave(save, b.g.id, guest, r, rng).save
-      stats.services++; stats.svcByGirl[b.g.name] = (stats.svcByGirl[b.g.name] ?? 0) + 1; stats.sats.push(r.satisfaction); stats.serviceIncome += r.reward; stats.tiers[r.tier.label] = (stats.tiers[r.tier.label] ?? 0) + 1
+      stats.services++; stats.svcByGirl[b.g.name] = (stats.svcByGirl[b.g.name] ?? 0) + 1; stats.sats.push(r.satisfaction); if (day <= 3) stats.early.push(r.satisfaction); stats.serviceIncome += r.reward; stats.tiers[r.tier.label] = (stats.tiers[r.tier.label] ?? 0) + 1
       continue
     }
     if (TRAINS) {
@@ -241,7 +246,7 @@ out(`日净收入：前 10 天均 ${Math.round(inc.slice(0, 10).reduce((a, b) =>
   const servingOf = (g: MonstGirl) => SERVING_PROF_SKILLS.map((k) => g.proficiency?.[k] ?? 0)
   const top = [...save.girls].sort((a, b) => servingOf(b).filter((v) => v >= 50).length - servingOf(a).filter((v) => v >= 50).length)[0]
   const topShare = Math.max(0, ...Object.values(stats.svcByGirl)) / Math.max(1, stats.services)
-  console.log('SIMJSON ' + JSON.stringify({ strat: STRAT, seed, gold: save.player.gold, invest: stats.invest, worth: save.player.gold + stats.invest, sat: Math.round(stats.sats.reduce((a, b) => a + b, 0) / Math.max(1, stats.sats.length)),
+  console.log('SIMJSON ' + JSON.stringify({ early: Math.round(stats.early.reduce((a, b) => a + b, 0) / Math.max(1, stats.early.length)), strat: STRAT, seed, gold: save.player.gold, invest: stats.invest, worth: save.player.gold + stats.invest, sat: Math.round(stats.sats.reduce((a, b) => a + b, 0) / Math.max(1, stats.sats.length)),
     gokuraku: stats.tiers['极乐'] ?? 0, manzoku: stats.tiers['满意'] ?? 0, regulars: (save.regulars ?? []).length, rep: save.player.reputation ?? 0, income: stats.serviceIncome,
     services: stats.services, trainings: stats.trainings, drills: stats.drills, topGirl: top?.name, top50: top ? servingOf(top).filter((v) => v >= 50).length : 0, top75: top ? servingOf(top).filter((v) => v >= 75).length : 0,
     girls50: save.girls.filter((g) => servingOf(g).some((v) => v >= 50)).length, topShare: Math.round(topShare * 100) }))

@@ -14,6 +14,7 @@ import { STEP_STANDARD_ACTION } from '@/lib/live-steps'
 import { ALL_PLAYS, STEP_ACTION_MAX } from '@/lib/catalog'
 import { getFlows, getDefaultFlow, saveFlow, duplicateFlow, deleteFlow, setDefaultFlow, hasGirlFlow, PRESET_FLOWS, MAX_FLOWS, FLOW_NAME_MAX, type FlowResult, type PresetFlow } from '@/lib/service-flows'
 import { cn } from '@/lib/utils'
+import { STORE_THEMES, getTheme, setStoreTheme, themeCooldownLeft, themeSlots, THEME_COOLDOWN_DAYS, THEME_SAT_BONUS, type StoreTheme } from '@/lib/store-theme'
 
 const playLabel = (id: string) => { const p = ALL_PLAYS.find((x) => x.id === id); return p ? p.name : id }
 const newId = () => `flow_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
@@ -36,11 +37,13 @@ export function FlowsScreen({ save, onSaveChange }: { save: GameSave; onSaveChan
   return (
     <div className="flex flex-col h-full bg-background relative" data-testid="flows">
       <header className="border-b border-border px-4 py-2.5 shrink-0">
-        <h1 className="text-sm font-bold gold-text">服务流程</h1>
-        <p className="text-[10px] text-muted-foreground">五步做法只改叙述和亲自上场的推荐，不影响计分</p>
+        <h1 className="text-sm font-bold gold-text">经营</h1>
+        <p className="text-[10px] text-muted-foreground">店铺主题决定来什么样的客人；五步做法只改叙述和亲自上场的推荐，不影响计分</p>
       </header>
       {notice && <div className={cn('mx-4 mt-2 rounded-lg border px-3 py-1.5 text-xs', notice.ok ? 'bg-primary/10 border-primary/30 text-primary' : 'bg-rose-500/10 border-rose-500/30 text-rose-300')} data-testid="notice">{notice.t}</div>}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+        <ThemeSection save={save} onSaveChange={onSaveChange} flash={(t, ok) => { setNotice({ t, ok }); setTimeout(() => setNotice(null), 2500) }} />
+        <p className="text-xs font-semibold gold-text pt-1">服务流程</p>
         {/* 默认流程：常驻展开 */}
         {def && (
           <section className="rounded-xl border border-amber-400/30 bg-card p-3 space-y-2" data-testid="flow-default">
@@ -197,5 +200,43 @@ function FlowForm({ flow, onSave, testId, withPlays, compact }: {
       <button data-testid={`${testId}-save`} onClick={() => onSave({ id: flow?.id, name: compact ? (flow?.name ?? '标准') : name, actions: acts, plays: withPlays ? plays : flow?.plays })}
         className="w-full text-[11px] rounded-md border border-amber-400/40 px-2 py-1 text-amber-400 hover:bg-amber-400/10">保存</button>
     </div>
+  )
+}
+
+/** 店铺主题：1 个槽；改主题有冷却；只影响之后新来的客人 */
+function ThemeSection({ save, onSaveChange, flash }: { save: GameSave; onSaveChange: (s: GameSave) => void; flash: (t: string, ok: boolean) => void }) {
+  const cur = getTheme(save.player.storeTheme)
+  const left = themeCooldownLeft(save)
+  const fitsNames = (t: StoreTheme) => save.girls.filter((g) => t.fits(g)).map((g) => g.name)
+  const pick = (id: string | null) => {
+    const r = setStoreTheme(save, id)
+    if ('error' in r) flash(r.error, false)
+    else { onSaveChange(r.save); flash(id ? `主题改为「${getTheme(id)!.label}」：明天起的新客人按主题来` : '取消了主题', true) }
+  }
+  return (
+    <section className="rounded-xl border border-pink-400/30 bg-card p-3 space-y-2" data-testid="theme-block">
+      <div className="flex items-center gap-2">
+        <p className="text-xs font-semibold gold-text">店铺主题</p>
+        <span className="text-[10px] text-muted-foreground">槽位 {cur ? 1 : 0}/{themeSlots(save)}</span>
+        <span className="flex-1" />
+        <span className="text-[10px] text-muted-foreground" data-testid="theme-cooldown">{left > 0 ? `${left} 天后可再换` : '现在可以换'}</span>
+      </div>
+      <p className="text-[10px] text-muted-foreground">与主题冲突的客人不会上门，对口的更多；客流量不变。主题客人由符合主题的姑娘接待，满意度 +{THEME_SAT_BONUS}。换主题后要等 {THEME_COOLDOWN_DAYS} 天才能再换；定向换客人也绕不过主题。</p>
+      <div className="grid grid-cols-2 gap-1.5">
+        {STORE_THEMES.map((t) => {
+          const on = cur?.id === t.id
+          const fits = fitsNames(t)
+          return (
+            <button key={t.id} data-testid={`theme-${t.id}`} disabled={!on && left > 0} onClick={() => !on && pick(t.id)}
+              className={cn('text-left rounded-lg border px-2 py-1.5 space-y-0.5 transition-colors', on ? 'border-pink-400/70 bg-pink-400/10' : 'border-border hover:border-primary/50', !on && left > 0 && 'opacity-50')}>
+              <p className={cn('text-[11px] font-semibold', on ? 'text-pink-200' : 'text-foreground/90')}>{on ? '✓ ' : ''}{t.label}</p>
+              <p className="text-[9px] text-muted-foreground leading-snug">{t.desc}</p>
+              <p className={cn('text-[9px]', fits.length ? 'text-emerald-300/90' : 'text-rose-300/80')}>{fits.length ? `符合：${fits.join('、')}` : '馆里还没有符合的姑娘'}</p>
+            </button>
+          )
+        })}
+      </div>
+      {cur && <button data-testid="theme-clear" disabled={left > 0} onClick={() => pick(null)} className="text-[10px] text-muted-foreground underline disabled:opacity-40">取消主题</button>}
+    </section>
   )
 }

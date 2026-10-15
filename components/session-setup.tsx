@@ -2,6 +2,7 @@
 
 // 接客 / 调教共用的三步准备向导（阶段 2 只接了接客分支，调教分支在阶段 5）
 import { GirlThumb } from '@/components/girl-thumb'
+import { GuestPrefs } from '@/components/guest-prefs'
 import { useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight, FastForward, Swords } from 'lucide-react'
 import { CustomProp, GameSave, Guest, MonstGirl, OutfitId, StockingId, TrainingDirection, SkillKey, SensitivityZone, SceneId } from '@/lib/types'
@@ -16,6 +17,7 @@ import { resolveTraining, getPropSlots, TRAINING_DIRECTIONS, type TrainingResult
 import { PROF_SKILLS, proficiencyFromLegacy, profShow, profTierLabel, SERVICE_PROF_CAP, type Proficiency } from '@/lib/proficiency'
 import { canSkipService, getAvailablePlays, getMainService, scorePlay } from '@/lib/resolve-service'
 import { previewService } from '@/lib/settle-session'
+import { maxPartners, partnerEligible, PARTNER_STAMINA_MULT } from '@/lib/multi-service'
 import { cn } from '@/lib/utils'
 import { BottomSheet } from '@/components/bottom-sheet'
 import { SERVICE_STEPS } from '@/lib/resolve-service'
@@ -31,6 +33,8 @@ export interface ServicePlan {
   /** 这一场的流程（只影响叙述与推荐，不计分） */
   flow?: SessionFlow
   roomLevel: number
+  /** 多人服务：协同（不含主位） */
+  partners?: MonstGirl[]
   sessionIndexToday: number
   girlSessionsToday: number
 }
@@ -41,7 +45,6 @@ interface SessionSetupProps {
   onLive: (plan: ServicePlan) => void
 }
 
-const KIND_LABEL: Record<string, string> = { M: '想施虐 · M 性对口', S: '想被榨 · S 性对口', 中性: '中性' }
 const MAIN_ZONE = { 口侍: '唇舌', 胸侍: '乳房', 身侍: '小穴' } as const
 const STEP_TITLES = ['选人', '准备', '确认']
 
@@ -51,6 +54,7 @@ export function SessionSetup({ save, onSkip, onLive }: SessionSetupProps) {
   const [step, setStep] = useState(0)
   const [guestId, setGuestId] = useState<string | null>(guests[0]?.id ?? null)
   const [girlId, setGirlId] = useState<string | null>(null)
+  const [partnerIds, setPartnerIds] = useState<string[]>([])
   const [outfit, setOutfit] = useState<OutfitId>('regular')
   const [stockings, setStockings] = useState<StockingId>('none')
   const [plays, setPlays] = useState<string[]>([])
@@ -61,6 +65,8 @@ export function SessionSetup({ save, onSkip, onLive }: SessionSetupProps) {
   const guest = guests.find((g) => g.id === guestId) ?? null
   const girl = girls.find((g) => g.id === girlId) ?? null
   const roomLevel = player.serviceRoomLevel ?? 1
+  const partnerCap = maxPartners(roomLevel)
+  const partners = partnerIds.map((id) => girls.find((g) => g.id === id)).filter((g): g is MonstGirl => !!g && g.id !== girlId)
   const slots = getPlaySlots(roomLevel)
   const owned = new Set(player.wardrobe ?? [])
   const outfits = OUTFITS.filter((o) => o.id === 'regular' || owned.has(o.id))
@@ -84,13 +90,13 @@ export function SessionSetup({ save, onSkip, onLive }: SessionSetupProps) {
   }
 
   const plan: ServicePlan | null = girl && guest ? {
-    girl, guest, outfit, stockings, plays, roomLevel, flow: sessionFlow,
+    girl, guest, outfit, stockings, plays, roomLevel, flow: sessionFlow, ...(partners.length ? { partners } : {}),
     sessionIndexToday: save.actionsUsedToday ?? 0,
     girlSessionsToday: (save.appearedToday ?? []).includes(girl.id) ? 1 : 0,
   } : null
   const preview = useMemo(() => plan ? previewService(plan) : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [girl, guest, outfit, stockings, plays.join(','), roomLevel])
+    [girl, guest, outfit, stockings, plays.join(','), roomLevel, partnerIds.join(',')])
 
   return (
     <div className="flex-1 min-h-0 flex flex-col" data-testid="session-setup">
@@ -122,25 +128,19 @@ export function SessionSetup({ save, onSkip, onLive }: SessionSetupProps) {
                     <span className="text-[10px] gold-text">预算 {gu.budget ?? 80}G</span>
                   </div>
                   <p className="text-[11px] text-foreground/80">{gu.desires}</p>
-                  <div className="flex flex-wrap gap-1">
-                    {gu.desireService && <Badge variant="secondary" className="text-[9px] h-4 px-1">需求 {gu.desireService}</Badge>}
-                    {gu.desireKind && <Badge variant="secondary" className="text-[9px] h-4 px-1">{KIND_LABEL[gu.desireKind]}</Badge>}
-                    <Badge variant="secondary" className="text-[9px] h-4 px-1">服装 {gu.prefOutfit ?? '无喜好'}</Badge>
-                    {gu.prefRace && <Badge variant="secondary" className="text-[9px] h-4 px-1">偏好 {gu.prefRace}</Badge>}
-                    {gu.prefTrait && <Badge variant="secondary" className="text-[9px] h-4 px-1">偏好 {gu.prefTrait}</Badge>}
-                  </div>
+                  <GuestPrefs guest={gu} girls={girl ? [girl, ...partners] : girls} wardrobe={player.wardrobe ?? []} />
                 </button>
               ))}
             </section>
             <section className="space-y-2">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-widest">魔物娘（一场只安排一名）</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-widest">魔物娘（主位）</p>
               {girls.map((g) => {
                 const main = guest ? getMainService(guest) : null
                 const rank = main ? getSkillRank(g, main) : undefined
                 const sens = main ? g.sensitivities?.[MAIN_ZONE[main]] : undefined
                 const st = g.stamina ?? 100
                 return (
-                  <button key={g.id} onClick={() => { if (g.id !== girlId) { setFlowChoice(null); setStepEdits({}); setPlaySteps({}) } setGirlId(g.id) }} data-testid={`pick-girl-${g.name}`}
+                  <button key={g.id} onClick={() => { if (g.id !== girlId) { setFlowChoice(null); setStepEdits({}); setPlaySteps({}) } setGirlId(g.id); setPartnerIds((cur) => cur.filter((x) => x !== g.id)) }} data-testid={`pick-girl-${g.name}`}
                     className={cn('w-full text-left rounded-lg border bg-card px-3 py-2 flex items-center gap-3 transition-colors select-none [&_*]:pointer-events-none',
                       g.id === girlId ? 'border-amber-400/70' : 'border-border hover:border-primary/50')}>
                     <GirlThumb g={g} />
@@ -161,11 +161,35 @@ export function SessionSetup({ save, onSkip, onLive }: SessionSetupProps) {
                 )
               })}
             </section>
+            {girl && girls.length > 1 && (
+              <section className="space-y-1.5" data-testid="partner-block">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-widest">协同（可选，最多 {partnerCap} 人 · 同一次行动，各扣主位体力的 {Math.round(PARTNER_STAMINA_MULT * 100)}%）</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {girls.filter((g) => g.id !== girl.id).map((g) => {
+                    const why = partnerEligible(g, girl.id)
+                    const on = partnerIds.includes(g.id)
+                    return (
+                      <button key={g.id} data-testid={`partner-toggle-${g.name}`} disabled={!!why && !on}
+                        onClick={() => setPartnerIds((cur) => on ? cur.filter((x) => x !== g.id) : cur.length < partnerCap ? [...cur, g.id] : cur)}
+                        className={cn('rounded-md border px-2 py-1 text-[11px] inline-flex items-center gap-1',
+                          on ? 'border-pink-400/70 text-pink-200 bg-pink-400/10' : 'border-border text-foreground/80', (why && !on) && 'opacity-40')}>
+                        {on ? '✓ ' : '+ '}{g.name}<span className="text-[9px] text-muted-foreground">{why ?? `${g.race} · 体力 ${g.stamina ?? 100}`}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+                {partnerCap < 2 && <p className="text-[10px] text-muted-foreground">服务房间升到 3 级可以三人同场。</p>}
+              </section>
+            )}
           </>
         )}
 
         {step === 1 && plan && (
           <>
+            <section className="space-y-1" data-testid="prep-guest-prefs">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-widest">{plan.guest.name}的喜好 · 对照{[plan.girl, ...(plan.partners ?? [])].map((g) => g.name).join('、')}与所选服装</p>
+              <GuestPrefs guest={plan.guest} girls={[plan.girl, ...(plan.partners ?? [])]} outfit={outfit} stockings={stockings} />
+            </section>
             <section className="space-y-2" data-testid="flow-block">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-[10px] text-muted-foreground uppercase tracking-widest">流程</p>
@@ -225,7 +249,9 @@ export function SessionSetup({ save, onSkip, onLive }: SessionSetupProps) {
         {step === 2 && plan && preview && (
           <section className="space-y-3" data-testid="session-preview">
             <div className="rounded-xl border border-border bg-card p-3 space-y-1.5 text-xs">
-              <Row label="组合" value={`${plan.girl.name} × ${plan.guest.name}`} />
+              <Row label="组合" value={`${[plan.girl, ...(plan.partners ?? [])].map((g) => g.name).join(' + ')} × ${plan.guest.name}`} />
+              {preview.skip.synergy !== undefined && <Row label="默契加成" value={`${preview.skip.synergy >= 0 ? '+' : ''}${preview.skip.synergy}（${preview.skip.synergyParts!.join('；')}）`} />}
+              {preview.skip.partnerStamina && <Row label="协同体力" value={(plan.partners ?? []).map((p) => `${p.name} −${preview.skip.partnerStamina![p.id]}`).join('，') + `（收入 +${(plan.partners ?? []).length * 20}%）`} />}
               <Row label="服装" value={`${OUTFITS.find((o) => o.id === outfit)?.name}${stockings !== 'none' ? ' + ' + STOCKINGS.find((s) => s.id === stockings)?.name : ''}${preview.skip.outfitMatched ? '（对口）' : plan.guest.prefOutfit ? '（不对口）' : ''}`} />
               <Row label="跳过预计" value={`${preview.skip.tier.label}（满意度 ${preview.skip.satisfaction}）`} />
               <Row label="收入区间" value={`${preview.rewardRange[0]}–${preview.rewardRange[1]} G（跳过 ${preview.skip.reward} G）`} />

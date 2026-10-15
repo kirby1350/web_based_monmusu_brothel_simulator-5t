@@ -6,7 +6,8 @@ import {
   getUpgradeCostFor, getPlaySlots, TRAINING_ROOM_MULT, TRAINING_ROOM_PROP_SLOTS,
 } from './catalog'
 import { nightlyIncidents } from './incidents'
-import { MAX_ACTIONS_PER_DAY, generateDailyGuests, getGuestCapacity, getGirlCapacity } from './game-engine'
+import { MAX_ACTIONS_PER_DAY, getGuestCapacity, getGirlCapacity } from './game-engine'
+import { nextDayGuests } from './guest-gen'
 import { speechLine } from './speech-style'
 import { compactMemory, giftAffection, recordGift, addEvent } from './girl-memory'
 import { accumulateScene, ownsScene, sceneUpkeep, MACHINE_NIGHT_OBEDIENCE } from './scenes'
@@ -150,7 +151,7 @@ export function endDay(save: GameSave, rng: () => number = Math.random): GameSav
     appearedToday: [],
     machineNightGirlId: undefined,
     girls,
-    dailyGuests: generateDailyGuests(getGuestCapacity(save.player.level), save.player.reputation ?? 0, save.regulars ?? []),
+    dailyGuests: nextDayGuests(save, save.currentDay + 1, girls),
   }
 }
 

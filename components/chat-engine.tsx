@@ -1,6 +1,6 @@
 'use client'
 
-import { trimHistory } from '@/lib/prompt-context'
+import { trimHistory, withTurnSuffix } from '@/lib/prompt-context'
 
 import {
   useState,
@@ -18,8 +18,17 @@ import { stripStatsBlock } from '@/lib/game-engine'
 import { streamChatDeltas } from '@/lib/sse'
 import { cn } from '@/lib/utils'
 
+export interface SendOpts {
+  /** 隐藏的指令消息（自动转场）：界面显示 label 分隔线 */
+  hidden?: boolean
+  label?: string
+  /** 请求失败时代替错误提示的本地回复 */
+  fallback?: string
+}
 export interface ChatEngineHandle {
-  sendMessage: (content: string) => Promise<void>
+  sendMessage: (content: string, opts?: SendOpts) => Promise<void>
+  /** 正在等模型回复 */
+  isBusy: () => boolean
 }
 
 interface ChatEngineProps {
@@ -38,6 +47,8 @@ interface ChatEngineProps {
   showInput?: boolean
   /** 在玩家消息上显示「让她记住」；点了把这句原话交给调用方 */
   onRememberUser?: (text: string) => void
+  /** 只附在本次请求最后一条玩家消息末尾的提醒（字数等），不进界面与存档 */
+  turnSuffix?: string
 }
 
 export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
@@ -56,6 +67,7 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
       className,
       showInput = true,
       onRememberUser,
+      turnSuffix,
     },
     ref
   ) {
@@ -70,10 +82,10 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
     }, [messages, streamingText])
 
     const sendMessage = useCallback(
-      async (content: string) => {
+      async (content: string, opts?: SendOpts) => {
         if (!content.trim() || streaming) return
 
-        const userMsg: ChatMessage = { role: 'user', content: content.trim() }
+        const userMsg: ChatMessage = { role: 'user', content: content.trim(), ...(opts?.hidden ? { hidden: true, label: opts.label } : {}) }
         const next = [...messages, userMsg]
         onMessagesChange(next)
         setInput('')
@@ -83,10 +95,10 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
         const controller = new AbortController()
         abortRef.current = controller
 
-        // Auto-abort after 60 seconds to prevent UI lockup
+        // 90 秒自动中止，防止界面卡死（300–500 字的长回复要多留时间）
         const timeoutId = setTimeout(() => {
           controller.abort()
-        }, 60_000)
+        }, 90_000)
 
         // 声明在 try 之外，catch（中止/超时）也需要读取已接收的内容
         let full = ''
@@ -104,7 +116,7 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
               messages: [
                 { role: 'system', content: systemPrompt },
                 // 只改发送内容：旧回复去掉隐藏数据块、保留最近 6 轮（界面与存档里的历史不变）
-                ...trimHistory(next, 6, recap),
+                ...withTurnSuffix(trimHistory(next, 6, recap), turnSuffix).map(({ role, content }) => ({ role, content })),
               ],
               model: settings.chatModel,
               apiKey,
@@ -132,6 +144,9 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
             onMessagesChange([...next, assistantMsg])
             onStreamComplete?.(clean)
             onRawStreamComplete?.(full)  // raw contains <!--STATS:...-->
+          } else if (opts?.fallback) {
+            onMessagesChange([...next, { role: 'assistant', content: opts.fallback }])
+            onRawStreamComplete?.('')
           }
         } catch (err: unknown) {
           clearTimeout(timeoutId)
@@ -143,6 +158,9 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
               onMessagesChange([...next, assistantMsg])
               onStreamComplete?.(clean)
               onRawStreamComplete?.(full)
+            } else if (opts?.fallback) {
+              onMessagesChange([...next, { role: 'assistant', content: opts.fallback }])
+              onRawStreamComplete?.('')
             } else {
               const errMsg: ChatMessage = { role: 'assistant', content: '[请求超时或已中断，请重试]' }
               onMessagesChange([...next, errMsg])
@@ -152,7 +170,7 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
           } else {
             const errMsg: ChatMessage = {
               role: 'assistant',
-              content: '[连接失败，请检查 API 设置]',
+              content: opts?.fallback ?? '[连接失败，请检查 API 设置]',
             }
             onMessagesChange([...next, errMsg])
             onRawStreamComplete?.('')
@@ -164,10 +182,10 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
           abortRef.current = null
         }
       },
-      [messages, streaming, systemPrompt, recap, settings, onMessagesChange, onAssistantReply, onStreamComplete]
+      [messages, streaming, systemPrompt, recap, turnSuffix, settings, onMessagesChange, onAssistantReply, onStreamComplete]
     )
 
-    useImperativeHandle(ref, () => ({ sendMessage }))
+    useImperativeHandle(ref, () => ({ sendMessage, isBusy: () => streaming }))
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
       if (e.key === 'Enter' && !e.shiftKey) {
@@ -190,7 +208,11 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
         <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
           {allMessages
             .filter((m) => m.role !== 'system')
-            .map((msg, i) => (
+            .map((msg, i) => msg.hidden ? (
+              <div key={i} className="flex items-center gap-2 text-[10px] text-amber-300/70" data-testid="transition-divider">
+                <span className="flex-1 h-px bg-amber-400/20" />{msg.label ?? '转场'}<span className="flex-1 h-px bg-amber-400/20" />
+              </div>
+            ) : (
               <div
                 key={i}
                 className={cn(

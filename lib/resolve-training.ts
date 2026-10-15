@@ -299,6 +299,7 @@ function applyScene(input: TrainingInput, id: SceneId, next: MonstGirl, delta: T
     case 'onsen': if (direction === 'tame') ob = k(3); else lw = k(3); break
     case 'queen_room': s = k(8); lw = k(3); break
     case 'throne': s = k(10); lw = k(2); rep = 1; break
+    case 'cradle': s = k(6); lw = k(2); break
   }
   // 主项：亲和/觉醒 +2，抗拒 −2
   const mainAdj = reaction === 'affinity' || reaction === 'awakened' ? AFFINITY_MAIN_BONUS : reaction === 'aversion' ? -AVERSION_MAIN_PENALTY : 0

@@ -11,10 +11,10 @@ done; done; wait
 SEEDS_PY="$SEEDS" python3 - "$OUT" $STRATS <<'PY'
 import json,sys,os
 out=sys.argv[1]; strats=sys.argv[2:]; seeds=os.environ['SEEDS_PY'].split()
-print('| 策略 | 金币(各种子) | 平均金币 | 金币+投资 | 接客收入 | 满意度 | 极乐 | 满意 | 回头客 | 接客/调教 | 头牌≥50项 | 头牌≥75项 | 有≥50技能的人 | 头牌接客占比 |')
-print('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|')
+print('| 策略 | 金币(各种子) | 平均金币 | 金币+投资 | 接客收入 | 满意度 | 极乐 | 满意 | 回头客 | 接客/调教 | 头牌≥50项 | 头牌≥75项 | 有≥50技能的人 | 头牌接客占比 | 前3天满意度 |')
+print('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|')
 for st in strats:
     R=[json.load(open(f'{out}/{st}-{s}.json')) for s in seeds]
     a=lambda k: round(sum(r[k] for r in R)/len(R),1)
-    print(f"| {st} | {'/'.join(str(r['gold']) for r in R)} | {a('gold'):.0f} | {a('worth'):.0f} | {a('income'):.0f} | {a('sat')} | {a('gokuraku')} | {a('manzoku')} | {a('regulars')} | {a('services')}/{a('trainings')} | {a('top50')} | {a('top75')} | {a('girls50')} | {a('topShare')}% |")
+    print(f"| {st} | {'/'.join(str(r['gold']) for r in R)} | {a('gold'):.0f} | {a('worth'):.0f} | {a('income'):.0f} | {a('sat')} | {a('gokuraku')} | {a('manzoku')} | {a('regulars')} | {a('services')}/{a('trainings')} | {a('top50')} | {a('top75')} | {a('girls50')} | {a('topShare')}% | {a('early')} |")
 PY

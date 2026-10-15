@@ -172,10 +172,11 @@ export default function GamePage() {
             settings={settings}
             onSaveChange={handleSaveChange}
             onBack={() => setActiveTab('hub')}
+            onOpenSettings={() => setSettingsOpen(true)}
           />
         )}
         {activeTab === 'training' && (
-          <TrainingFlow save={save} settings={settings} onSaveChange={handleSaveChange} onBack={() => setActiveTab('hub')} />
+          <TrainingFlow save={save} settings={settings} onSaveChange={handleSaveChange} onBack={() => setActiveTab('hub')} onOpenSettings={() => setSettingsOpen(true)} />
         )}
         {activeTab === 'market' && (
           <MarketHub

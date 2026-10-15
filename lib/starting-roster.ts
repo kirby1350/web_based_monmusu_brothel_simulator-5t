@@ -2,7 +2,9 @@
 import type { GameSave, MonstGirl, Player } from './types'
 import { GIRL_TEMPLATES, GIRL_TEMPLATE_IMAGES } from './game-data'
 import { withInitialProficiency } from './proficiency'
-import { generateDailyGuests, getGuestCapacity } from './game-engine'
+import { getGuestCapacity } from './game-engine'
+import { rollDailyGuests } from './guest-gen'
+import { getDifficulty } from './archetypes'
 
 export const PARTNER_CHOICES = 3
 
@@ -22,13 +24,14 @@ export function partnerOptions(firstName: string, rng: () => number = Math.rando
 export function buildStartingSave(player: Player, first: MonstGirl, partner: MonstGirl | null, newId: () => string): GameSave {
   const girls = [withInitialProficiency(first)]
   if (partner) girls.push(withInitialProficiency({ ...partner, id: newId() }))
+  const p: Player = { ...player, level: 1, reputation: player.reputation ?? 0 }
   return {
-    player: { ...player, level: 1, reputation: 0 },
+    player: p,
     girls,
     currentDay: 1,
     phase: 'morning',
     actionsUsedToday: 0,
-    dailyGuests: generateDailyGuests(getGuestCapacity(1), 0, []),
+    dailyGuests: rollDailyGuests(getGuestCapacity(1), p.reputation ?? 0, [], { day: 1, girls, theme: p.storeTheme ?? null, demand: getDifficulty(p.difficulty).demand }),
     regulars: [],
   }
 }

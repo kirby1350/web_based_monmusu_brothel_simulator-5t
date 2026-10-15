@@ -77,7 +77,7 @@ export function sceneContext(input: Pick<TrainingInput, 'girl' | 'scene'>): stri
     : '她第一次面对这样的地方时会紧张，身体却诚实'
   const lv = shadowLevel(g, def.id)
   const shadow = lv ? `；这里在她心里留有阴影（${SHADOW_LEVEL_LABEL[lv]}），会发抖、想逃` : ''
-  const role = def.roleNote ? `\n${def.roleNote}；她仍是原来的性格、自称与口癖，只是多了支配的一面` : ''
+  const role = def.roleNote ? `\n${def.roleNote}；她仍是原来的性格、自称与口癖，只是多了${def.id === 'cradle' ? '母性' : '支配'}的一面` : ''
   return `\n【调教场景】${def.name}：${def.place}\n她的反应（${REACTION_LABEL[r] || '普通'}）：${react}${shadow}${role}——请让场景本身成为叙述的主角，道具与环境要被实际使用`
 }
 
@@ -116,7 +116,7 @@ export function trimHistory(messages: ChatMessage[], keep = 6, recap?: string): 
   if (users < keep || cut === 0) return cleaned
   const dropped = cleaned.slice(0, cut)
   const line = recap || `【前情】已进行 ${dropped.filter((m) => m.role === 'user').length} 轮：` +
-    dropped.filter((m) => m.role === 'user').map((m) => m.content.slice(0, 12)).join(' → ')
+    dropped.filter((m) => m.role === 'user' && !m.hidden).map((m) => m.content.slice(0, 12)).join(' → ')
   return [{ role: 'user', content: line }, { role: 'assistant', content: '（继续）' }, ...cleaned.slice(cut)]
 }
 
@@ -183,4 +183,40 @@ export function buildStepRecap(steps: RecapStep[], currentIndex: number): string
   const half = Math.ceil(parts.length / 2)
   const line = parts.length > 3 ? `${parts.slice(0, half).join(' → ')}\n→ ${parts.slice(half).join(' → ')}` : parts.join(' → ')
   return `【前情】${line}`
+}
+
+/** 每回合附在玩家消息末尾（只进请求，不进界面/存档）的字数提醒 */
+export const REPLY_LENGTH = { min: 300, max: 500 }
+export function lengthReminder(kind: 'service' | 'training' | 'chat'): string {
+  const { min, max } = REPLY_LENGTH
+  if (kind === 'chat') return `\n\n（回复要求：${min}–${max} 字。以她的话语为主，穿插她的动作、神态与心里的小念头，分两三段写，不要只回一两句。）`
+  return `\n\n（本回合要求：正文 ${min}–${max} 字（不含数据块），分三到五段，写足动作、对白和身体反应，不要只写一两句；末尾照常附 STATS 与 ACTIONS 两行。）`
+}
+/** 把字数提醒接到最后一条玩家消息上（只改请求内容） */
+export function withTurnSuffix(messages: ChatMessage[], suffix?: string): ChatMessage[] {
+  if (!suffix) return messages
+  const i = messages.map((m) => m.role).lastIndexOf('user')
+  return i < 0 ? messages : messages.map((m, j) => (j === i ? { ...m, content: m.content + suffix } : m))
+}
+
+/** 5. 自动转场：进入下一步时发给模型的隐藏指令（同一个聊天请求格式），失败时用本地一句 */
+export interface TransitionInput {
+  from: string
+  to: string
+  action: string
+  girls: string[]
+  guest: string
+  /** 兴奋/快感档位的一行摘要（可空） */
+  heatLine?: string
+  final?: boolean
+}
+export function transitionTurn(t: TransitionInput): string {
+  return `（转场：从「${t.from}」进入「${t.to}」。这一步的做法：${t.action}。` +
+    `请用旁白加对白自然写出这次转换：${t.girls.join('、')}怎样把气氛从上一步顺势推进到「${t.to}」，${t.guest}有什么反应` +
+    `${t.heatLine ? `；此刻 ${t.heatLine}，说话与身体反应要符合这个状态` : ''}。` +
+    `人物保持各自的自称与口癖。这是自动转场，不要替馆主做决定，写到「${t.to}」刚开始、留给馆主接下去为止。）`
+}
+export function transitionFallback(t: TransitionInput): string {
+  const who = t.girls.join('和')
+  return `——${who}${t.from === '迎客' ? '把' + t.guest + '引到床边' : '没有停下'}，顺势${t.action.replace(/[。！!]$/, '')}。「${t.to}」开始了。`
 }
