@@ -15,6 +15,18 @@ import { resolveTraining, getPropSlots, canDrillTwoSided, TRAINING_DIRECTIONS, T
 import { canSkipService, getAvailablePlays, getMainService, scorePlay } from '@/lib/resolve-service'
 import { previewService } from '@/lib/settle-session'
 import { cn } from '@/lib/utils'
+import { PortraitImg } from '@/components/portrait-img'
+
+/** 选人行左侧的小立绘（44×58）；还没生成立绘时显示种族首字 */
+function GirlThumb({ g }: { g: MonstGirl }) {
+  return (
+    <div className="w-11 h-[58px] shrink-0 rounded-md overflow-hidden border border-border bg-muted/40 flex items-center justify-center" data-testid={`thumb-${g.name}`}>
+      {g.imageUrl
+        ? <PortraitImg url={g.imageUrl} size="sm" sizes="44px" alt={g.name} className="w-full h-full object-cover object-top" />
+        : <span className="text-sm text-muted-foreground">{g.race.slice(0, 1)}</span>}
+    </div>
+  )
+}
 
 export interface ServicePlan {
   girl: MonstGirl
@@ -114,6 +126,7 @@ export function SessionSetup({ save, onSkip, onLive }: SessionSetupProps) {
                   <button key={g.id} onClick={() => setGirlId(g.id)} data-testid={`pick-girl-${g.name}`}
                     className={cn('w-full text-left rounded-lg border bg-card px-3 py-2 flex items-center gap-3 transition-colors select-none [&_*]:pointer-events-none',
                       g.id === girlId ? 'border-amber-400/70' : 'border-border hover:border-primary/50')}>
+                    <GirlThumb g={g} />
                     <div className="flex-1 min-w-0 space-y-0.5">
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs font-semibold gold-text">{g.name}</span>
@@ -314,8 +327,10 @@ export function TrainingSetup({ save, onSkip, onLive }: TrainingSetupProps) {
             <p className="text-[10px] text-muted-foreground uppercase tracking-widest">调教对象（一场只安排一名）</p>
             {girls.map((g) => (
               <button key={g.id} onClick={() => setGirlId(g.id)} data-testid={`pick-girl-${g.name}`}
-                className={cn('w-full text-left rounded-lg border bg-card px-3 py-2 transition-colors select-none [&_*]:pointer-events-none',
+                className={cn('w-full text-left rounded-lg border bg-card px-3 py-2 flex items-center gap-3 transition-colors select-none [&_*]:pointer-events-none',
                   g.id === girlId ? 'border-amber-400/70' : 'border-border hover:border-primary/50')}>
+                <GirlThumb g={g} />
+                <div className="flex-1 min-w-0 space-y-0.5">
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs font-semibold gold-text">{g.name}</span>
                   <Badge variant="secondary" className="text-[9px] h-4 px-1">{g.race}</Badge>
@@ -324,6 +339,7 @@ export function TrainingSetup({ save, onSkip, onLive }: TrainingSetupProps) {
                 <p className="text-[10px] text-muted-foreground">
                   体力 {g.stamina ?? 100} · 服从 {g.obedience} · 淫乱 {g.lewdness} · 好感 {g.affection} · B{g.bust}/W{g.waist}/H{g.hip}
                 </p>
+                </div>
               </button>
             ))}
           </section>
