@@ -11,7 +11,7 @@ import { ChatEngine, ChatEngineHandle } from '@/components/chat-engine'
 import { SuggestionBar } from '@/components/suggestion-bar'
 import { getStepActions } from '@/lib/custom-props'
 import { stepActionsWithPlays } from '@/lib/service-flows'
-import { buildServiceSystemPrompt, buildOpeningDialoguePrompt, buildSuggestionPrompt, buildBehaviourLines, stepBehaviour } from '@/lib/prompt-builder'
+import { buildServiceSystemPrompt, buildOpeningDialoguePrompt, buildSuggestionPrompt, buildBehaviourLines, stepBehaviour, buildTrainingOpeningPrompt } from '@/lib/prompt-builder'
 import {
   createServiceSession, applyStatDelta, estimateStatDelta, parseStatsFromReply, getGirlDelta,
   updateGuestSatisfaction, parseActionsFromReply, computeInitialSatisfaction,
@@ -302,12 +302,24 @@ export function TrainingScene({ player, girl, directionLabel, trainingInfo, extr
   // 对话里触到阴影：本场激发一次，之后每回合的提示词都带【激发阴影】，结算时生效
   const [provoked, setProvoked] = useState<SceneId | undefined>()
   const [pending, setPending] = useState<string | null>(null)
-  const [messages, setMessages] = useState<ChatMessage[]>(() => [{
-    role: 'assistant',
-    content: `${getScene(scene) ? `${getScene(scene)!.name}的门缓缓关上。${getScene(scene)!.desc}` : '调教室的门缓缓关上。'}${girl.name}被带到你面前，今天的项目是「${directionLabel}」。` +
-      `\n<!--STATS:${JSON.stringify({ girls: { [girl.name]: { pleasure: 0, stamina: 0 } }, satisfaction: 0 })}-->` +
-      `\n<!--ACTIONS:["命令她跪下","抬起她的下巴","她低声求饶"]-->`,
-  }])
+  const seedMeta = `\n<!--STATS:${JSON.stringify({ girls: { [girl.name]: { pleasure: 0, stamina: 0 } }, satisfaction: 0 })}-->` +
+    `\n<!--ACTIONS:["命令她跪下","抬起她的下巴","她低声求饶"]-->`
+  const staticOpening = `${getScene(scene) ? `${getScene(scene)!.name}的门缓缓关上。${getScene(scene)!.desc}` : '调教室的门缓缓关上。'}${girl.name}被带到你面前，今天的项目是「${directionLabel}」。`
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  // 开场白：按场景 / 方向 / 她的状态 / 性癖 / 阴影请求一段；失败用静态句
+  const [opening, setOpening] = useState<{ loading: boolean; text: string }>({ loading: true, text: '' })
+  useEffect(() => {
+    let ignore = false
+    const apiKey = settings.chatModel.startsWith('grok') ? settings.grokApiKey : settings.chatApiKey
+    const prompt = buildTrainingOpeningPrompt(player, girl, { directionLabel, scene, day, trainingInfo, extra: extraPrompt })
+    fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], model: settings.chatModel, apiKey, stream: false }) })
+      .then(async (res) => (res.ok ? String((await res.json()).content ?? '').replace(/<!--[\s\S]*?-->/g, '').trim() : ''))
+      .catch(() => '')
+      .then((t) => { if (!ignore) setOpening({ loading: false, text: t || staticOpening }) })
+    return () => { ignore = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [turns, setTurns] = useState(0)
   const [pleasure, setPleasure] = useState(0)
   const [suggestions, setSuggestions] = useState<[string, string, string] | null>(['命令她跪下', '抬起她的下巴', '她低声求饶'])
@@ -336,6 +348,25 @@ export function TrainingScene({ player, girl, directionLabel, trainingInfo, extr
     const hit = !provoked && day ? detectShadowTrigger(girl, scene, t, day) : null
     if (hit) { setProvoked(hit); setPending(t.trim()); return }
     chatRef.current?.sendMessage(t.trim())
+  }
+
+  if (!messages.length) {
+    return (
+      <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-center gap-4 max-w-lg mx-auto w-full" data-testid="tr-opening">
+        <h2 className="text-base font-bold gold-text">{getScene(scene)?.name ?? '调教室'} · {directionLabel}</h2>
+        <div className="bg-card border border-border rounded-xl p-5 w-full min-h-[80px] flex items-center justify-center">
+          {opening.loading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /><span>布置场景中…</span></div>
+          ) : (
+            <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap" data-testid="tr-opening-text">{opening.text}</p>
+          )}
+        </div>
+        <Button className="h-10 px-8 glow-btn gap-2" disabled={opening.loading} data-testid="tr-opening-continue"
+          onClick={() => setMessages([{ role: 'assistant', content: opening.text + seedMeta }])}>
+          开始调教 <ChevronRight className="w-4 h-4" />
+        </Button>
+      </div>
+    )
   }
 
   return (

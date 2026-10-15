@@ -152,7 +152,7 @@ export type StockingId = 'none' | 'black' | 'white' | 'garter' | 'fishnet' | 'la
 export type OutfitPref = '制服' | '和服' | '黑丝' | '白丝' | '暴露' | '想施虐的客人' | '想被榨的客人' | '兔女郎' | '异域' | '圣洁'
 export type TrainingDirection = 'tame' | 'release' | 'sculpt' | 'drill' | 'sensitize' | 'punish'
 /** 可购买的调教场景（设备）；缺省 = 普通调教室 */
-export type SceneId = 'dungeon' | 'water' | 'stage' | 'machine' | 'tentacle' | 'hypnosis' | 'altar' | 'onsen' | 'queen_room' | 'throne'
+export type SceneId = 'dungeon' | 'water' | 'stage' | 'machine' | 'tentacle' | 'hypnosis' | 'altar' | 'onsen' | 'queen_room' | 'throne' | 'cradle'
 /** 某魔物娘在某场景上的累积：最近使用日（≤7 条）、性癖积累、阴影积累 */
 export interface SceneState { uses: number[]; fp: number; sp: number }
 

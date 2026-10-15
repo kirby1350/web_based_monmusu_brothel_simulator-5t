@@ -662,6 +662,38 @@ ${isMulti ? `- 每一位魔物娘都必须在开场白中出现，各自有专�
   }
 }
 
+// ─── 调教开场白（按场景 / 方向 / 她的状态 / 性癖 / 阴影） ─────────────────────
+
+export function buildTrainingOpeningPrompt(player: Player, girl: MonstGirl, opts: {
+  directionLabel: string; scene?: SceneId; day?: number
+  /** trainingContext() 的整段（含方向、道具、场景反应、阴影） */
+  trainingInfo?: string
+  /** 惩罚缘由等 */
+  extra?: string
+}): string {
+  const def = getScene(opts.scene)
+  const bwh = girlBWH(girl)
+  const fetish = fetishPromptLine(girl)
+  return `你是一个成人互动小说写作引擎。为下面这场调教写开场白：场景布置、她被带进来的样子、她和馆主的第一轮交锋，停在调教即将开始的那一刻。
+
+【地点】${def ? `${def.name}——${def.place}` : `${player.name}娼馆的调教室，拘束架、皮鞭、润滑液与各种玩具摆放整齐`}
+【馆主】${player.name}（特性：${playerTraitsFull(player)}）
+【魔物娘】${girl.name}（${girl.race}）
+  外貌：${girl.bodyDesc}${bwh ? `，三围 ${bwh}` : ''}
+  性格：${girl.personality}${speechLine(girl, '\n  ')}
+  服装：${girl.outfit}
+  服从度 ${girl.obedience}/100，淫乱度 ${girl.lewdness}/100，好感度 ${girl.affection}/100
+  状态：${girlStateCard(girl, opts.day, { private: true })}${girl.sexualDesc ? `\n  色色设定：${girl.sexualDesc}` : ''}${fetish ? `\n  ${fetish}` : ''}${memLine(girl, { type: 'training', scene: opts.scene }, '  ')}
+${opts.trainingInfo ?? `【本次调教】${opts.directionLabel}`}${opts.extra ? `\n${opts.extra}` : ''}
+
+要求：
+- 250-400字，第三人称，分两三段；含她的两三句台词（按她的自称、口癖与说话方式）
+- 先写场景本身（光线、气味、声音、道具），再写她进门时的反应，按上面的亲和/抗拒/阴影/性癖与服从、好感来定基调：亲和或已觉醒就期待难掩，抗拒或有阴影就发抖、迟疑但不崩坏，服从低就嘴硬顶撞
+- 点明今天的项目是「${opts.directionLabel}」${def?.roleNote ? '，并按场景说明写出这一场由谁主导' : ''}
+- 不要写到正式调教的过程，停在开始前的张力上${speechRuleFor([girl], '\n- ')}
+- 只输出叙述文本，不要标题、说明或数据块`
+}
+
 // ─── 关系记忆生成提示词 ────────────────────────────────────────────────────────
 
 export function buildMemoryPrompt(

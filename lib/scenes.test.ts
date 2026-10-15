@@ -21,11 +21,11 @@ const human = (o: Partial<MonstGirl> = {}) => fxGirl({ race: '人类', ...o })
 const mkSave = (o: Partial<GameSave['player']> = {}, girls: MonstGirl[] = [human()]): GameSave =>
   migrateSave({ player: { ...fxPlayer, gold: 5000, ...o }, girls, currentDay: 5, phase: 'morning', actionsUsedToday: 0, dailyGuests: [] })
 
-test('场景表：10 个（含 2 个放权场景），维护费合计 19，价格与维护单调大致对应', () => {
-  assert.equal(TRAINING_SCENES.length, 10)
+test('场景表：11 个（含 3 个放权场景），维护费合计 20，价格与维护单调大致对应', () => {
+  assert.equal(TRAINING_SCENES.length, 11)
   const total = TRAINING_SCENES.reduce((a, s) => a + s.upkeep, 0)
-  assert.equal(total, 19)
-  assert.equal(TRAINING_SCENES.filter((s) => s.directions.includes('release') && !s.directions.includes('tame')).map((s) => s.id).join(','), 'altar,queen_room,throne')
+  assert.equal(total, 20)
+  assert.equal(TRAINING_SCENES.filter((s) => s.directions.includes('release') && !s.directions.includes('tame')).map((s) => s.id).join(','), 'altar,queen_room,throne,cradle')
   for (const s of TRAINING_SCENES) { assert.ok(s.upkeep >= 1 && s.upkeep <= 3); assert.ok(s.directions.length >= 1) }
 })
 
