@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
+import { topSkillsText } from '@/lib/proficiency'
 import { withInitialProficiency } from '@/lib/proficiency'
 import { ArrowLeft, RefreshCw, Loader2, Coins, ShoppingCart, Filter, Send, Settings2, X, BookOpen, Star } from 'lucide-react'
 import { GameSave, MonstGirl, AppSettings } from '@/lib/types'
@@ -412,6 +413,7 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
                       <StatBar label="好感度" value={template.affection} color="pink" size="sm" />
                       <StatBar label="服从度" value={template.obedience} color="blue" size="sm" />
                       <StatBar label="淫乱度" value={template.lewdness} color="rose" size="sm" />
+                      <p className="text-[10px] text-sky-300/90" data-testid="top-skills">拿手：{topSkillsText(template as MonstGirl)}</p>
                     </div>
                     <Button
                       variant="outline"
@@ -514,6 +516,7 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
                       <StatBar label="好感度" value={girl.affection} color="pink" size="sm" />
                       <StatBar label="服从度" value={girl.obedience} color="blue" size="sm" />
                       <StatBar label="淫乱度" value={girl.lewdness} color="rose" size="sm" />
+                      <p className="text-[10px] text-sky-300/90" data-testid="top-skills">拿手：{topSkillsText(girl)}</p>
                     </div>
                     <Button
                       variant="outline"
@@ -585,6 +588,7 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
                 <StatBar label="好感度" value={detailGirl.affection} color="pink" size="sm" />
                 <StatBar label="服从度" value={detailGirl.obedience} color="blue" size="sm" />
                 <StatBar label="淫乱度" value={detailGirl.lewdness} color="rose" size="sm" />
+                <p className="text-[10px] text-sky-300/90">拿手：{topSkillsText(detailGirl, 3)}</p>
               </div>
             </div>
             <div className="px-4 pb-4 pt-2 shrink-0">

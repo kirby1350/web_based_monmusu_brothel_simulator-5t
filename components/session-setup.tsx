@@ -12,7 +12,7 @@ import { ItemIcon } from '@/components/item-icon'
 import { getTemplate } from '@/lib/custom-props'
 import { canPunish } from '@/lib/incidents'
 import { resolveTraining, getPropSlots, TRAINING_DIRECTIONS, type TrainingResult } from '@/lib/resolve-training'
-import { PROF_SKILLS, proficiencyFromLegacy, profShow, profTierLabel } from '@/lib/proficiency'
+import { PROF_SKILLS, proficiencyFromLegacy, profShow, profTierLabel, SERVICE_PROF_CAP, type Proficiency } from '@/lib/proficiency'
 import { canSkipService, getAvailablePlays, getMainService, scorePlay } from '@/lib/resolve-service'
 import { previewService } from '@/lib/settle-session'
 import { cn } from '@/lib/utils'
@@ -136,7 +136,7 @@ export function SessionSetup({ save, onSkip, onLive }: SessionSetupProps) {
                       </div>
                       <p className="text-[10px] text-muted-foreground">
                         体力 {st} · 服从 {g.obedience}
-                        {main && <> · {main} {rank ?? '未学'}</>}
+                        {main && <> · {main} {rank ?? '未学'} {profShow((g.proficiency ?? proficiencyFromLegacy(g))[main])}</>}
                         {main && sens !== undefined && <> · {MAIN_ZONE[main]} {getSensitivityLevel(sens)}</>}
                       </p>
                     </div>
@@ -198,6 +198,7 @@ export function SessionSetup({ save, onSkip, onLive }: SessionSetupProps) {
               <Row label="五步预估" value={preview.skip.steps.map((x) => `${x.label}${x.score}`).join(' · ')} />
               {preview.skip.raceNotes.length > 0 && <Row label="种族/状态" value={preview.skip.raceNotes.join('；')} />}
               {preview.skip.plays.length > 0 && <Row label="自动 play" value={preview.skip.plays.map((p) => p.name).join('、')} />}
+              <Row label="熟练度" value={`${profGainText(preview.skip.profGains)}（亲自上场 ×1.5；接客最多练到 ${SERVICE_PROF_CAP}）`} />
             </div>
             {!preview.skip.canSkip && (
               <p className="text-[11px] text-rose-400/80">{plan.girl.name} 服从低于 25，只能亲自上场或先去调教。</p>
@@ -504,4 +505,9 @@ export function trainingGains(r: TrainingResult): string {
 /** 熟练度变化：「胸侍 52→58、M性 30→35」 */
 export function profChangeText(changes: NonNullable<TrainingResult['profChanges']>): string {
   return changes.map((c) => `${c.skill} ${profShow(c.from)}→${profShow(c.to)}${c.rankUp ? `（${c.rankUp}！）` : ''}`).join('、')
+}
+
+/** 接客熟练度基础增量：「口侍 +2、待客 +1、手技 +1」 */
+function profGainText(g: Proficiency): string {
+  return Object.entries(g).filter(([, v]) => v).map(([k, v]) => `${k} +${Math.round((v as number) * 10) / 10}`).join('、') || '—'
 }

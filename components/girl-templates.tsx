@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { topSkillsText } from '@/lib/proficiency'
 import { Check, ImageIcon } from 'lucide-react'
 import { GIRL_TEMPLATES, GIRL_TEMPLATE_IMAGES, GIRL_TEMPLATE_TAGLINES, RACES } from '@/lib/game-data'
 import { MonstGirl } from '@/lib/types'
@@ -65,6 +66,7 @@ export function GirlTemplates({ onSelect }: GirlTemplatesProps) {
               <StatBar label="好感" value={tmpl.affection} color="pink" size="sm" showValue={false} />
               <StatBar label="服从" value={tmpl.obedience} color="blue" size="sm" showValue={false} />
               <StatBar label="淫乱" value={tmpl.lewdness} color="rose" size="sm" showValue={false} />
+              <p className="text-[9px] text-sky-300/90 leading-tight" data-testid="top-skills">{topSkillsText(tmpl as MonstGirl)}</p>
               {(tmpl.bust || tmpl.waist || tmpl.hip) && (
                 <p className="text-[9px] text-muted-foreground/60 font-mono leading-none mt-1">
                   B{tmpl.bust ?? '?'} / W{tmpl.waist ?? '?'} / H{tmpl.hip ?? '?'}

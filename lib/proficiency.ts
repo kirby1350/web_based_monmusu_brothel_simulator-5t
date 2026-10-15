@@ -177,3 +177,11 @@ export function proficiencyFromLegacy(g: MonstGirl): Required<Proficiency> {
   p['M性'] = m; p['S性'] = s
   return p
 }
+
+/** 卡片上的「拿手」简述：入门以上的服侍技能按熟练度排序取前 n 项，例如「胸侍 初学45 · 待客 初学33」；都没入门写「暂无拿手技能」 */
+export function topSkillsText(g: MonstGirl, n = 2): string {
+  const p = g.proficiency ?? initialProficiency(g)
+  const top = [...SERVING_PROF_SKILLS].filter((k) => (p[k] ?? 0) >= PROF_TIERS.初学)
+    .sort((a, b) => (p[b] ?? 0) - (p[a] ?? 0)).slice(0, n)
+  return top.length ? top.map((k) => `${k} ${profTierLabel(p[k])}${profShow(p[k])}`).join(' · ') : '暂无拿手技能'
+}
