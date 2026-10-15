@@ -85,7 +85,7 @@
 - 文案表放在 `lib/catalog.ts`（`SENSITIVITY_PROMPT_LINES`、`SKILL_PROMPT_LINES`），拼接放在 `lib/live-steps.ts` 的 `buildStepContext`，由 `lib/prompt-builder.ts` 的 `buildServiceSystemPrompt` 附在末尾（沿用阶段 3 的可选参数）。
 - 测试：挑逗步耳朵为弱点时提示词含弱点那句；前戏手技精通时含精通那句；切到下一步后上一步的句子不再出现；计分结果不变。
 
-聊天连通性：本机（box）连 `www.gpt4novel.com` 时 TLS 握手失败（curl 退出码 35），`/api/models` 和 `/api/chat` 都返回 500 `fetch failed`，不是 Key 的问题。`api.x.ai` 可达。可选做法：换到能访问 gpt4novel 的网络或代理；或在 `.env.local` 配 `GROK_API_KEY` 并在设置里选 Grok 模型。不改 `app/api/*`。跳过流程、步骤条、商店都不依赖聊天。
+聊天连通性：已迁移到 `https://api.sillytraven.dev/api/ai`，对话走 `/v1/chat/completions`，模型列表走 `/v2/models`。服务端支持 `.env` 中的 `DZMM_API_TOKEN` 或原有 `CHAT_API_KEY`。旧 gpt4novel 域名曾在本机出现 TLS 握手失败；现用新域名。
 
 验收：清单 25 条都有结论；待办 7、18、22、24、25 做完，调教预览和结算卡上体力统一为 −20；亲自上场时提示词里出现当前步骤的档位句子；改过的常量有测试守住；`pnpm test`、`tsc --noEmit`、`pnpm build` 通过。
 

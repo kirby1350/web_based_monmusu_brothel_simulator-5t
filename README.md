@@ -49,7 +49,7 @@
 |------|------|
 | 框架 | Next.js 16 (App Router) |
 | UI | React 19 + Tailwind CSS v4 + shadcn/ui + Radix UI |
-| AI 对话 | OpenAI 兼容 API（支持 Grok / 其他兼容端点） |
+| AI 对话 | 固定的 DZMM API / xAI Grok API |
 | 生图 | PixAI API / TensorArt API |
 | 状态管理 | React useState + localStorage 存档 |
 | 语言 | TypeScript 5.7 |
@@ -57,6 +57,8 @@
 ---
 
 ## 快速开始
+
+运行环境：建议 Node.js 22 LTS + pnpm 10（Next.js 16 要求 Node.js ≥ 20.9）。
 
 ### 1. 克隆并安装依赖
 
@@ -68,19 +70,26 @@ pnpm install
 
 ### 2. 配置环境变量
 
-在项目根目录创建 `.env.local`：
+在项目根目录创建 `.env`（已被 Git 忽略，不要提交真实密钥）：
 
 ```env
-# 对话模型 API Key（OpenAI 兼容格式）
-CHAT_API_KEY=your_chat_api_key
+# 默认对话服务：DZMM
+CHAT_API_KEY=your_dzmm_api_key
+# 也支持 DZMM_API_TOKEN；同时填写时优先使用 DZMM_API_TOKEN
 
 # xAI Grok API Key（使用 Grok 模型时）
 GROK_API_KEY=your_grok_api_key
 
-# 生图服务 API Key（二选一或都填）
+# 可选：仅使用对应 AI 生图服务时填写
 PIXAI_API_KEY=your_pixai_api_key
 TENSORART_API_KEY=your_tensorart_api_key
 ```
+
+启动页面本身不需要密钥。AI 对话只需配置所选服务对应的 Key；不使用 AI 生图时可省略生图 Key，预设角色使用本地图片。以上占位值请替换为真实密钥，不使用的变量可删除。
+
+游戏设置中非空的 Key 优先于服务端环境变量；若要使用 `.env`，请将游戏设置中对应 Key 留空。Next.js 也会加载 `.env.local` 等环境文件，它们和进程中已有的同名变量可能覆盖 `.env`。修改后停止旧服务并重新启动。
+
+当前对话端点固定为 DZMM（`https://api.sillytraven.dev/api/ai/v1/chat/completions`）及 xAI（`https://api.x.ai/v1/chat/completions`），不支持通过 `BASE_URL` 环境变量或游戏设置切换到其他兼容平台。
 
 ### 3. 启动开发服务器
 
@@ -88,7 +97,7 @@ TENSORART_API_KEY=your_tensorart_api_key
 pnpm dev
 ```
 
-打开 [http://localhost:3000](http://localhost:3000) 即可游玩。
+打开 [http://localhost:3000](http://localhost:3000) 即可游玩。若端口已占用，开发服务器会选择其他可用端口，以终端输出地址为准。
 
 ---
 
@@ -98,10 +107,9 @@ pnpm dev
 
 | 设置项 | 说明 |
 |--------|------|
-| 对话模型 | 模型名称，如 `grok-3-mini`、`gpt-4o` |
-| API Base URL | 自定义 OpenAI 兼容端点地址 |
-| Chat API Key | 留空则自动使用服务端环境变量 |
-| Grok API Key | 使用 Grok 系列模型时填写 |
+| 对话模型 | 从 DZMM 动态模型列表或内置 Grok 模型中选择 |
+| Chat API Key | DZMM 密钥；留空依次使用 `DZMM_API_TOKEN`、`CHAT_API_KEY` |
+| Grok API Key | xAI 密钥；留空使用 `GROK_API_KEY` |
 | 生图服务商 | PixAI 或 TensorArt |
 | 生图 API Key | 留空则自动使用服务端环境变量 |
 | 图片风格 | 选择生图的画风预设 |
@@ -146,3 +154,7 @@ pnpm dev
 - AI 生成内容受所用模型的内容政策限制，部分模型可能拒绝生成特定内容
 - 生图功能需要有效的第三方 API Key，产生的调用费用由使用者自行承担
 - 本项目中涉及的角色设定均为二次创作，与任何原作版权方无关
+
+### DZMM 接口配置
+
+普通对话使用 `https://api.sillytraven.dev/api/ai/v1/chat/completions`，保持 OpenAI 兼容的 `messages` 请求结构；模型列表使用 `https://api.sillytraven.dev/api/ai/v2/models`，保留显示名称和上下文长度。无需切换到 Card-Chat。密钥优先级为游戏内填写值 → `DZMM_API_TOKEN` → `CHAT_API_KEY`，现有 `.env` 无需改名。服务端未指定模型时使用 `x-apex-surge-0505-16k`；旧设置中的 `Apex-Neo-0213-16k` 会映射到此模型，其他已选择模型保持不变。

@@ -8,10 +8,10 @@ const CHAT_TEMPERATURE = 0.9
 // 给得宽裕：丰富的正文 + 末尾的 STATS/ACTIONS 结构化 JSON 必须都能放下，
 // 否则结构化尾块会被截断，导致 game-engine 无法解析数值。
 const CHAT_MAX_TOKENS = 4096
-const DEFAULT_CHAT_MODEL = 'Apex-Neo-0213-16k'
+const DEFAULT_CHAT_MODEL = 'x-apex-surge-0505-16k'
 const DEFAULT_GROK_MODEL = 'grok-4-latest'
 const GROK_ENDPOINT = 'https://api.x.ai/v1/chat/completions'
-const DZMM_ENDPOINT = 'https://www.gpt4novel.com/api/xiaoshuoai/ext/v1/chat/completions'
+const DZMM_ENDPOINT = 'https://api.sillytraven.dev/api/ai/v1/chat/completions'
 const SSE_HEADERS = {
   'Content-Type': 'text/event-stream',
   'Cache-Control': 'no-cache',
@@ -58,8 +58,8 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Default: gpt4novel provider
-  const key = apiKey || process.env.CHAT_API_KEY
+  // Default: DZMM provider
+  const key = apiKey || process.env.DZMM_API_TOKEN || process.env.CHAT_API_KEY
   if (!key) {
     return NextResponse.json({ error: '未配置 Chat API Key' }, { status: 401 })
   }
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
         Authorization: `Bearer ${key}`,
       },
       body: JSON.stringify({
-        model: model || DEFAULT_CHAT_MODEL,
+        model: !model || model === 'Apex-Neo-0213-16k' ? DEFAULT_CHAT_MODEL : model,
         messages,
         stream: true, // 始终向上游请求流式；非流式调用方由 parseSseToContent 拼回整段
         temperature: CHAT_TEMPERATURE,

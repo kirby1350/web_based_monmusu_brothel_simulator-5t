@@ -13,10 +13,11 @@
 - **框架**：Next.js 16（App Router）+ React 19
 - **语言**：TypeScript 5.7（注意：`next.config.mjs` 中 `ignoreBuildErrors: true`，构建不做类型检查）
 - **UI**：Tailwind CSS v4 + shadcn/ui + Radix UI + lucide-react 图标
-- **AI 对话**：OpenAI 兼容 API（默认 gpt4novel / Nalang 系列，另支持 xAI Grok）
+- **AI 对话**：OpenAI 兼容 API（默认 DZMM / Nalang 系列，另支持 xAI Grok）
 - **生图**：PixAI / TensorArt（二选一）
 - **状态**：React `useState` + `localStorage`，无全局状态库
-- **包管理**：pnpm
+- **运行环境**：建议 Node.js 22 LTS（Next.js 16 要求 Node.js ≥ 20.9）
+- **包管理**：pnpm 10
 
 ## 命令
 
@@ -27,8 +28,26 @@ pnpm start    # 启动生产构建
 pnpm lint     # ⚠️ 脚本存在但缺少 ESLint 配置文件
 ```
 
-环境变量（`.env.local`，均为服务端注入，留空则要求用户在游戏内设置里手填）：
-`CHAT_API_KEY`、`GROK_API_KEY`、`PIXAI_API_KEY`、`TENSORART_API_KEY`
+## 本地环境配置与重启
+
+项目根目录使用 `.env`，已在 `.gitignore` 中忽略。不要提交或输出真实密钥。
+
+```dotenv
+# 默认对话服务 DZMM
+CHAT_API_KEY=your_dzmm_api_key
+# 也支持 DZMM_API_TOKEN；同时填写时优先使用 DZMM_API_TOKEN
+# 选择内置 Grok 模型时使用 xAI 密钥
+GROK_API_KEY=your_xai_api_key
+# 可选生图服务
+PIXAI_API_KEY=your_pixai_api_key
+TENSORART_API_KEY=your_tensorart_api_key
+```
+
+- 页面启动不要求任何 Key；AI 功能按所选服务配置，不使用的变量可省略。预设角色图片无需生图密钥。
+- 客户端传入的非空 Key 优先，留空才回退到对应服务端环境变量。使用 `.env` 时应将游戏设置中的对应 Key 留空。
+- Next.js 也会加载 `.env.local` 等更高优先级环境文件；进程已有同名环境变量也可能覆盖 `.env`，排查时只检查变量名称和是否存在，不打印密钥。
+- 对话端点固定：DZMM 为 `https://api.sillytraven.dev/api/ai/v1/chat/completions`，xAI 为 `https://api.x.ai/v1/chat/completions`。没有自定义 API Base URL 设置，也不读取 `BASE_URL` 类环境变量。
+- 修改 `.env` 后，停止本项目旧开发进程，再在根目录运行 `pnpm dev`。默认端口 3000，被占用则以启动日志的实际地址为准；重启后检查 HTTP 响应，不为验证配置而自动发起付费 AI 请求。
 
 ## 目录结构
 
@@ -45,7 +64,7 @@ app/
     image/task/[taskId]/route.ts  # PixAI 轮询
     image/tensorart/route.ts      # TensorArt 提交
     image/tensorart/[jobId]/route.ts # TensorArt 轮询
-    models/route.ts               # 代理 DZMM/gpt4novel v2 模型列表（edge，动态模型）
+    models/route.ts               # 代理 DZMM v2 模型列表（edge，动态模型）
 components/
   daily-hub.tsx         # 每日 Hub 主界面（开场白、动作按钮、魔物娘抽屉、闲聊）
   service-screen.tsx    # 服务/调教场景主界面（最大组件 ~900 行）
@@ -82,7 +101,7 @@ hooks/, public/presets/  # 预设角色立绘
 ```
 组件构建 systemPrompt (prompt-builder)
   → ChatEngine.sendMessage / 直接 fetch('/api/chat')
-  → api/chat 透传到上游 LLM（Grok 或 gpt4novel）
+  → api/chat 透传到上游 LLM（Grok 或 DZMM）
   → SSE 流式返回 → chat-engine 增量解析渲染
   → 回复末尾含隐藏块 <!--STATS:...--> 和 <!--ACTIONS:...-->
   → game-engine.parseStatsFromReply / parseActionsFromReply 提取
@@ -90,7 +109,7 @@ hooks/, public/presets/  # 预设角色立绘
 ```
 
 - `api/chat` 始终向上游请求 `stream:true`；非流式调用方（如生成 tag、开场白）由 `parseSseToContent` 把整段 SSE 拼成一个字符串返回 `{ content }`。
-- **模型路由**：`model` 以 `grok` 开头 → 走 xAI 端点用 `grokApiKey`；否则走 gpt4novel 用 `chatApiKey`。客户端未传 key 时回退到服务端环境变量。
+- **模型路由**：`model` 在 `CHAT_MODELS` 中匹配且 `provider` 为 `grok` → 走 xAI 端点用 `grokApiKey`；否则走 DZMM，用请求字段 `apiKey`（来自设置的 `chatApiKey`）。客户端未传 key 时回退到服务端环境变量。
 
 ### 2. 隐藏数据块协议（叙事↔数值闭环，核心机制）
 LLM 在叙事正文后追加两行 HTML 注释，玩家不可见：
@@ -149,3 +168,7 @@ image-service.generateImage(tags, settings)
 - **游戏性缺口**：已加入每日 3 次行动上限、每日预生成客人池、娼馆升级（容量）、满意度分档结算、声望、技能解锁、回头客。仍待补：无每日支出、体力不跨天 —— 扩展玩法时这些是主要切入点。
 - **`.idea/` 未加入 `.gitignore`**。
 ```
+
+### DZMM 接口配置
+
+普通对话使用 `https://api.sillytraven.dev/api/ai/v1/chat/completions`，保持 OpenAI 兼容的 `messages` 请求结构；模型列表使用 `https://api.sillytraven.dev/api/ai/v2/models`，保留显示名称和上下文长度。无需切换到 Card-Chat。密钥优先级为游戏内填写值 → `DZMM_API_TOKEN` → `CHAT_API_KEY`，现有 `.env` 无需改名。服务端未指定模型时使用 `x-apex-surge-0505-16k`；旧设置中的 `Apex-Neo-0213-16k` 会映射到此模型，其他已选择模型保持不变。

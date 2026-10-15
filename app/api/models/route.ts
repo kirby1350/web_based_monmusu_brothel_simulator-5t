@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export const runtime = 'edge'
 
-// 代理 DZMM/gpt4novel 的模型列表，让 API Key 留在服务端并规避 CORS。
+// 代理 DZMM 的模型列表，让 API Key 留在服务端并规避 CORS。
 export async function GET(req: NextRequest) {
-  const key = req.headers.get('x-api-key') || process.env.CHAT_API_KEY || ''
+  const key = req.headers.get('x-api-key') || process.env.DZMM_API_TOKEN || process.env.CHAT_API_KEY || ''
 
   try {
-    const response = await fetch('https://www.gpt4novel.com/api/xiaoshuoai/ext/v2/models', {
+    const response = await fetch('https://api.sillytraven.dev/api/ai/v2/models', {
       headers: key ? { Authorization: `Bearer ${key}` } : {},
     })
 
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     const data = await response.json()
     return NextResponse.json(data)
   } catch (e) {
-    // 连不上上游（如本机到 gpt4novel 的 TLS 握手失败）：返回空列表，前端回退到内置模型列表
+    // 连不上上游（如本机到 DZMM 的 TLS 握手失败）：返回空列表，前端回退到内置模型列表
     return NextResponse.json({ data: [], fallback: true, warning: `无法连接模型服务（${String(e)}）` })
   }
 }

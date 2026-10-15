@@ -21,7 +21,7 @@ export const PROSE_STYLE_LABELS: Record<ProseStyle, { label: string; hint: strin
   dense: { label: '重油堆叠', hint: '极致密集的感官堆叠流（仍遵守去油黑名单）' },
 }
 
-// DZMM/gpt4novel v2 模型列表返回的单条模型
+// DZMM v2 模型列表返回的单条模型
 export interface DzmmModel {
   id: string
   name: string
@@ -115,7 +115,7 @@ export const CHAT_MODELS: {
   // Turbo 系列 ($0.0001/1K tokens)
   { value: 'nalang-turbo-0826', label: 'Nalang Turbo 32K（推荐）', group: 'Turbo 快速系列', provider: 'default' },
   // 额外
-  { value: 'Apex-Neo-0213-16k', label: 'Apex-Neo-0213-16k', group: '其他', provider: 'default' },
+  { value: 'x-apex-surge-0505-16k', label: 'Surge-0505 (16K)', group: 'Surge 系列', provider: 'default' },
   // Grok 系列
   { value: 'grok-4-latest', label: 'Grok 4 Latest', group: 'Grok (xAI)', provider: 'grok' },
   { value: 'grok-3', label: 'Grok 3', group: 'Grok (xAI)', provider: 'grok' },

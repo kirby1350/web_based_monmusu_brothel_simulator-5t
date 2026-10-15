@@ -200,7 +200,7 @@ export function SettingsPanel({ settings, onSettingsChange }: SettingsPanelProps
                     />
                   </div>
                   <p className="text-[11px] text-muted-foreground/50 mt-1">
-                    用于 gpt4novel API，可在此覆盖服务器端 Key
+                    用于 DZMM API，可在此覆盖服务器端 Key
                   </p>
                 </div>
 
