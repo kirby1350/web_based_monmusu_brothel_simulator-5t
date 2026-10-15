@@ -32,6 +32,7 @@ import { applyPartners } from '@/lib/multi-service'
 import { getMainService } from '@/lib/resolve-service'
 import type { ServicePlan } from '@/components/session-setup'
 import { speechLine } from '@/lib/speech-style'
+import { buildCraftBlock, presetFlowRace, playStepOf } from '@/lib/play-prompts'
 
 export interface SceneOutcome {
   state: LiveState
@@ -54,6 +55,8 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
   const cast = [girl, ...(plan.partners ?? [])]
   const [live, setLive] = useState<LiveState>(() => initLiveState(plan))
   const [panel, setPanel] = useState<'none' | 'outfit' | 'play'>('none')
+  // 现场插入的 play 记在插入时的那一步（写作素材只在那一步给）
+  const [insertedAt, setInsertedAt] = useState<Record<string, number>>({})
   const [phase, setPhase] = useState<'opening' | 'active'>('opening')
   const [session, setSession] = useState<ServiceSession>(() =>
     createServiceSession('service', cast, { guest: { ...guest, satisfaction: computeInitialSatisfaction(guest, cast) } }))
@@ -165,9 +168,11 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
     zoneLevel: zoneVal !== undefined ? getSensitivityLevel(zoneVal) : undefined,
     plays: preview.plays.map((p) => p.name),
   })
+  const stepPlayIds = preview.plays.map((p) => p.id).filter((id) => playStepOf(id, plan.flow?.playSteps, insertedAt) === live.stepIndex)
+  const craft = buildCraftBlock({ stepIndex: live.stepIndex, girl, mainSkill: getMainService(guest), playIds: stepPlayIds, flowRace: presetFlowRace(plan.flow, live.stepIndex) })
   const behaviour = cast.map((g) => buildBehaviourLines(g.name, stepBehaviour(g, live.stepIndex, currentStep.zone, currentStep.note, preview.plays.map((p) => p.id)))).filter(Boolean).join('\n')
   const heatBlock = live.heat ? heatPromptBlock(live.heat, guest.name, cast) : ''
-  const ctxAll = [stepContext, behaviour, heatBlock].filter(Boolean).join('\n')
+  const ctxAll = [stepContext, craft, behaviour, heatBlock].filter(Boolean).join('\n')
   // 提示词里的「满意度」用结算同一个数（不再有另算的射精满足度）
   const promptSession = { ...session, messages, guest: session.guest ? { ...session.guest, satisfaction: preview.satisfaction } : session.guest }
   const systemPrompt = buildServiceSystemPrompt(player, promptSession, settings.proseStyle, ctxAll, { outfit: live.outfit, stockings: live.stockings, heatLocal: !!live.heat })
@@ -292,7 +297,7 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
           <div className="flex flex-wrap gap-1.5">
             {playOpts.map((p) => (
               <button key={p.id} className="rounded-md border border-border pl-1 pr-2 py-0.5 text-[11px] hover:border-amber-400/60 inline-flex items-center gap-1"
-                onClick={() => { setLive((s) => insertPlay(plan, s, p.id)); setPanel('none') }}><ItemIcon src={playIconPath(p.id)} name={p.name} size={18} />{p.name}</button>
+                onClick={() => { setLive((s) => insertPlay(plan, s, p.id)); setInsertedAt((m) => ({ ...m, [p.id]: live.stepIndex })); setPanel('none') }}><ItemIcon src={playIconPath(p.id)} name={p.name} size={18} />{p.name}</button>
             ))}
           </div>
         )}
