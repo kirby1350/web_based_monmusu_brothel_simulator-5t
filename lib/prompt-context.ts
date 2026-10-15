@@ -8,6 +8,7 @@ import { traitMatched } from './resolve-service'
 import { proficiencyFromLegacy, profShow, profTierLabel, nextTier, DRILL_PROF_GAIN } from './proficiency'
 import { resolveTraining, TRAINING_DIRECTIONS, type TrainingInput } from './resolve-training'
 import { stripStatsBlock } from './game-engine'
+import { DOMINANCE_VOICE } from './voice-prompts'
 import { awakenedFetishes, getScene, sceneReaction, shadowScenes, shadowLevel, SHADOW_LEVEL_LABEL, REACTION_LABEL } from './scenes'
 import type { SceneId } from './types'
 
@@ -78,7 +79,8 @@ export function sceneContext(input: Pick<TrainingInput, 'girl' | 'scene'>): stri
   const lv = shadowLevel(g, def.id)
   const shadow = lv ? `；这里在她心里留有阴影（${SHADOW_LEVEL_LABEL[lv]}），会发抖、想逃` : ''
   const role = def.roleNote ? `\n${def.roleNote}；她仍是原来的性格、自称与口癖，只是多了${def.id === 'cradle' ? '母性' : '支配'}的一面` : ''
-  return `\n【调教场景】${def.name}：${def.place}\n她的反应（${REACTION_LABEL[r] || '普通'}）：${react}${shadow}${role}——请让场景本身成为叙述的主角，道具与环境要被实际使用`
+  const voice = DOMINANCE_VOICE[def.id] ? `\n${DOMINANCE_VOICE[def.id]}（用她自己的自称与语气说出来）` : ''
+  return `\n【调教场景】${def.name}：${def.place}\n她的反应（${REACTION_LABEL[r] || '普通'}）：${react}${shadow}${role}——请让场景本身成为叙述的主角，道具与环境要被实际使用${voice}`
 }
 
 /**

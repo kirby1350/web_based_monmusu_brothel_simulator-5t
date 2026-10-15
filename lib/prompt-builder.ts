@@ -5,6 +5,7 @@ import { fetishPromptLine, getScene } from '@/lib/scenes'
 import { girlMemoryBlock, memOf } from '@/lib/girl-memory'
 import { girlStateCard, guestPrefLine, VALID_RACES, REPLY_LENGTH, outfitDescLine, outfitCommentLine } from '@/lib/prompt-context'
 import { speechLine, speechRuleFor } from '@/lib/speech-style'
+import { personalityAnchorBlock } from '@/lib/voice-prompts'
 
 /** 系统提示词的可选游戏状态：天数、当前服装（客人偏好命中用） */
 export interface PromptState { day?: number; outfit?: OutfitId; stockings?: StockingId; scene?: SceneId; /** 快感由本地【此刻的兴奋与快感】给出，不再写模型累计的快感 */ heatLocal?: boolean }
@@ -198,11 +199,7 @@ ${session.girls.map(girl => {
 }).filter(Boolean).join('\n')}` : ''}
 
 【角色人格锚点（必须100%严格遵守）】
-${session.girls.map(girl => `- ${girl.name} 的每一句话、呻吟、反应必须完全体现性格「${girl.personality}」${girl.sexualDesc ? `和色色设定「${girl.sexualDesc}」` : ''}：
-  - 傲娇/倔强/M倾向 → 先嘴硬羞辱/抗拒，再快感爆发时崩溃哭求
-  - 痴女/主动求操 → 即使服从低也要摇臀夹紧、下流挑逗
-  - 胆小/纯情 → 带着哭腔、颤抖说出羞耻话，脸红到耳根
-  - 特殊癖好（如乳首开发、子宫高潮、潮吹体质、深喉吞精狂热）必须在合适时机反复触发并强调`).join('\n')}${speechRuleFor(session.girls, '\n- ')}
+${session.girls.map(girl => `- ${girl.name} 的每一句话、呻吟、反应必须完全体现性格「${girl.personality}」${girl.sexualDesc ? `和色色设定「${girl.sexualDesc}」` : ''}：\n${personalityAnchorBlock(girl, 'service', g)}`).join('\n')}${speechRuleFor(session.girls, '\n- ')}
 
 【客人行为与言语锚点（必须严格遵守）】
 - ${g.name} 的行动、言语、玩法必须100%体现性格「${g.personality}」、特性「${g.traits.join('、') || '无'}」和需求「${g.desires}」：
@@ -259,11 +256,7 @@ ${girlDescriptions}
 当前状态 — ${girlStats}
 
 【角色人格锚点（必须100%严格遵守）】
-${session.girls.map(girl => `- ${girl.name} 的每一句话、呻吟、反应必须完全体现性格「${girl.personality}」${girl.sexualDesc ? `和色色设定「${girl.sexualDesc}」` : ''}：
-  - 傲娇/倔强/M倾向 → 先嘴硬反抗/羞辱调教者，再快感爆发时崩溃哭求内射
-  - 痴女/主动求操 → 即使服从低也要摇臀挺胸、用下流话语求虐求插
-  - 胆小/纯情 → 哭腔颤抖、脸红耳根说出羞耻乞求，身体却诚实喷水
-  - 特殊癖好（如乳首开发、子宫高潮、潮吹体质、深喉吞精狂热、M属性失禁等）必须在合适时机反复触发并强调描写`).join('\n')}${speechRuleFor(session.girls, '\n- ')}
+${session.girls.map(girl => `- ${girl.name} 的每一句话、呻吟、反应必须完全体现性格「${girl.personality}」${girl.sexualDesc ? `和色色设定「${girl.sexualDesc}」` : ''}：\n${personalityAnchorBlock(girl, 'training')}`).join('\n')}${speechRuleFor(session.girls, '\n- ')}
 
 ${REACTION_MATRIX}
 

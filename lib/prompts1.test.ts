@@ -113,3 +113,49 @@ test('3. 客人服装喜好命中 → 点名评论这身；没命中 → 一句�
   const op = buildOpeningDialoguePrompt('service', fxPlayer, [makeGirl()], { guest: fxGuest(), outfit: 'kimono', stockings: 'none' })
   assert.match(op, /今晚的服装】今晚换上的「松襟振袖」/)
 })
+
+import { GIRL_TEMPLATES } from './game-data'
+import { CANON_VOICE, canonVoiceLine, inclinationLine, isGentle, personalityAnchorLines } from './voice-prompts'
+import { sceneContext } from './prompt-context'
+
+const canon = (name: string) => makeGirl({ ...GIRL_TEMPLATES.find((t) => t.name === name)!, id: name })
+
+test('4. 每位预设角色都有被夸/动摇/极限三条语气样本，并进服务提示词；自建同名不同族不误用', () => {
+  for (const t of GIRL_TEMPLATES) {
+    const v = CANON_VOICE[`${t.name}|${t.race}`]
+    assert.ok(v, t.name)
+    assert.ok(v.praised && v.shaken && v.limit, t.name)
+  }
+  const p = buildServiceSystemPrompt(fxPlayer, createServiceSession('service', [canon('千雪')], { guest: fxGuest() }), 'standard', undefined, { heatLocal: true })
+  assert.match(p, /语气样本.*被夸时「诶……被、被这样说/)
+  assert.equal(canonVoiceLine(makeGirl({ name: '千雪', race: '狐娘' })), '')
+})
+
+test('4. 温柔/母性（千雪、娜露梅亚、爱宕）不被套上「嘴硬→崩溃」；傲娇仍有', () => {
+  for (const n of ['千雪', '娜露梅亚', '露埃拉', '爱宕', '金狮']) {
+    const g = canon(n)
+    assert.ok(isGentle(g), n)
+    const lines = personalityAnchorLines(g, 'service').join('\n')
+    assert.doesNotMatch(lines, /先嘴硬/, n)
+    assert.match(lines, /温柔\/母性/, n)
+  }
+  const p = buildServiceSystemPrompt(fxPlayer, createServiceSession('service', [canon('千雪')], { guest: fxGuest() }), 'standard', undefined, { heatLocal: true })
+  assert.doesNotMatch(p, /先嘴硬羞辱\/抗拒/)
+  assert.match(personalityAnchorLines(makeGirl(), 'service').join(''), /傲娇\/倔强 → 先嘴硬/)
+  assert.match(personalityAnchorLines(makeGirl(), 'training').join(''), /顶撞调教者/)
+})
+
+test('4. M/S/两面写法随倾向，与客人的施虐/被榨需求咬合', () => {
+  const m = makeGirl({ proficiency: { 待客: 0, 手技: 0, 口侍: 0, 胸侍: 0, 身侍: 0, M性: 60, S性: 0 } })
+  const s = makeGirl({ proficiency: { 待客: 0, 手技: 0, 口侍: 0, 胸侍: 0, 身侍: 0, M性: 0, S性: 60 } })
+  assert.match(inclinationLine(m, { desireKind: 'M', name: '甲' }), /M 倾向.*正合她意/)
+  assert.match(inclinationLine(m, { desireKind: 'S', name: '甲' }), /磕磕绊绊/)
+  assert.match(inclinationLine(s, { desireKind: 'S', name: '甲' }), /S 倾向.*由她发号施令/)
+  assert.match(inclinationLine(s, { desireKind: 'M', name: '甲' }), /暗中/)
+})
+
+test('4. 女王调教室/王座间/摇篮寝殿带支配的声音', () => {
+  assert.match(sceneContext({ girl: canon('千雪'), scene: 'cradle' }), /摇篮里的声音.*乖，张嘴/)
+  assert.match(sceneContext({ girl: makeGirl(), scene: 'queen_room' }), /女王的声音/)
+  assert.match(sceneContext({ girl: makeGirl(), scene: 'throne' }), /王座上的声音/)
+})
