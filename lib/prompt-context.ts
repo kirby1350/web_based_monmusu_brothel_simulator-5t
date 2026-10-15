@@ -116,7 +116,7 @@ export function trimHistory(messages: ChatMessage[], keep = 6, recap?: string): 
   if (users < keep || cut === 0) return cleaned
   const dropped = cleaned.slice(0, cut)
   const line = recap || `【前情】已进行 ${dropped.filter((m) => m.role === 'user').length} 轮：` +
-    dropped.filter((m) => m.role === 'user').map((m) => m.content.slice(0, 12)).join(' → ')
+    dropped.filter((m) => m.role === 'user' && !m.hidden).map((m) => m.content.slice(0, 12)).join(' → ')
   return [{ role: 'user', content: line }, { role: 'assistant', content: '（继续）' }, ...cleaned.slice(cut)]
 }
 
@@ -197,4 +197,26 @@ export function withTurnSuffix(messages: ChatMessage[], suffix?: string): ChatMe
   if (!suffix) return messages
   const i = messages.map((m) => m.role).lastIndexOf('user')
   return i < 0 ? messages : messages.map((m, j) => (j === i ? { ...m, content: m.content + suffix } : m))
+}
+
+/** 5. 自动转场：进入下一步时发给模型的隐藏指令（同一个聊天请求格式），失败时用本地一句 */
+export interface TransitionInput {
+  from: string
+  to: string
+  action: string
+  girls: string[]
+  guest: string
+  /** 兴奋/快感档位的一行摘要（可空） */
+  heatLine?: string
+  final?: boolean
+}
+export function transitionTurn(t: TransitionInput): string {
+  return `（转场：从「${t.from}」进入「${t.to}」。这一步的做法：${t.action}。` +
+    `请用旁白加对白自然写出这次转换：${t.girls.join('、')}怎样把气氛从上一步顺势推进到「${t.to}」，${t.guest}有什么反应` +
+    `${t.heatLine ? `；此刻 ${t.heatLine}，说话与身体反应要符合这个状态` : ''}。` +
+    `人物保持各自的自称与口癖。这是自动转场，不要替馆主做决定，写到「${t.to}」刚开始、留给馆主接下去为止。）`
+}
+export function transitionFallback(t: TransitionInput): string {
+  const who = t.girls.join('和')
+  return `——${who}${t.from === '迎客' ? '把' + t.guest + '引到床边' : '没有停下'}，顺势${t.action.replace(/[。！!]$/, '')}。「${t.to}」开始了。`
 }

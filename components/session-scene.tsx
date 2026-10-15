@@ -7,7 +7,7 @@ import { MonstGirl, Guest, ChatMessage, ServiceSession, AppSettings, Player, Out
 import { getScene, detectShadowTrigger } from '@/lib/scenes'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ChatEngine, ChatEngineHandle } from '@/components/chat-engine'
+import { ChatEngine, ChatEngineHandle, type SendOpts } from '@/components/chat-engine'
 import { SuggestionBar } from '@/components/suggestion-bar'
 import { getStepActions } from '@/lib/custom-props'
 import { stepActionsWithPlays } from '@/lib/service-flows'
@@ -18,15 +18,16 @@ import {
 } from '@/lib/game-engine'
 import { parseLooseJson, cn } from '@/lib/utils'
 import { OUTFITS, STOCKINGS, STEP_MAX, getSensitivityLevel, playIconPath, ALL_PLAYS } from '@/lib/catalog'
-import { buildStepRecap, provokeSection, lengthReminder } from '@/lib/prompt-context'
+import { buildStepRecap, provokeSection, lengthReminder, transitionTurn, transitionFallback } from '@/lib/prompt-context'
 import { ItemIcon } from '@/components/item-icon'
 import { SERVICE_STEPS } from '@/lib/resolve-service'
 import {
   initLiveState, recordTurn, nextStep, canChangeOutfit, changeOutfit, insertablePlays, insertPlay,
   resolveLiveSteps, buildStepContext, recordModelStats, topicHit, type LiveState,
 } from '@/lib/live-steps'
-import { heatPromptBlock } from '@/lib/arousal'
+import { heatPromptBlock, speechBand } from '@/lib/arousal'
 import { HeatPanel } from '@/components/heat-panel'
+import { applyPartners } from '@/lib/multi-service'
 import { getMainService } from '@/lib/resolve-service'
 import type { ServicePlan } from '@/components/session-setup'
 import { speechLine } from '@/lib/speech-style'
@@ -48,17 +49,20 @@ interface SessionSceneProps {
 
 export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRemember }: SessionSceneProps) {
   const { girl, guest } = plan
+  // 多人服务：主位 + 协同，提示词/面板/STATS 都按全员
+  const cast = [girl, ...(plan.partners ?? [])]
   const [live, setLive] = useState<LiveState>(() => initLiveState(plan))
   const [panel, setPanel] = useState<'none' | 'outfit' | 'play'>('none')
   const [phase, setPhase] = useState<'opening' | 'active'>('opening')
   const [session, setSession] = useState<ServiceSession>(() =>
-    createServiceSession('service', [girl], { guest: { ...guest, satisfaction: computeInitialSatisfaction(guest, [girl]) } }))
+    createServiceSession('service', cast, { guest: { ...guest, satisfaction: computeInitialSatisfaction(guest, cast) } }))
   const [suggestions, setSuggestions] = useState<[string, string, string] | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [openingText, setOpeningText] = useState('')
   const [openingLoading, setOpeningLoading] = useState(true)
   const [inputValue, setInputValue] = useState('')
   const chatRef = useRef<ChatEngineHandle>(null)
+  const transitionRef = useRef(false)
 
   // ─── 开场（场景描述 + 初始推荐行动） ───────────────────────────────────────
   useEffect(() => {
@@ -67,7 +71,7 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
     const fallback = '客人踏入了包间……'
     const scene = (async () => {
       try {
-        const prompt = buildOpeningDialoguePrompt('service', player, [girl], { guest })
+        const prompt = buildOpeningDialoguePrompt('service', player, cast, { guest })
         const res = await fetch('/api/chat', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], model: settings.chatModel, apiKey, stream: false }),
@@ -101,6 +105,8 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
 
   // ─── 回复解析：STATS 只驱动会话内快感/推荐行动，最终满意度以结算函数为准 ───
   const handleRawReply = useCallback((raw: string) => {
+    const wasTransition = transitionRef.current
+    transitionRef.current = false
     const actions = parseActionsFromReply(raw)
     if (actions) setSuggestions(actions)
     else {
@@ -122,12 +128,14 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
     const multi = parseStatsFromReply(raw)
     const fallback = multi ? null : estimateStatDelta(raw)
     // 满意度：模型的 satisfaction 增量按回合/按步夹紧后计入结算（与步骤条显示同一个数）；她的快感微调兴奋/快感面板
-    const gd = multi ? getGirlDelta(multi, girl.name) : null
-    setLive((s) => recordModelStats(s, multi?.satisfactionDelta, gd ? { girlId: girl.id, delta: gd.pleasureDelta } : undefined))
+    if (!wasTransition) setLive((s0) => cast.reduce((s, g, i) => {
+      const gd = multi ? getGirlDelta(multi, g.name) : null
+      return recordModelStats(s, i === 0 ? multi?.satisfactionDelta : undefined, gd ? { girlId: g.id, delta: gd.pleasureDelta } : undefined)
+    }, s0))
     setSession((prev) => {
       const girlsStats = { ...prev.girlsStats }
       const delta = multi ? (getGirlDelta(multi, girl.name) ?? { pleasureDelta: 5, staminaDelta: -8 }) : fallback!
-      girlsStats[girl.id] = applyStatDelta(girlsStats[girl.id], delta)
+      for (const g of cast) girlsStats[g.id] = applyStatDelta(girlsStats[g.id], multi ? (getGirlDelta(multi, g.name) ?? delta) : delta)
       return {
         ...prev,
         girlsStats,
@@ -135,6 +143,7 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
         guest: prev.guest ? updateGuestSatisfaction(prev.guest, delta.pleasureDelta, multi?.satisfactionDelta) : undefined,
       }
     })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [girl.id, girl.name])
 
   const finish = (state: LiveState) => onFinish({ state, messages })
@@ -143,7 +152,7 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
   // 准备页定下的这一场流程（没有就按她的专属 → 全馆默认）；挂到某步的 play 只写进那一步的做法提示
   const stepActions = plan.flow?.actions ?? getStepActions(player, girl)
   const promptActions = stepActionsWithPlays(stepActions, plan.flow?.playSteps, (id) => ALL_PLAYS.find((p) => p.id === id)?.name)
-  const preview = resolveLiveSteps(plan, live)
+  const preview = applyPartners(resolveLiveSteps(plan, live), plan)
   const currentStep = preview.steps[live.stepIndex]
   const zoneVal = currentStep.zone ? girl.sensitivities?.[currentStep.zone] : undefined
   const outfitName = `${OUTFITS.find((o) => o.id === live.outfit)?.name ?? '常服'}${live.stockings !== 'none' ? ' + ' + STOCKINGS.find((x) => x.id === live.stockings)?.name : ''}`
@@ -155,8 +164,8 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
     zoneLevel: zoneVal !== undefined ? getSensitivityLevel(zoneVal) : undefined,
     plays: preview.plays.map((p) => p.name),
   })
-  const behaviour = buildBehaviourLines(girl.name, stepBehaviour(girl, live.stepIndex, currentStep.zone, currentStep.note, preview.plays.map((p) => p.id)))
-  const heatBlock = live.heat ? heatPromptBlock(live.heat, guest.name, [girl]) : ''
+  const behaviour = cast.map((g) => buildBehaviourLines(g.name, stepBehaviour(g, live.stepIndex, currentStep.zone, currentStep.note, preview.plays.map((p) => p.id)))).filter(Boolean).join('\n')
+  const heatBlock = live.heat ? heatPromptBlock(live.heat, guest.name, cast) : ''
   const ctxAll = [stepContext, behaviour, heatBlock].filter(Boolean).join('\n')
   // 提示词里的「满意度」用结算同一个数（不再有另算的射精满足度）
   const promptSession = { ...session, messages, guest: session.guest ? { ...session.guest, satisfaction: preview.satisfaction } : session.guest }
@@ -173,11 +182,11 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
   const playOpts = insertablePlays(plan, live)
   const mainSkill = getMainService(guest)
   const playsUsedRef = useRef(live.plays.length)
-  const [pending, setPending] = useState<string | null>(null)
-  // 先按玩家这句话推进回合质量与兴奋/快感，等提示词更新后再发（这一回合的叙述要对得上新数值）
+  const [pending, setPending] = useState<{ text: string; opts?: SendOpts } | null>(null)
+  // 先按玩家这句话推进回合质量与兴奋/快感（或先切到下一步），等提示词更新后再发（这一回合的叙述要对得上新数值）
   useEffect(() => {
     if (pending === null) return
-    chatRef.current?.sendMessage(pending)
+    chatRef.current?.sendMessage(pending.text, pending.opts)
     setPending(null)
   }, [pending, systemPrompt])
   const send = (text: string) => {
@@ -189,15 +198,25 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
     })
     const newPlays = Math.max(0, live.plays.length - playsUsedRef.current)
     playsUsedRef.current = live.plays.length
-    setLive((s) => recordTurn(s, { text: t, topic, heat: { guest, girls: [girl], mainSkill, zone: currentStep.zone, newPlays, outfit: s.outfit, stockings: s.stockings } }))
-    setPending(t)
+    setLive((s) => recordTurn(s, { text: t, topic, heat: { guest, girls: cast, mainSkill, zone: currentStep.zone, newPlays, outfit: s.outfit, stockings: s.stockings } }))
+    setPending({ text: t })
     setInputValue('')
   }
   const goNext = () => {
     const n = nextStep(live)
     setPanel('none')
-    if (n.finished) finish(n)
-    else setLive(n)
+    if (n.finished) { finish(n); return }
+    setLive(n)
+    if (chatRef.current?.isBusy()) return  // 上一条还在写：只切步，不再叠一段转场
+    // 自动转场：按新一步的做法与当前兴奋/快感让模型写一段过渡；失败用本地一句。转场回复不计满意度
+    const h = n.heat
+    const t = {
+      from: SERVICE_STEPS[live.stepIndex].label, to: SERVICE_STEPS[n.stepIndex].label,
+      action: promptActions[n.stepIndex] ?? '', girls: cast.map((g) => g.name), guest: guest.name,
+      heatLine: h ? [`${guest.name}${speechBand(h.guest)}`, ...cast.map((g) => h.girls[g.id] ? `${g.name}${speechBand(h.girls[g.id])}` : '')].filter(Boolean).join('、') : undefined,
+    }
+    transitionRef.current = true
+    setPending({ text: transitionTurn(t), opts: { hidden: true, label: `进入「${t.to}」`, fallback: transitionFallback(t) } })
   }
 
   if (phase === 'opening') {
@@ -212,7 +231,7 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
           )}
         </div>
         <Button className="h-10 px-8 glow-btn gap-2" disabled={openingLoading} onClick={() => {
-          const seedMeta = `\n<!--STATS:${JSON.stringify({ girls: { [girl.name]: { pleasure: 0, stamina: 0 } }, satisfaction: 0 })}-->` +
+          const seedMeta = `\n<!--STATS:${JSON.stringify({ girls: Object.fromEntries(cast.map((g) => [g.name, { pleasure: 0, stamina: 0 }])), satisfaction: 0 })}-->` +
             `\n<!--ACTIONS:["主动上前回应","与她贴身调情","她搂住你索吻"]-->`
           setMessages(openingText ? [{ role: 'assistant', content: openingText + seedMeta }] : [])
           setPhase('active')
@@ -240,12 +259,12 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
         </div>
         <div className="flex items-center gap-3 text-[11px] text-foreground/75 flex-wrap">
           <span data-testid="live-stamina">体力 {Math.max(0, (girl.stamina ?? 100) - preview.staminaCost)}（−{preview.staminaCost}）</span>
-          <span data-testid="live-satisfaction" title={`步骤 ${preview.standardScore} + play ${preview.playScore} + 加成 ${preview.satisfactionBonus} + 匹配 ${preview.live.liveMatch} + 投入 ${preview.live.model} + 高潮 ${preview.live.heat}`}>满意度 {preview.satisfaction}（{preview.tier.label}）</span>
+          <span data-testid="live-satisfaction" title={`步骤 ${preview.standardScore} + play ${preview.playScore} + 加成 ${preview.satisfactionBonus} + 匹配 ${preview.live.liveMatch} + 投入 ${preview.live.model} + 高潮 ${preview.live.heat}${preview.synergy !== undefined ? ` + 默契 ${preview.synergy}` : ''}`}>满意度 {preview.satisfaction}（{preview.tier.label}）</span>
           <span data-testid="live-outfit">服装 {outfitName}</span>
           <span className="flex-1" />
           <button className="underline hover:text-rose-400" onClick={() => finish(live)}>提前结束</button>
         </div>
-        {live.heat && <HeatPanel heat={live.heat} guest={guest} girls={[girl]} />}
+        {live.heat && <HeatPanel heat={live.heat} guest={guest} girls={cast} />}
         <div className="flex gap-1.5">
           <Button size="sm" className="h-7 text-xs glow-btn" data-testid="btn-next-step"
             onClick={(e) => {

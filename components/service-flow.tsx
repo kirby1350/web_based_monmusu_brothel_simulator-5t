@@ -16,6 +16,7 @@ import { mergeRegularMemories } from '@/lib/hub-logic'
 import { resolveService, type ServiceResult } from '@/lib/resolve-service'
 import { applyServiceToSave, type SettleInfo } from '@/lib/settle-session'
 import { resolveLiveSteps } from '@/lib/live-steps'
+import { applyPartners } from '@/lib/multi-service'
 
 interface ServiceFlowProps {
   save: GameSave
@@ -57,7 +58,7 @@ export function ServiceFlow({ save, settings, onSaveChange, onBack }: ServiceFlo
       {phase.kind === 'setup' && (
         <SessionSetup
           save={save}
-          onSkip={(plan) => settle(plan, 'skip', resolveService({ ...plan, skip: true }))}
+          onSkip={(plan) => settle(plan, 'skip', applyPartners(resolveService({ ...plan, skip: true }), plan))}
           onLive={(plan) => setPhase({ kind: 'scene', plan })}
         />
       )}
@@ -67,8 +68,8 @@ export function ServiceFlow({ save, settings, onSaveChange, onBack }: ServiceFlo
           plan={phase.plan}
           wardrobe={save.player.wardrobe ?? []}
           settings={settings}
-          onRemember={(t) => onSaveChange({ ...save, girls: save.girls.map((g) => (g.id === phase.plan.girl.id ? recordQuote(g, t, save.currentDay) : g)) })}
-          onFinish={({ state, messages }) => settle({ ...phase.plan, outfit: state.outfit, stockings: state.stockings }, 'live', resolveLiveSteps(phase.plan, state), messages.map((m) => m.content).join('\n'))}
+          onRemember={(t) => { const ids = [phase.plan.girl.id, ...(phase.plan.partners ?? []).map((p) => p.id)]; onSaveChange({ ...save, girls: save.girls.map((g) => (ids.includes(g.id) ? recordQuote(g, t, save.currentDay) : g)) }) }}
+          onFinish={({ state, messages }) => settle({ ...phase.plan, outfit: state.outfit, stockings: state.stockings }, 'live', applyPartners(resolveLiveSteps(phase.plan, state), phase.plan), messages.filter((m) => !m.hidden).map((m) => m.content).join('\n'))}
         />
       )}
       {phase.kind === 'result' && (

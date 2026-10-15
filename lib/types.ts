@@ -288,6 +288,9 @@ export type GuestClass = 'commoner' | 'merchant' | 'adventurer' | 'noble' | 'cap
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant'
   content: string
+  /** 自动转场：这条 user 是发给模型的转场指令，界面只显示一条分隔线（label） */
+  hidden?: boolean
+  label?: string
 }
 
 export interface ParticipantStats {

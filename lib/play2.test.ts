@@ -138,3 +138,64 @@ test('兴奋/快感：偏好命中时客人起步高；正戏快感上升，到�
   const cooled = heatTurn(h, { ...input, stepIndex: 4 })
   assert.ok(cooled.guest.pleasure < h.guest.pleasure || h.guest.pleasure === 0)
 })
+
+import { partnerSynergy, applyPartners, maxPartners, partnerEligible, SYNERGY_CAP } from './multi-service'
+import { applyServiceToSave } from './settle-session'
+
+test('多人服务：默契加成明细、第二位 ×0.6、封顶；房间 3 级才能三人', () => {
+  const c = CASES[1]
+  const lead = c.girl
+  const p1 = { ...c.girl, id: 'p1', name: '甲', affection: 70, obedience: 50 }
+  const p2 = { ...c.girl, id: 'p2', name: '乙', race: '龙娘', affection: 10, obedience: 10, proficiency: undefined, skillRanks: {} }
+  const one = partnerSynergy({ ...lead, affection: 70 }, [p1], c.guest)
+  assert.ok(one.total >= 4 && one.parts[0].includes('姐妹配合') && one.parts[0].includes('默契'))
+  const two = partnerSynergy({ ...lead, affection: 70 }, [p1, p2], c.guest)
+  assert.ok(two.total <= SYNERGY_CAP && two.parts[1].includes('×0.6') && two.parts[1].includes('不肯配合'))
+  assert.equal(maxPartners(1), 1); assert.equal(maxPartners(3), 2)
+  assert.equal(partnerEligible({ ...p1, stamina: 10 }, lead.id), '体力不足 25')
+  assert.equal(partnerEligible(lead, lead.id), '主位')
+  const base = resolveService({ girl: lead, guest: c.guest, outfit: c.outfit, stockings: c.stockings, plays: c.plays, roomLevel: 3, skip: true })
+  const r = applyPartners(base, { girl: lead, guest: c.guest, partners: [p1] })
+  assert.equal(r.satisfaction, Math.min(100, base.satisfaction + r.synergy!))
+  assert.ok(r.reward > base.reward)
+  assert.equal(r.partnerStamina!.p1, Math.round(base.staminaCost * 0.6))
+})
+
+test('多人服务结算：一次行动；协同扣体力、记接客记忆、拿一半熟练度、记出场', () => {
+  const c = CASES[1]
+  const lead = { ...c.girl, id: 'L' }
+  const p1 = { ...c.girl, id: 'P', name: '甲', stamina: 80 }
+  const save = { player: { gold: 0, reputation: 0 }, girls: [lead, p1], currentDay: 2, actionsUsedToday: 0, dailyGuests: [c.guest] } as unknown as import('./types').GameSave
+  const res = applyPartners(resolveService({ girl: lead, guest: c.guest, outfit: c.outfit, stockings: c.stockings, roomLevel: 2, skip: true }), { girl: lead, guest: c.guest, partners: [p1] })
+  const { save: next } = applyServiceToSave(save, 'L', c.guest, res, () => 0.99)
+  assert.equal(next.actionsUsedToday, 1)
+  const P = next.girls.find((g) => g.id === 'P')!
+  assert.equal(P.stamina, 80 - res.partnerStamina!.P)
+  assert.ok(JSON.stringify(P.memory).includes(c.guest.name))
+  assert.deepEqual([...(next.appearedToday ?? [])].sort(), ['L', 'P'])
+  assert.equal(next.player.gold, res.reward)
+})
+
+test('多人亲自上场：兴奋/快感按每位协同各自记', () => {
+  const c = CASES[1]
+  const p1 = { ...c.girl, id: 'p1', name: '甲' }
+  const s = initLiveState({ girl: c.girl, guest: c.guest, outfit: c.outfit, stockings: c.stockings, roomLevel: 2, partners: [p1] })
+  assert.deepEqual(Object.keys(s.heat!.girls).sort(), [c.girl.id, 'p1'].sort())
+  assert.ok(heatPromptBlock(s.heat!, c.guest.name, [c.girl, p1]).includes('甲'))
+})
+
+import { transitionTurn, transitionFallback, trimHistory } from './prompt-context'
+
+test('自动转场：指令带新一步做法、人物、档位；本地兜底是一句叙述；前情不收转场指令', () => {
+  const t = { from: '挑逗', to: '前戏', action: '用乳汁润滑后慢慢揉弄。', girls: ['千雪', '娜露梅亚'], guest: '王老板', heatLine: '王老板动摇、千雪从容' }
+  const turn = transitionTurn(t)
+  assert.ok(turn.includes('「前戏」') && turn.includes('用乳汁润滑') && turn.includes('千雪、娜露梅亚') && turn.includes('王老板动摇'))
+  const fb = transitionFallback(t)
+  assert.ok(fb.includes('千雪和娜露梅亚') && fb.includes('「前戏」开始了') && !fb.includes('。。'))
+  const msgs = Array.from({ length: 8 }, (_, i) => [
+    { role: 'user' as const, content: i === 2 ? '（转场：xx）' : `第${i}句玩家话`, ...(i === 2 ? { hidden: true } : {}) },
+    { role: 'assistant' as const, content: '好' },
+  ]).flat()
+  const out = trimHistory(msgs, 3)
+  assert.ok(!out[0].content.includes('转场'))
+})
