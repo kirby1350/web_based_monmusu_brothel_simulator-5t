@@ -50,8 +50,10 @@ export function expandProps(selected: string[], customProps: CustomProp[] = []):
 
 // ─── 标准做法：魔物娘 > 馆主 > 默认 ─────────────────────────────────────────
 
-export function getStepActions(player?: Pick<Player, 'stepActions'>, girl?: Pick<MonstGirl, 'stepActions'>): string[] {
-  return STEP_STANDARD_ACTION.map((d, i) => girl?.stepActions?.[i]?.trim() || player?.stepActions?.[i]?.trim() || d)
+export function getStepActions(player?: Pick<Player, 'stepActions' | 'serviceFlows' | 'defaultFlowId'>, girl?: Pick<MonstGirl, 'stepActions'>): string[] {
+  // 全馆默认 = 默认流程模板；没有模板的旧对象退回旧的 player.stepActions
+  const def = player?.serviceFlows?.find((f) => f.id === player.defaultFlowId)?.actions ?? player?.stepActions
+  return STEP_STANDARD_ACTION.map((d, i) => girl?.stepActions?.[i]?.trim() || def?.[i]?.trim() || d)
 }
 
 /** 规整输入：长度 5、每条截到 20 字；全空返回 undefined（即恢复默认） */

@@ -183,7 +183,7 @@ test('结束今天：压缩记忆并写本地心里话；挂机写进记忆', ()
 })
 
 test('迁移 v2：从回头客记忆/事件回填，幂等；容量估算', () => {
-  assert.equal(SAVE_VERSION, 3)
+  assert.equal(SAVE_VERSION, 4)
   const old = { player: { ...fxPlayer }, currentDay: 9, phase: 'morning',
     girls: [{ ...fxGirl({ id: 'x' }), memory: undefined, incident: { kind: '闯祸', text: '迟到了', day: 8 } }],
     regulars: [fxGuest({ id: 'r1', name: '老李', satisfaction: 80, memories: { 千雪: { guestAboutGirl: '好', girlAboutGuest: '老李很温柔', visitCount: 2 } } })] } as unknown as GameSave

@@ -99,9 +99,9 @@ test('迁移 v3：旧档位换算、倾向不变、幂等', () => {
   assert.equal(getInclination(none), '无')
   const two = migrateGirl(girl({ inclination: '两面', skillRanks: { 'M性': '熟练' } }))
   assert.equal(getInclination(two), '两面')
-  assert.equal(SAVE_VERSION, 3)
+  assert.equal(SAVE_VERSION, 4)
   const save = migrateSave({ player: { name: 'p', traits: [], customTraits: '', fetishes: [], gold: 0, day: 3, guestPreference: '', marketPreference: '' }, girls: [old], currentDay: 3, phase: 'morning', saveVersion: 2 } as GameSave)
-  assert.equal(save.saveVersion, 3)
+  assert.equal(save.saveVersion, 4)
   assert.deepEqual(migrateSave(save), save)
 })
 

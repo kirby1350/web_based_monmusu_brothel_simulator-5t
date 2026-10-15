@@ -1,6 +1,7 @@
 'use client'
 
 // 接客 / 调教共用的三步准备向导（阶段 2 只接了接客分支，调教分支在阶段 5）
+import { GirlThumb } from '@/components/girl-thumb'
 import { useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight, FastForward, Swords } from 'lucide-react'
 import { CustomProp, GameSave, Guest, MonstGirl, OutfitId, StockingId, TrainingDirection, SkillKey, SensitivityZone, SceneId } from '@/lib/types'
@@ -16,19 +17,8 @@ import { PROF_SKILLS, proficiencyFromLegacy, profShow, profTierLabel, SERVICE_PR
 import { canSkipService, getAvailablePlays, getMainService, scorePlay } from '@/lib/resolve-service'
 import { previewService } from '@/lib/settle-session'
 import { cn } from '@/lib/utils'
-import { PortraitImg } from '@/components/portrait-img'
 
 /** 选人行左侧的小立绘（44×58）；还没生成立绘时显示种族首字 */
-function GirlThumb({ g }: { g: MonstGirl }) {
-  return (
-    <div className="w-11 h-[58px] shrink-0 rounded-md overflow-hidden border border-border bg-muted/40 flex items-center justify-center" data-testid={`thumb-${g.name}`}>
-      {g.imageUrl
-        ? <PortraitImg url={g.imageUrl} size="sm" sizes="44px" alt={g.name} className="w-full h-full object-cover object-top" />
-        : <span className="text-sm text-muted-foreground">{g.race.slice(0, 1)}</span>}
-    </div>
-  )
-}
-
 export interface ServicePlan {
   girl: MonstGirl
   guest: Guest

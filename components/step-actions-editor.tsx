@@ -7,10 +7,10 @@ import { STEP_ACTION_MAX } from '@/lib/catalog'
 import { normalizeStepActions } from '@/lib/custom-props'
 import { cn } from '@/lib/utils'
 
-export function StepActionsEditor({ title, value, placeholders, onSave, testId }: {
-  title: string; value?: string[]; placeholders: string[]; onSave: (v: string[] | undefined) => void; testId: string
+export function StepActionsEditor({ title, value, placeholders, onSave, testId, defaultOpen }: {
+  title: string; value?: string[]; placeholders: string[]; onSave: (v: string[] | undefined) => void; testId: string; defaultOpen?: boolean
 }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(!!defaultOpen)
   const [draft, setDraft] = useState<string[]>(() => SERVICE_STEPS.map((_, i) => value?.[i] ?? ''))
   const [saved, setSaved] = useState(false)
   const set = (i: number, v: string) => { setSaved(false); setDraft((d) => d.map((x, j) => (j === i ? v : x))) }
