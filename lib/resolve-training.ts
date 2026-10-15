@@ -3,7 +3,7 @@ import { canPunish } from './incidents'
 import { PUNISH_EXTRA_OBEDIENCE, PUNISH_EXTRA_M, PUNISH_M_AFFECTION } from './catalog'
 import type { CustomProp, SceneId } from './types'
 import {
-  getScene, sceneReaction, sceneDecay, hasShadow, provokeBlock, provokeEffect, recentProvokes, PROVOKE_STAMINA, SHADOW_LEVEL_LABEL, usedYesterday, accumulateScene, fetishName, FETISH_THRESHOLD,
+  getScene, sceneReaction, sceneDecay, hasShadow, provokeBlock, provokeEffect, recentProvokes, deepenShadow, SHADOW_LEVEL_LABEL, usedYesterday, accumulateScene, fetishName, FETISH_THRESHOLD,
   AFFINITY_MAIN_BONUS, AVERSION_MAIN_PENALTY, AVERSION_AFFECTION, SHADOW_AFFECTION, REACTION_LABEL,
 } from './scenes'
 // 调教结算（纯函数）：驯服 / 放权 / 塑形 / 特训 / 敏感开发
@@ -44,7 +44,7 @@ export interface TrainingInput {
   zone?: SensitivityZone      // 敏感开发
   scene?: SceneId             // 调教场景（须已拥有且对口方向，由调用方保证）
   day?: number                // 当前天数（场景递减、使用记录用；缺省 1）
-  provoke?: boolean           // 激发阴影（须在她有阴影的场景里驯服/惩罚）
+  provoke?: SceneId           // 本场被激发的阴影（对话里触到 / 跳过时掷中；由调用方判定）
   /** 内部用：亲自上场对特训进度的修正 */
   progressAdjust?: number
 }
@@ -119,7 +119,7 @@ export function resolveTraining(input: TrainingInput): TrainingResult {
     return { ok: false, error: `${sceneDef.name}不适合这个方向`, delta, staminaCost: 0, girl, notes, summary: `${sceneDef.name}不适合这个方向` }
   }
   if (input.provoke) {
-    const why = provokeBlock(girl, input.scene, direction, input.day ?? 1)
+    const why = provokeBlock(girl, input.provoke, input.day ?? 1)
     if (why) return { ok: false, error: why, delta, staminaCost: 0, girl, notes, summary: why }
   }
   // 催眠室特训：进度 +1（要在升档计算前加进去）
@@ -230,11 +230,11 @@ export function resolveTraining(input: TrainingInput): TrainingResult {
     const r = applyScene(input, sceneDef.id, next, delta, notes)
     stamina += sceneDef.staminaExtra
     sceneOut = r
-    if (input.provoke) {
-      const pe = provokeEffect(girl, sceneDef.id, input.day ?? 1)
-      delta.obedience += pe.obedience; delta.affection += pe.affection; stamina += PROVOKE_STAMINA
-      notes.push(`激发阴影（${SHADOW_LEVEL_LABEL[pe.level]}·${sceneDef.name}）：服从 +${pe.obedience}，好感 −${-pe.affection}，体力 +${PROVOKE_STAMINA}，阴影加深${pe.decay < 1 ? `（本周第 ${recentProvokes(girl, input.day ?? 1) + 1} 次 ×${pe.decay}）` : ''}`)
-    }
+  }
+  if (input.provoke) {
+    const pe = provokeEffect(girl, input.provoke, input.day ?? 1)
+    delta.obedience += pe.obedience; stamina += pe.stamina
+    notes.push(`激发阴影（${SHADOW_LEVEL_LABEL[pe.level]}·${getScene(input.provoke)!.name}）：服从 +${pe.obedience}，体力 +${pe.stamina}，阴影加深，这一场不长性癖${pe.decay < 1 ? `（本周第 ${recentProvokes(girl, input.day ?? 1) + 1} 次 ×${pe.decay}）` : ''}`)
   }
 
   // 纯白婚纱内衣：任意方向好感 +1
@@ -250,13 +250,15 @@ export function resolveTraining(input: TrainingInput): TrainingResult {
   if (next.stamina === 0) next.exhausted = true
   // 场景使用记录 / 性癖 / 阴影（用结算后的淫乱）
   let awakenedScene: SceneId | undefined, shadowScene: SceneId | undefined, provokedScene: SceneId | undefined
+  if (input.provoke) {
+    const d = input.day ?? 1
+    next.provokedDays = [...(girl.provokedDays ?? []), d].filter((x) => x > d - 7).slice(-7)
+    provokedScene = input.provoke
+    // 激发的是别处的阴影：那个场景的阴影单独加深
+    if (input.provoke !== sceneDef?.id) next.sceneState = deepenShadow(next, input.provoke).sceneState
+  }
   if (sceneDef) {
-    const acc = accumulateScene(next, sceneDef.id, input.day ?? 1, { provoke: input.provoke })
-    if (input.provoke) {
-      const d = input.day ?? 1
-      next.provokedDays = [...(girl.provokedDays ?? []), d].filter((x) => x > d - 7).slice(-7)
-      provokedScene = sceneDef.id
-    }
+    const acc = accumulateScene(next, sceneDef.id, input.day ?? 1, input.provoke ? (input.provoke === sceneDef.id ? { provoke: true } : { noFetish: true }) : {})
     next.sceneState = acc.girl.sceneState; next.awakened = acc.girl.awakened
     if (acc.awakenedNow) { awakenedScene = sceneDef.id; notes.push(`觉醒性癖「${sceneDef.fetish}」！以后她在${sceneDef.name}里不再抗拒`) }
     else if (acc.fpGain) notes.push(`${sceneDef.fetish}积累 ${Math.min(acc.girl.sceneState?.[sceneDef.id]?.fp ?? 0, FETISH_THRESHOLD)}/${FETISH_THRESHOLD}`)

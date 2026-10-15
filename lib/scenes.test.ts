@@ -4,7 +4,7 @@ import type { GameSave, MonstGirl } from './types'
 import { fxGirl, fxPlayer, fxGuest } from './prompt-fixtures'
 import {
   TRAINING_SCENES, getScene, sceneUnlocked, sceneUpkeep, sceneReaction, accumulateScene, sceneDecay, hasShadow,
-  fetishMatchesGuest, FETISH_THRESHOLD, sceneRiskIncident, shadowLevel, provokeBlock, provokeEffect,
+  fetishMatchesGuest, FETISH_THRESHOLD, sceneRiskIncident, shadowLevel, provokeBlock, provokeEffect, detectShadowTrigger, rollSkipProvoke,
 } from './scenes'
 import { resolveTraining, resolveLiveTraining } from './resolve-training'
 import { buyScene } from './shop'
@@ -177,34 +177,63 @@ test('迁移：ownedScenes 缺省为空', () => {
 
 const shadowWolf = (sp = 3) => human({ race: '狼娘', stamina: 100, sceneState: { dungeon: { uses: [], fp: 0, sp } } })
 
-test('激发阴影：服从大涨、好感/体力代价、阴影加深、不长性癖、不能连续两天、递减', () => {
+test('激发阴影：服从大涨、只多耗体力不扣好感、阴影加深、不长性癖、不能连续两天、递减', () => {
   const g = shadowWolf()
   assert.equal(shadowLevel(g, 'dungeon'), 1)
   const base = { girl: g, direction: 'tame' as const, skip: true, scene: 'dungeon' as const, day: 50 }
   const normal = resolveTraining(base)
-  const pr = resolveTraining({ ...base, provoke: true })
+  const pr = resolveTraining({ ...base, provoke: 'dungeon' })
   assert.ok(pr.ok)
-  assert.equal(pr.delta.obedience - normal.delta.obedience, 10)
-  assert.equal(pr.delta.affection - normal.delta.affection, -5)
-  assert.equal(pr.staminaCost - normal.staminaCost, 10)
+  assert.equal(pr.delta.obedience - normal.delta.obedience, 8)
+  assert.equal(pr.delta.affection, normal.delta.affection)
+  assert.equal(pr.staminaCost - normal.staminaCost, 15)
   assert.equal(pr.girl.sceneState!.dungeon!.sp, 5); assert.equal(normal.girl.sceneState!.dungeon!.sp, 4)
   assert.equal(pr.girl.sceneState!.dungeon!.fp, 0)
   assert.deepEqual(pr.girl.provokedDays, [50]); assert.equal(pr.provokedScene, 'dungeon')
   assert.ok(pr.notes.some((n) => n.startsWith('激发阴影')))
-  // 冷却：当天 / 第二天不行，第三天行但 ×0.6
-  assert.match(provokeBlock(pr.girl, 'dungeon', 'tame', 51)!, /昨天/)
-  assert.equal(resolveTraining({ ...base, girl: pr.girl, day: 51, provoke: true }).ok, false)
-  assert.equal(provokeBlock(pr.girl, 'dungeon', 'tame', 52), null)
-  assert.equal(provokeEffect(pr.girl, 'dungeon', 52).obedience, 6)
-  // 深层阴影：+2/层，好感 −2/层
-  const deep = shadowWolf(6)
-  assert.deepEqual([provokeEffect(deep, 'dungeon', 9).obedience, provokeEffect(deep, 'dungeon', 9).affection], [12, -7])
-  // 没阴影 / 不对口方向 / 不在阴影场景：不能激发
-  assert.match(provokeBlock(human(), 'dungeon', 'tame', 5)!, /有阴影的场景/)
-  assert.match(provokeBlock(g, 'dungeon', 'release', 5)!, /驯服/)
-  assert.equal(resolveTraining({ ...base, scene: undefined, provoke: true }).ok, false)
-  // 觉醒路线照旧：觉醒清阴影后就不能激发
-  assert.equal(provokeBlock({ ...g, awakened: ['dungeon'] }, 'dungeon', 'tame', 5) !== null, true)
+  // 冷却：第二天不行，第三天行但 ×0.6
+  assert.match(provokeBlock(pr.girl, 'dungeon', 51)!, /昨天/)
+  assert.equal(resolveTraining({ ...base, girl: pr.girl, day: 51, provoke: 'dungeon' }).ok, false)
+  assert.equal(provokeBlock(pr.girl, 'dungeon', 52), null)
+  assert.equal(provokeEffect(pr.girl, 'dungeon', 52).obedience, 5)
+  // 深层阴影：+2/层
+  assert.equal(provokeEffect(shadowWolf(6), 'dungeon', 9).obedience, 10)
+  assert.equal(provokeEffect(shadowWolf(9), 'dungeon', 9).obedience, 12)
+  // 没阴影 / 觉醒清阴影后：不能激发
+  assert.ok(provokeBlock(human(), 'dungeon', 5))
+  assert.ok(provokeBlock({ ...g, awakened: ['dungeon'] }, 'dungeon', 5))
+  // 在别的场景里激发地牢的阴影：地牢阴影 +2，本场景照常记使用但不长性癖
+  const elsewhere = resolveTraining({ girl: { ...g, lewdness: 60 }, direction: 'tame', skip: true, scene: 'machine', day: 50, provoke: 'dungeon' })
+  assert.ok(elsewhere.ok)
+  assert.equal(elsewhere.girl.sceneState!.dungeon!.sp, 5)
+  assert.equal(elsewhere.girl.sceneState!.machine!.fp, 0); assert.deepEqual(elsewhere.girl.sceneState!.machine!.uses, [50])
+  // 任何方向都可能被激发（对话驱动），不限驯服
+  assert.ok(resolveTraining({ girl: g, direction: 'release', skip: true, day: 50, provoke: 'dungeon' }).ok)
+})
+
+test('对话触发：阴影场景里的相关字眼 / 别处点名场景；冷却与无阴影不触发', () => {
+  const g = shadowWolf()
+  assert.equal(detectShadowTrigger(g, 'dungeon', '把锁链再收紧一点', 9), 'dungeon')
+  assert.equal(detectShadowTrigger(g, 'dungeon', '抬起头看着我', 9), null)
+  // 在别的场景 / 普通调教室：只有点名才算
+  assert.equal(detectShadowTrigger(g, 'machine', '把锁链再收紧一点', 9), null)
+  assert.equal(detectShadowTrigger(g, undefined, '再不听话，就把你关回地牢', 9), 'dungeon')
+  assert.equal(detectShadowTrigger(g, undefined, '还记得 拘束 地牢 吗', 9), 'dungeon')
+  // 冷却 / 没阴影
+  assert.equal(detectShadowTrigger({ ...g, provokedDays: [8] }, 'dungeon', '锁链', 9), null)
+  assert.equal(detectShadowTrigger(human(), undefined, '地牢', 9), null)
+})
+
+test('跳过触发：只在阴影场景里，按层数掷骰（40/65/90%），冷却内不掷', () => {
+  const g = shadowWolf()
+  assert.equal(rollSkipProvoke(g, 'dungeon', 9, () => 0.39), 'dungeon')
+  assert.equal(rollSkipProvoke(g, 'dungeon', 9, () => 0.41), null)
+  assert.equal(rollSkipProvoke(shadowWolf(9), 'dungeon', 9, () => 0.89), 'dungeon')
+  assert.equal(rollSkipProvoke(g, 'machine', 9, () => 0), null)
+  assert.equal(rollSkipProvoke(g, undefined, 9, () => 0), null)
+  let used = false
+  assert.equal(rollSkipProvoke({ ...g, provokedDays: [8] }, 'dungeon', 9, () => { used = true; return 0 }), null)
+  assert.equal(used, false)
 })
 
 test('阴影不进接客：结算、提示词、夜间事件、心里话都不受影响', () => {
@@ -224,12 +253,12 @@ test('阴影不进接客：结算、提示词、夜间事件、心里话都不�
   assert.ok(!localSummary(withMem).includes('阴影'))
   assert.ok(!girlStateCard(g).includes('阴影') && girlStateCard(g, 5, { private: true }).includes('阴影'))
   // 调教上下文：激发时带【激发阴影】段
-  assert.ok(trainingContext({ girl: g, direction: 'tame', skip: true, scene: 'dungeon', day: 9, provoke: true }).includes('【激发阴影】'))
+  assert.ok(trainingContext({ girl: g, direction: 'tame', skip: true, scene: 'dungeon', day: 9, provoke: 'dungeon' }).includes('【激发阴影】'))
   assert.ok(!trainingContext({ girl: g, direction: 'tame', skip: true, scene: 'dungeon', day: 9 }).includes('【激发阴影】'))
   // 激发写进记忆（私密）
-  const pr = resolveTraining({ girl: withMem, direction: 'tame', skip: true, scene: 'dungeon', day: 9, provoke: true })
+  const pr = resolveTraining({ girl: withMem, direction: 'tame', skip: true, scene: 'dungeon', day: 9, provoke: 'dungeon' })
   const rec = recordTraining(pr.girl, withMem, pr, 9)
-  assert.ok(memOf(rec).events.some((e) => e.kind === 'shadow' && e.text.includes('揭开了阴影')))
+  assert.ok(memOf(rec).events.some((e) => e.kind === 'shadow' && e.text.includes('阴影被揭开')))
   // 夜里：有没有阴影，事件结果一样（不再有噩梦闯祸）
   for (const seed of [0.01, 0.05, 0.12, 0.5]) {
     const r1 = endDay(mkSave({}, [{ ...plain, id: 'w' }]), () => seed), r2 = endDay(mkSave({}, [{ ...g, id: 'w' }]), () => seed)

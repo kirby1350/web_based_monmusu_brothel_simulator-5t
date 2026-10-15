@@ -4,7 +4,7 @@
 import { useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight, FastForward, Swords } from 'lucide-react'
 import { CustomProp, GameSave, Guest, MonstGirl, OutfitId, StockingId, TrainingDirection, SkillKey, SensitivityZone, SceneId } from '@/lib/types'
-import { TRAINING_SCENES, getScene, sceneReaction, recentUses, hasShadow, fetishProgress, FETISH_THRESHOLD, REACTION_LABEL, shadowScenes, shadowLevel, provokeBlock, provokeEffect, SHADOW_LEVEL_LABEL } from '@/lib/scenes'
+import { TRAINING_SCENES, getScene, sceneReaction, recentUses, hasShadow, fetishProgress, FETISH_THRESHOLD, REACTION_LABEL, shadowLevel, provokeBlock, provokeEffect, SKIP_PROVOKE_CHANCE, PROVOKE_STAMINA } from '@/lib/scenes'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { OUTFITS, STOCKINGS, getPlaySlots, getSkillRank, getSensitivityLevel, TRAINING_PROPS, SCULPT_POTIONS, COMMON_ZONES, RACE_ZONE_NAMES, RACE_TRAITS, itemIconPath, playIconPath } from '@/lib/catalog'
@@ -255,7 +255,6 @@ export interface TrainingPlan {
   zone?: SensitivityZone
   scene?: SceneId
   day?: number
-  provoke?: boolean
 }
 
 interface TrainingSetupProps {
@@ -275,7 +274,6 @@ export function TrainingSetup({ save, onSkip, onLive }: TrainingSetupProps) {
   const [skill, setSkill] = useState<SkillKey | typeof TWO_SIDED_KEY | undefined>()
   const [zone, setZone] = useState<SensitivityZone | undefined>()
   const [scene, setScene] = useState<SceneId | undefined>()
-  const [provokeOn, setProvokeOn] = useState(false)
   const girl = girls.find((g) => g.id === girlId) ?? null
   const ownedScenes = TRAINING_SCENES.filter((sc) => (player.ownedScenes ?? []).includes(sc.id) && sc.directions.includes(direction))
   const activeScene = ownedScenes.some((sc) => sc.id === scene) ? scene : undefined
@@ -292,11 +290,9 @@ export function TrainingSetup({ save, onSkip, onLive }: TrainingSetupProps) {
   ] : []
   const zones: SensitivityZone[] = girl ? [...COMMON_ZONES, ...(RACE_ZONE_NAMES[girl.race] ? ['种族' as SensitivityZone] : [])] : []
 
-  // 激发阴影：只有她有阴影时才出现；选中阴影场景 + 驯服/惩罚 + 冷却过了才生效
-  const girlShadows = girl ? shadowScenes(girl) : []
-  const provokeWhy = girl ? provokeBlock(girl, activeScene, direction, save.currentDay) : null
-  const provoke = provokeOn && !provokeWhy
-  const plan: TrainingPlan | null = girl ? { girl, direction, roomLevel, props, customProps: player.customProps ?? [], outfit, potionId, skill, zone, scene: activeScene, day: save.currentDay, ...(provoke ? { provoke: true } : {}) } : null
+  const plan: TrainingPlan | null = girl ? { girl, direction, roomLevel, props, customProps: player.customProps ?? [], outfit, potionId, skill, zone, scene: activeScene, day: save.currentDay } : null
+  // 阴影场景里跳过：可能被激发（按层数掷骰，结算时才掷）
+  const skipProvokeChance = girl && activeScene && !provokeBlock(girl, activeScene, save.currentDay) ? SKIP_PROVOKE_CHANCE[shadowLevel(girl, activeScene)] : 0
   const preview = plan ? resolveTraining({ ...plan, skip: true }) : null
   const ready = !!preview?.ok
 
@@ -403,19 +399,6 @@ export function TrainingSetup({ save, onSkip, onLive }: TrainingSetupProps) {
               </section>
             )}
 
-            {girl && girlShadows.length > 0 && (
-              <section className="space-y-1.5 rounded-lg border border-slate-400/30 bg-slate-500/5 p-2" data-testid="provoke-section">
-                <p className="text-[10px] text-slate-300 uppercase tracking-widest">阴影（{girlShadows.map((id) => `${getScene(id)!.name}·${SHADOW_LEVEL_LABEL[shadowLevel(girl, id)]}`).join('、')}）</p>
-                <div className="flex items-center gap-2">
-                  <Chip active={provoke} onClick={() => setProvokeOn((v) => !v)} label="激发阴影" testId="provoke-toggle"
-                    hint={!provokeWhy && activeScene ? `服从 +${provokeEffect(girl, activeScene, save.currentDay).obedience}` : undefined} />
-                  <p className="text-[10px] text-muted-foreground leading-snug flex-1">
-                    {provokeWhy ? provokeWhy : '故意揭开她的阴影：服从大涨，但好感大减、多耗体力、阴影加深；不能连续两天'}
-                  </p>
-                </div>
-              </section>
-            )}
-
             <section className="space-y-2">
               <p className="text-[10px] text-muted-foreground uppercase tracking-widest">道具（调教室 {roomLevel} 级，最多 {slots} 件）</p>
               {slots === 0 ? <p className="text-[11px] text-muted-foreground">一级调教室没有道具槽，升级调教室后可用。</p>
@@ -452,7 +435,8 @@ export function TrainingSetup({ save, onSkip, onLive }: TrainingSetupProps) {
             {preview.ok ? (
               <div className="rounded-xl border border-border bg-card p-3 space-y-1.5 text-xs">
                 <Row label="方向" value={TRAINING_DIRECTIONS.find((d) => d.key === direction)!.label} />
-                {activeScene && <Row label="场景" value={`${getScene(activeScene)!.name}${provoke ? '（激发阴影）' : ''}`} />}
+                {activeScene && <Row label="场景" value={getScene(activeScene)!.name} />}
+                {skipProvokeChance > 0 && <p className="text-[10px] text-slate-300" data-testid="skip-provoke-hint">她在这里有阴影：跳过时有 {Math.round(skipProvokeChance * 100)}% 会被激发（服从 +{provokeEffect(plan.girl, activeScene!, save.currentDay).obedience}、体力再 −{PROVOKE_STAMINA}、阴影加深）；亲自上场时，话里触到它也会激发</p>}
                 <Row label="成长" value={trainingGains(preview) || '—'} />
                 {preview.measurement && <Row label="三围" value={`${{ bust: '胸围', waist: '腰围', hip: '臀围' }[preview.measurement.stat]} ${preview.measurement.from} → ${preview.measurement.to}`} />}
                 {preview.newRank && <Row label="技能" value={`升到「${preview.newRank}」`} />}

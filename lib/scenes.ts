@@ -126,18 +126,32 @@ export const AVERSION_AFFECTION = -3
 export const SHADOW_AFFECTION = -2
 export const MACHINE_NIGHT_OBEDIENCE = 3
 /**
- * 激发阴影（只在调教里起作用；不影响接客、不产生闯祸）：
- * 在她有阴影的场景里做驯服/惩罚时，可以故意揭开阴影——服从大涨，代价是好感、体力、阴影加深。
- * 服从 = 10 + 2×(阴影层数−1)，7 天内第 n 次 ×[1, 0.6, 0.35]；好感 −5 −2×(层数−1)；体力再 +10；阴影积累 +2；
- * 这一场不长性癖积累；激发过的第二天不能再激发（连续两天不行）。
+ * 激发阴影（只在调教里起作用；不影响接客、不产生闯祸；不是菜单选项）：
+ * - 对话：她有阴影时，馆主的话触到阴影（在阴影场景里说到相关字眼，或在别处点名那个场景）→ 自动激发；
+ * - 跳过：在阴影场景里跳过调教，按阴影层数掷骰（浅 40% / 深 65% / 刻骨 90%）。
+ * 效果：服从 +8 +2×(层数−1)，7 天内第 n 次 ×[1, 0.6, 0.35]；体力再 +15；不扣好感；阴影积累 +2；
+ * 这一场不长性癖积累；激发过的第二天不会再被激发（连续两天不行）。
  */
-export const PROVOKE_OBEDIENCE = 10
+export const PROVOKE_OBEDIENCE = 8
 export const PROVOKE_LEVEL_BONUS = 2
 export const PROVOKE_DECAY = [1, 0.6, 0.35]
-export const PROVOKE_AFFECTION = -5
-export const PROVOKE_LEVEL_AFFECTION = -2
-export const PROVOKE_STAMINA = 10
+export const PROVOKE_STAMINA = 15
 export const PROVOKE_DEEPEN = 2
+/** 跳过时按阴影层数的激发概率（下标 = 层数） */
+export const SKIP_PROVOKE_CHANCE = [0, 0.4, 0.65, 0.9]
+/**
+ * 对话触发词：names = 点名这个场景（在任何场景里说都算）；words = 只在这个场景里说才算的相关字眼。
+ */
+export const SHADOW_TRIGGERS: Record<SceneId, { names: string[]; words: string[] }> = {
+  dungeon: { names: ['地牢'], words: ['锁链', '铁链', '镣铐', '枷', '拘束', '绑起', '捆', '吊起', '铁笼'] },
+  water: { names: ['水牢'], words: ['淹', '浸', '憋气', '冷水', '沉下去', '水里', '水面', '泡着'] },
+  stage: { names: ['调教台', '公开调教'], words: ['当众', '围观', '观众', '示众', '大家都在看', '看着你', '台上'] },
+  machine: { names: ['机械调教', '机器', '机械'], words: ['机括', '马达', '器械', '活塞', '震动', '开关', '档位', '转速'] },
+  tentacle: { names: ['触手'], words: ['黏液', '缠住', '缠上', '吸盘', '蠕动', '缠绕'] },
+  hypnosis: { names: ['催眠'], words: ['摆锤', '怀表', '看着我的眼睛', '睡吧', '放空', '指令', '响指'] },
+  altar: { names: ['淫纹', '祭坛'], words: ['刻印', '纹路', '发烫', '发光', '咒文', '烙'] },
+  onsen: { names: ['温泉'], words: ['热水', '泡汤', '水汽', '池子'] },
+}
 /** 阴影层数：积累 3/6/9 → 1/2/3 层 */
 export const SHADOW_LEVEL_STEP = 3
 export const SHADOW_MAX_LEVEL = 3
@@ -218,25 +232,56 @@ export function recentProvokes(girl: Pick<MonstGirl, 'provokedDays'>, day: numbe
   return (girl.provokedDays ?? []).filter((d) => d > day - SCENE_WINDOW_DAYS && d <= day).length
 }
 
-/** 能不能在这个场景、这个方向上激发阴影；能则 null，否则原因 */
-export function provokeBlock(girl: Pick<MonstGirl, 'sceneState' | 'awakened' | 'provokedDays'>, scene: SceneId | undefined, direction: string, day: number): string | null {
-  if (!scene || !hasShadow(girl, scene)) return '只能在她有阴影的场景里激发'
-  if (direction !== 'tame' && direction !== 'punish') return '只有驯服 / 惩罚能激发阴影'
+/** 这个阴影现在能不能被激发；能则 null，否则原因 */
+export function provokeBlock(girl: Pick<MonstGirl, 'sceneState' | 'awakened' | 'provokedDays'>, scene: SceneId | undefined, day: number): string | null {
+  if (!scene || !hasShadow(girl, scene)) return '她在这里没有阴影'
   const pd = girl.provokedDays ?? []
   if (pd.includes(day)) return '今天已经激发过了'
   if (pd.includes(day - 1)) return '昨天刚激发过，她撑不住连续两天'
   return null
 }
 
-/** 激发阴影的服从加成与好感代价（按当前阴影层数与本周次数） */
-export function provokeEffect(girl: Pick<MonstGirl, 'sceneState' | 'awakened' | 'provokedDays'>, scene: SceneId, day: number): { obedience: number; affection: number; level: number; decay: number } {
+/** 激发阴影的服从加成（按当前阴影层数与本周次数）；不扣好感 */
+export function provokeEffect(girl: Pick<MonstGirl, 'sceneState' | 'awakened' | 'provokedDays'>, scene: SceneId, day: number): { obedience: number; stamina: number; level: number; decay: number } {
   const level = Math.max(1, shadowLevel(girl, scene))
   const decay = PROVOKE_DECAY[Math.min(recentProvokes(girl, day), PROVOKE_DECAY.length - 1)]
   return {
     obedience: Math.round((PROVOKE_OBEDIENCE + PROVOKE_LEVEL_BONUS * (level - 1)) * decay),
-    affection: PROVOKE_AFFECTION + PROVOKE_LEVEL_AFFECTION * (level - 1),
+    stamina: PROVOKE_STAMINA,
     level, decay,
   }
+}
+
+/**
+ * 对话触发：馆主这句话有没有触到她的阴影。返回被触到的阴影场景（不能激发时 null）。
+ * - 当前场景本身有阴影：场景名或相关字眼都算；
+ * - 当前场景没有阴影（或普通调教室）：只有点名某个阴影场景才算。
+ */
+export function detectShadowTrigger(girl: Pick<MonstGirl, 'sceneState' | 'awakened' | 'provokedDays'>, scene: SceneId | undefined, text: string, day: number): SceneId | null {
+  const t = text.replace(/\s+/g, '')
+  if (!t) return null
+  const here = scene && hasShadow(girl, scene) ? scene : undefined
+  if (here) {
+    const tr = SHADOW_TRIGGERS[here]
+    if ([...tr.names, ...tr.words, getScene(here)!.name].some((w) => t.includes(w))) return provokeBlock(girl, here, day) ? null : here
+  }
+  for (const id of shadowScenes(girl)) {
+    if (id === here) continue
+    if ([...SHADOW_TRIGGERS[id].names, getScene(id)!.name].some((w) => t.includes(w))) return provokeBlock(girl, id, day) ? null : id
+  }
+  return null
+}
+
+/** 跳过时是否激发（只看本场所在场景的阴影；按层数掷骰）；rng 只在可能触发时消耗 */
+export function rollSkipProvoke(girl: Pick<MonstGirl, 'sceneState' | 'awakened' | 'provokedDays'>, scene: SceneId | undefined, day: number, rng: () => number = Math.random): SceneId | null {
+  if (!scene || provokeBlock(girl, scene, day)) return null
+  return rng() < SKIP_PROVOKE_CHANCE[shadowLevel(girl, scene)] ? scene : null
+}
+
+/** 加深某个场景的阴影（激发发生在别的场景时用） */
+export function deepenShadow(girl: MonstGirl, id: SceneId, n = PROVOKE_DEEPEN): MonstGirl {
+  const cur = stateOf(girl, id)
+  return { ...girl, sceneState: { ...(girl.sceneState ?? {}), [id]: { ...cur, sp: cur.sp + n } } }
 }
 
 export function shadowScenes(girl: Pick<MonstGirl, 'sceneState' | 'awakened'>): SceneId[] {
@@ -261,10 +306,11 @@ export interface AccumulateResult { girl: MonstGirl; awakenedNow: boolean; shado
  * 记一次场景使用：使用日、性癖积累、阴影积累；够条件就觉醒（清掉该场景阴影）。
  * 温泉：她所有场景的阴影各 −1。lewdness 用结算后的值。
  */
-export function accumulateScene(girl: MonstGirl, id: SceneId, day: number, opts: { provoke?: boolean } = {}): AccumulateResult {
+export function accumulateScene(girl: MonstGirl, id: SceneId, day: number, opts: { provoke?: boolean; noFetish?: boolean } = {}): AccumulateResult {
   const cur = stateOf(girl, id)
-  // 激发阴影：这一场只有恐惧，不长性癖，阴影加深
-  const gain = opts.provoke ? { fp: 0, sp: PROVOKE_DEEPEN } : sceneGain(girl, id)
+  // 激发阴影：这一场只有恐惧，不长性癖，阴影加深（激发的是别处的阴影时：这里照常记阴影，但不长性癖）
+  const base = sceneGain(girl, id)
+  const gain = opts.provoke ? { fp: 0, sp: PROVOKE_DEEPEN } : opts.noFetish ? { fp: 0, sp: base.sp } : base
   const uses = [...cur.uses, day].filter((d) => d > day - SCENE_WINDOW_DAYS).slice(-SCENE_WINDOW_DAYS)
   const st: SceneState = { uses, fp: cur.fp + gain.fp, sp: cur.sp + gain.sp }
   const hadShadow = hasShadow(girl, id)

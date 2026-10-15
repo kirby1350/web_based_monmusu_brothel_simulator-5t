@@ -59,11 +59,11 @@ export function trainingContext(input: TrainingInput): string {
   } else if (input.direction === 'sensitize' && input.zone) target = `｜开发：${input.zone}`
   const propNotes = preview.ok ? preview.notes.filter((n) => TRAINING_PROPS.some((p) => n.startsWith(p.name)) || n.includes('：')) : []
   const props = (input.props ?? []).length ? `\n道具：${propNotes.join('、') || (input.props ?? []).join('、')}——请在叙述中实际使用这些道具` : ''
-  return `【本次调教】${dir?.label ?? input.direction}（${dir?.hint ?? ''}）${target}｜调教室 Lv${lv}（×${TRAINING_ROOM_MULT[lv - 1]}）${props}${sceneContext(input)}`
+  return `【本次调教】${dir?.label ?? input.direction}（${dir?.hint ?? ''}）${target}｜调教室 Lv${lv}（×${TRAINING_ROOM_MULT[lv - 1]}）${props}${sceneContext(input)}${input.provoke ? provokeSection(input.girl, input.provoke) : ''}`
 }
 
 /** 调教场景段：场景描写 + 她的反应（亲和/抗拒/觉醒/阴影）；没有场景时空串 */
-export function sceneContext(input: Pick<TrainingInput, 'girl' | 'scene' | 'provoke'>): string {
+export function sceneContext(input: Pick<TrainingInput, 'girl' | 'scene'>): string {
   const def = getScene(input.scene)
   if (!def) return ''
   const g = input.girl
@@ -74,10 +74,16 @@ export function sceneContext(input: Pick<TrainingInput, 'girl' | 'scene' | 'prov
     : '她第一次面对这样的地方时会紧张，身体却诚实'
   const lv = shadowLevel(g, def.id)
   const shadow = lv ? `；这里在她心里留有阴影（${SHADOW_LEVEL_LABEL[lv]}），会发抖、想逃` : ''
-  const provoke = input.provoke && lv
-    ? `\n【激发阴影】馆主这次故意揭开她在${def.name}留下的阴影：写出她被唤起的恐惧、发抖与无力抵抗后的顺从（服从大幅上升）；她仍是原来的性格、自称与口癖，不要崩坏、不要恶堕，事后要有余悸`
-    : ''
-  return `\n【调教场景】${def.name}：${def.place}\n她的反应（${REACTION_LABEL[r] || '普通'}）：${react}${shadow}——请让场景本身成为叙述的主角，道具与环境要被实际使用${provoke}`
+  return `\n【调教场景】${def.name}：${def.place}\n她的反应（${REACTION_LABEL[r] || '普通'}）：${react}${shadow}——请让场景本身成为叙述的主角，道具与环境要被实际使用`
+}
+
+/**
+ * 【激发阴影】段：对话里触到阴影（或跳过时掷中）后，本场剩下的回合都带着它。只进调教提示词。
+ */
+export function provokeSection(girl: Pick<MonstGirl, 'name'>, scene: SceneId): string {
+  const def = getScene(scene)
+  if (!def) return ''
+  return `\n【激发阴影】馆主的话揭开了${girl.name}在${def.name}留下的阴影：从现在起写出她被唤起的恐惧、发抖与无力抵抗后的顺从（服从大幅上升）；她仍是原来的性格、自称与口癖，不要崩坏、不要恶堕，事后要有余悸`
 }
 
 /** 3. 客人偏好命中 */

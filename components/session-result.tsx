@@ -219,7 +219,7 @@ export function TrainingResultCard({ mode, before, result, incident, onBack }: {
       )}
       {result.provokedScene && (
         <div className="rounded-xl border border-slate-400/40 bg-slate-500/15 px-3 py-2 text-xs text-slate-200" data-testid="tr-provoke">
-          你揭开了{before.name}在{getScene(result.provokedScene)!.name}的阴影：她发着抖顺从了。阴影更深了，明天不能再激发
+          {mode === 'skip' ? '跳过的调教里' : '你的话'}触到了{before.name}在{getScene(result.provokedScene)!.name}的阴影：她发着抖顺从了（服从大涨、多耗体力，不扣好感）。阴影更深了，明天不会再被激发
         </div>
       )}
       {result.shadowScene && (

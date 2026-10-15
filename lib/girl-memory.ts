@@ -110,7 +110,7 @@ export function recordTraining(after: MonstGirl, before: MonstGirl, result: Trai
     g = markFirst(g, `awaken:${a.id}`, day, `第${day}天在${a.name}里觉醒了${a.fetish}`, { scene: a.id, kind: 'awaken' })
   }
   if (result.shadowScene) g = addEvent(g, { day, kind: 'shadow', text: `${getScene(result.shadowScene)!.name}成了她心里的阴影`, w: 2, scene: result.shadowScene })
-  if (result.provokedScene) g = addEvent(g, { day, kind: 'shadow', text: `在${getScene(result.provokedScene)!.name}里被馆主揭开了阴影，抖着顺从了`, w: 2, scene: result.provokedScene })
+  if (result.provokedScene) g = addEvent(g, { day, kind: 'shadow', text: `${getScene(result.provokedScene)!.name}的阴影被揭开，抖着顺从了`, w: 2, scene: result.provokedScene })
   if (result.newRank) g = addEvent(g, { day, kind: 'milestone', text: `技能练到了「${result.newRank}」`, w: 2 })
   if (result.becameTwoSided) g = markFirst(g, 'two-sided', day, `第${day}天成为了「两面」`)
   return g

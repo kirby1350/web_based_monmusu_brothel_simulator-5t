@@ -13,7 +13,7 @@ import { trainingContext } from '@/lib/prompt-context'
 import { TrainingResultCard } from '@/components/session-result'
 import { resolveTraining, resolveLiveTraining, TRAINING_DIRECTIONS, type TrainingResult } from '@/lib/resolve-training'
 import { applyTrainingToSave } from '@/lib/settle-session'
-import { getScene } from '@/lib/scenes'
+import { getScene, rollSkipProvoke } from '@/lib/scenes'
 import { recordQuote } from '@/lib/girl-memory'
 
 type Phase =
@@ -44,7 +44,11 @@ export function TrainingFlow({ save, settings, onSaveChange, onBack }: {
       </header>
       {phase.kind === 'setup' && (
         <TrainingSetup save={save}
-          onSkip={(plan) => settle(plan, 'skip', resolveTraining({ ...plan, skip: true }))}
+          onSkip={(plan) => {
+            // 阴影场景里跳过：按阴影层数掷骰，掷中就激发
+            const provoke = rollSkipProvoke(plan.girl, plan.scene, save.currentDay) ?? undefined
+            settle(plan, 'skip', resolveTraining({ ...plan, skip: true, provoke }))
+          }}
           onLive={(plan) => setPhase({ kind: 'scene', plan })} />
       )}
       {phase.kind === 'scene' && (
@@ -54,7 +58,7 @@ export function TrainingFlow({ save, settings, onSaveChange, onBack }: {
           onRemember={(t) => onSaveChange({ ...save, girls: save.girls.map((g) => (g.id === phase.plan.girl.id ? recordQuote(g, t, save.currentDay) : g)) })}
           trainingInfo={trainingContext({ ...phase.plan, skip: true, customProps: save.player.customProps })}
           extraPrompt={phase.plan.direction === 'punish' ? incidentPromptLine(phase.plan.girl) : undefined}
-          onFinish={(turns, pleasure) => settle(phase.plan, 'live', resolveLiveTraining(phase.plan, turns, pleasure))} />
+          onFinish={(turns, pleasure, provoke) => settle(phase.plan, 'live', resolveLiveTraining({ ...phase.plan, provoke }, turns, pleasure))} />
       )}
       {phase.kind === 'result' && (
         <TrainingResultCard mode={phase.mode} before={phase.before} result={phase.result} incident={phase.incident} onBack={onBack} />
