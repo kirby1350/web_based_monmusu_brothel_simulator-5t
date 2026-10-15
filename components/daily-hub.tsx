@@ -22,6 +22,7 @@ import { dismissDaySummary } from '@/lib/day-summary'
 import { TUTORIAL_STEPS, isTutorialVisible, advanceTutorial, dismissTutorial } from '@/lib/tutorial'
 import { cn } from '@/lib/utils'
 import type { GameTab } from '@/app/game/page'
+import { speechLine, speechRuleFor } from '@/lib/speech-style'
 
 interface DailyHubProps {
   save: GameSave
@@ -80,7 +81,7 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
     const fallback = arrivalFallbackText(leader, save.player.name, ng)
     setIntro({ girlId: ng.id, speaker, text: '', loading: true })
     const apiKey = settings.chatModel.startsWith('grok') ? settings.grokApiKey : settings.chatApiKey
-    const prompt = `${arrivalPromptNote(leader, save.player.name, ng)}\n新人：${ng.name}（${ng.race}，性格：${ng.personality}）。用中文写一段80~150字的入馆场景，含两三句对白。只输出正文，不要输出数据块。`
+    const prompt = `${arrivalPromptNote(leader, save.player.name, ng)}\n新人：${ng.name}（${ng.race}，性格：${ng.personality}${speechLine(ng, '；')}）。用中文写一段80~150字的入馆场景，含两三句对白。${speechRuleFor([ng, ...(leader.kind === 'girl' ? [leader.girl] : [])], '')}只输出正文，不要输出数据块。`
     fetch('/api/chat', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], model: settings.chatModel, apiKey, stream: false }),

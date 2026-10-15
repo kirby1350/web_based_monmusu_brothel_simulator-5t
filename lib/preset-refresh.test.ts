@@ -11,6 +11,10 @@ import { migrateSave } from './migrate-save'
 
 // 上一版（ai-guests 分支）的预设文案快照，模拟老存档里的预设角色
 const OLD = JSON.parse(readFileSync(join(process.cwd(), 'lib/fixtures/presets-v1.json'), 'utf8')) as Omit<MonstGirl, 'id' | 'imageUrl'>[]
+// 上一版（outfits-1 分支，口癖之前）的快照
+const V2 = JSON.parse(readFileSync(join(process.cwd(), 'lib/fixtures/presets-v2.json'), 'utf8')) as Omit<MonstGirl, 'id' | 'imageUrl'>[]
+const v2Girl = (name: string, extra: Partial<MonstGirl> = {}): MonstGirl =>
+  ({ ...V2.find((t) => t.name === name)!, id: name, imageUrl: '/x.jpg', ...extra }) as MonstGirl
 const oldGirl = (name: string, extra: Partial<MonstGirl> = {}): MonstGirl =>
   ({ ...OLD.find((t) => t.name === name)!, id: name, imageUrl: '/x.jpg', ...extra }) as MonstGirl
 
@@ -19,7 +23,11 @@ test('预设文案：新文案不在旧指纹里（否则无法幂等），旧�
     for (const k of PRESET_TEXT_FIELDS) {
       const h = PRESET_TEXT_HISTORY[t.name]?.[k] ?? []
       assert.ok(!h.includes(presetTextHash(t[k] as string)), `${t.name}.${k}`)
-      assert.ok(h.includes(presetTextHash(OLD.find((o) => o.name === t.name)![k] as string)), `old ${t.name}.${k}`)
+      for (const snap of [OLD, V2]) {
+        const o = snap.find((x) => x.name === t.name)
+        const ov = o?.[k]
+        if (typeof ov === 'string' && ov !== t[k]) assert.ok(h.includes(presetTextHash(ov)), `old ${t.name}.${k}`)
+      }
     }
   }
 })
@@ -61,4 +69,25 @@ test('migrateSave 带上刷新：旧种族名阿拉克涅的文香也能刷新�
   assert.equal(m.girls[0].outfit, GIRL_TEMPLATES.find((t) => t.name === '文香')!.outfit)
   assert.ok(!m.girls[1].bodyTags.includes('tanned'))
   assert.deepEqual(migrateSave(m), m)
+})
+
+test('上一版存档（无口癖）：OOC 修正与口癖补上，年龄刷新；数值与三围不动', () => {
+  for (const tpl of GIRL_TEMPLATES.filter((t) => V2.some((o) => o.name === t.name))) {
+    const g = v2Girl(tpl.name, { affection: 77, bust: 101, sculptCounts: { bust: 2, waist: 0, hip: 0 } })
+    assert.equal(g.speechStyle, undefined)
+    const r = refreshPresetText(g)
+    for (const k of PRESET_TEXT_FIELDS) assert.equal(r[k], tpl[k], `${tpl.name}.${k}`)
+    assert.ok(r.speechStyle && r.speechStyle.includes('自称'), tpl.name)
+    assert.equal(r.affection, 77); assert.equal(r.bust, 101)
+    assert.deepEqual(refreshPresetText(r), r)
+  }
+  const n = refreshPresetText(v2Girl('娜露梅亚'))
+  assert.equal(n.age, '24'); assert.ok(!n.bodyTags.includes('wakizashi')); assert.ok(n.speechStyle!.includes('馆主酱'))
+  assert.equal(refreshPresetText(v2Girl('文香')).age, '19')
+  assert.ok(!refreshPresetText(v2Girl('文香')).imageTags.includes('glasses'))
+})
+
+test('玩家手改过的年龄 / 口癖保留', () => {
+  const r = refreshPresetText(v2Girl('文香', { age: '25', speechStyle: '自称：本小姐' }))
+  assert.equal(r.age, '25'); assert.equal(r.speechStyle, '自称：本小姐')
 })

@@ -19,7 +19,7 @@ const save = (gold = 5000, girls = [girl()]): GameSave => ({
   girls, currentDay: 1, phase: 'morning', actionsUsedToday: 0, dailyGuests: [guest],
 })
 
-test('买女仆装：扣钱进衣橱，不能重复买；客人喜好制服时迎客 +4', () => {
+test('买女仆装：扣钱进衣橱，不能重复买；客人喜好制服时迎客 +6', () => {
   const r = buyWardrobe(save(), 'maid'); assert.ok(r.ok); if (!r.ok) return
   assert.equal(r.save.player.gold, 4800)
   assert.deepEqual(r.save.player.wardrobe, ['maid'])
@@ -28,7 +28,7 @@ test('买女仆装：扣钱进衣橱，不能重复买；客人喜好制服时�
   const g = girl()
   const regular = resolveService({ girl: g, guest, outfit: 'regular', skip: true }).steps[0].score
   const maid = resolveService({ girl: g, guest, outfit: 'maid', skip: true }).steps[0].score
-  assert.equal(maid - regular, 4)
+  assert.equal(maid - regular, 6)
 })
 
 test('服务房间 500/1000/1800；升到 2 级后跳过预览自动填 1 个 play', () => {

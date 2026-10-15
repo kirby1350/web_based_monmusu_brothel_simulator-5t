@@ -72,12 +72,16 @@ export function buyTrainingProp(save: GameSave, id: string): ShopResult {
 
 // ─── 使用恢复药：不占行动，每人每天一瓶 ────────────────────────────────────────
 
+/** 她今天是否已经用过恢复药（热餐/滋补汤/精力药共用每人每天一次的额度，过一天自动重置） */
+export const recoveryUsedToday = (save: Pick<GameSave, 'currentDay'>, girl: Pick<MonstGirl, 'itemUsedOnDay'>) =>
+  girl.itemUsedOnDay === save.currentDay
+
 export function useRecovery(save: GameSave, girlId: string, id: string): ShopResult {
   const item = RECOVERY_ITEMS.find((i) => i.id === id)
   const girl = save.girls.find((g) => g.id === girlId)
   if (!item || !girl) return fail('无效道具或魔物娘')
   if ((save.player.inventory?.[id] ?? 0) <= 0) return fail('背包里没有这件道具')
-  if (girl.itemUsedOnDay === save.currentDay) return fail(`${girl.name} 今天已经用过恢复药了`)
+  if (recoveryUsedToday(save, girl)) return fail(`${girl.name} 今天已经用过恢复药了`)
   const before = girl.stamina ?? MAX_STAMINA
   const after = item.stamina === 'full' ? MAX_STAMINA : Math.min(MAX_STAMINA, before + Math.round(item.stamina * itemMult(girl)))
   const inv = { ...(save.player.inventory ?? {}) }

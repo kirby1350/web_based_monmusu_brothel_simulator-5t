@@ -17,6 +17,7 @@ import { GIRL_TEMPLATES, GIRL_TEMPLATE_IMAGES } from '@/lib/game-data'
 import { nanoid } from 'nanoid'
 import { cn, parseLooseJson } from '@/lib/utils'
 import { RACE_TRAITS, RACE_ZONE_NAMES } from '@/lib/catalog'
+import { speechLine, speechRuleFor } from '@/lib/speech-style'
 
 interface MarketScreenProps {
   save: GameSave
@@ -157,6 +158,7 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
         otherDesc: (parsed.otherDesc as string) ?? '',
         otherTags: (parsed.otherTags as string) ?? '',
         sexualDesc: (parsed.sexualDesc as string) ?? '',
+        speechStyle: typeof parsed.speechStyle === 'string' && parsed.speechStyle.trim() ? parsed.speechStyle.trim().slice(0, 400) : undefined,
         affection: Number(parsed.affection) || 20,
         obedience: Number(parsed.obedience) || 25,
         lewdness: Number(parsed.lewdness) || 15,
@@ -242,7 +244,7 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
     setChatMessages((prev) => [...prev, { role: 'player', text: userText }])
     try {
       const history = chatMessages.map((m) => ({ role: m.role === 'girl' ? 'assistant' : 'user', content: m.text }))
-      const system = `以第一人称扮演 ${purchasedGirl.name}（${purchasedGirl.race}），性格：${purchasedGirl.personality}。服从度 ${purchasedGirl.obedience}/100，刚被 ${player.name} 购入。回复30-60字。`
+      const system = `以第一人称扮演 ${purchasedGirl.name}（${purchasedGirl.race}），性格：${purchasedGirl.personality}${speechLine(purchasedGirl, '。')}。服从度 ${purchasedGirl.obedience}/100，刚被 ${player.name} 购入。回复30-60字。${speechRuleFor([purchasedGirl], '')}`
       const apiKey = settings.chatModel.startsWith('grok') ? settings.grokApiKey : settings.chatApiKey
       const res = await fetch('/api/chat', {
         method: 'POST',

@@ -7,6 +7,7 @@ import {
 } from './catalog'
 import { nightlyIncidents } from './incidents'
 import { MAX_ACTIONS_PER_DAY, generateDailyGuests, getGuestCapacity, getGirlCapacity } from './game-engine'
+import { speechLine } from './speech-style'
 
 export type HubResult = { ok: true; save: GameSave; message: string } | { ok: false; error: string }
 
@@ -168,7 +169,7 @@ export function arrivalFallbackText(leader: ArrivalLeader, playerName: string, n
 
 export function arrivalPromptNote(leader: ArrivalLeader, playerName: string, newGirl: MonstGirl): string {
   return leader.kind === 'girl'
-    ? `【入馆安排】由馆里好感最高的魔物娘${leader.girl.name}（${leader.girl.race}，性格：${leader.girl.personality}）出面迎接新人${newGirl.name}，带她熟悉娼馆、交代规矩。以${leader.girl.name}为主导写这段入馆对话。`
+    ? `【入馆安排】由馆里好感最高的魔物娘${leader.girl.name}（${leader.girl.race}，性格：${leader.girl.personality}${speechLine(leader.girl, '；')}）出面迎接新人${newGirl.name}，带她熟悉娼馆、交代规矩。以${leader.girl.name}为主导写这段入馆对话。`
     : `【入馆安排】由馆主${playerName}亲自迎接新人${newGirl.name}，带她熟悉娼馆。以馆主为主导写这段入馆对话。`
 }
 

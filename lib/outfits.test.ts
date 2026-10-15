@@ -50,12 +50,12 @@ test('生成的客人喜好都在列表里；AI 客人可改写成新喜好，�
   assert.equal(sanitizeAiGuest({ prefOutfit: '比基尼' }, fxGuest({ prefOutfit: '黑丝' })).prefOutfit, '黑丝')
 })
 
-test('新衣服对口迎客 +4（衣服或丝袜任一对上）', () => {
+test('新衣服对口迎客 +6（衣服或丝袜任一对上）', () => {
   const base = resolveService({ girl: girl(), guest: fxGuest({ prefOutfit: '圣洁' }), skip: true, outfit: 'regular', stockings: 'none' })
   for (const [outfit, stockings] of [['nun', 'none'], ['bridal', 'none'], ['regular', 'lace_white']] as const) {
     const r = resolveService({ girl: girl(), guest: fxGuest({ prefOutfit: '圣洁' }), skip: true, outfit, stockings })
     assert.ok(r.outfitMatched, outfit + stockings)
-    assert.equal(r.steps[0].score, Math.min(base.steps[0].score + 4, r.steps[0].score), outfit)
+    assert.equal(r.steps[0].score, Math.min(base.steps[0].score + 6, r.steps[0].score), outfit)
   }
   assert.ok(resolveService({ girl: girl(), guest: fxGuest({ prefOutfit: '暴露' }), skip: true, outfit: 'maid', stockings: 'fishnet' }).outfitMatched)
 })

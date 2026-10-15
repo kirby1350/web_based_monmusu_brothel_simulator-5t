@@ -24,6 +24,7 @@ import {
   resolveLiveSteps, buildStepContext, type LiveState,
 } from '@/lib/live-steps'
 import type { ServicePlan } from '@/components/session-setup'
+import { speechLine } from '@/lib/speech-style'
 
 export interface SceneOutcome {
   state: LiveState
@@ -68,7 +69,7 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish }: Ses
       } catch { return fallback }
     })()
     const sugs = (async () => {
-      const sugPrompt = `为以下服务场景生成3个玩家可选的开场行动指令。\n魔物娘：${girl.name}（${girl.race}），性格：${girl.personality}，服从度：${girl.obedience}/100，淫乱度：${girl.lewdness}/100，客人需求：${guest.desires}\n\n要求：\n- 行动1：玩家/客人主动发起，5-12字\n- 行动2：双方互动，5-12字\n- 行动3：魔物娘主动发起，5-12字\n- 贴合角色性格与服从度\n- 只输出JSON数组：["行动1","行动2","行动3"]`
+      const sugPrompt = `为以下服务场景生成3个玩家可选的开场行动指令。\n魔物娘：${girl.name}（${girl.race}），性格：${girl.personality}${speechLine(girl, '，')}，服从度：${girl.obedience}/100，淫乱度：${girl.lewdness}/100，客人需求：${guest.desires}\n\n要求：\n- 行动1：玩家/客人主动发起，5-12字\n- 行动2：双方互动，5-12字\n- 行动3：魔物娘主动发起，5-12字\n- 贴合角色性格与服从度\n- 只输出JSON数组：["行动1","行动2","行动3"]`
       try {
         const res = await fetch('/api/chat', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },

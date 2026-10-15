@@ -22,6 +22,9 @@ export const GREET_HOSTING_SCORE: Record<SkillRank | '无', number> = { 无: 2, 
 /** 对口 play：初学 6 / 熟练 8 / 精通 10；不对口减半 */
 export const PLAY_SCORE: Record<SkillRank, number> = { 初学: 6, 熟练: 8, 精通: 10 }
 export const STEP_MAX = 14
+/** 服装或丝袜对上客人喜好：迎客 +6（v3 平衡：+4 → +6，让衣橱 30 天内大致回本）；穿错 −2 */
+export const OUTFIT_GREET_BONUS = 6
+export const OUTFIT_GREET_MISMATCH = -2
 /** 技能档对口加成（满意度，直接加，不受单步 14 上限）：迎客看待客、前戏看手技、正戏看主类型 */
 export const SKILL_RANK_BONUS: Record<SkillRank, number> = { 初学: 0, 熟练: 5, 精通: 9 }
 

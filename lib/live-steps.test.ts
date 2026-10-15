@@ -56,7 +56,7 @@ test('换装只在挑逗、只一次；迎客按新衣服重算，体力多掉 5
   assert.equal(canChangeOutfit(c), false)
   for (let i = 1; i < 5; i++) { c = recordTurn(c); c = nextStep(c) }
   const after = resolveLiveSteps(plan(), c)
-  assert.equal(after.steps[0].score, before.steps[0].score + 4) // 常服 0 → 女仆装对上「制服」+4
+  assert.equal(after.steps[0].score, before.steps[0].score + 6) // 常服 0 → 女仆装对上「制服」+6
   assert.equal(after.staminaCost, before.staminaCost + 5)
 })
 
