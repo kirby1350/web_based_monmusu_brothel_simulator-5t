@@ -6,6 +6,7 @@ import { girlMemoryBlock, memOf } from '@/lib/girl-memory'
 import { girlStateCard, guestPrefLine, VALID_RACES, REPLY_LENGTH, outfitDescLine, outfitCommentLine } from '@/lib/prompt-context'
 import { speechLine, speechRuleFor } from '@/lib/speech-style'
 import { personalityAnchorBlock } from '@/lib/voice-prompts'
+import { guestVoiceBlock } from '@/lib/guest-voice'
 
 /** 系统提示词的可选游戏状态：天数、当前服装（客人偏好命中用） */
 export interface PromptState { day?: number; outfit?: OutfitId; stockings?: StockingId; scene?: SceneId; /** 快感由本地【此刻的兴奋与快感】给出，不再写模型累计的快感 */ heatLocal?: boolean }
@@ -202,12 +203,10 @@ ${session.girls.map(girl => {
 【角色人格锚点（必须100%严格遵守）】
 ${session.girls.map(girl => `- ${girl.name} 的每一句话、呻吟、反应必须完全体现性格「${girl.personality}」${girl.sexualDesc ? `和色色设定「${girl.sexualDesc}」` : ''}：\n${personalityAnchorBlock(girl, 'service', g)}`).join('\n')}${speechRuleFor(session.girls, '\n- ')}
 
+${guestVoiceBlock(g)}
+
 【客人行为与言语锚点（必须严格遵守）】
-- ${g.name} 的行动、言语、玩法必须100%体现性格「${g.personality}」、特性「${g.traits.join('、') || '无'}」和需求「${g.desires}」：
-  - 温柔型 → 缓慢深插、轻抚乳头/腰臀、耳语哄骗赞美，言语多"宝贝好紧""再夹我一下""射给你"
-  - 粗暴/支配型 → 猛烈撞击、抓头发、扇臀、强迫深喉/后入，言语多"贱货""夹紧老子的鸡巴""哭着求我射进去"
-  - 痴汉/变态型 → 专注特定癖好（如闻味、舔脚、强制潮吹、玩弄尾巴），言语痴迷下流
-  - 正太/害羞型 → 脸红喘息、动作先生涩后猛烈，言语带颤抖"姐姐……好热……要射了……"
+- ${g.name} 的行动、言语、玩法必须体现上面【客人的声音】、特性「${g.traits.join('、') || '无'}」和需求「${g.desires}」，不要写成千篇一律的下流台词
 - 客人行动必须与魔物娘状态联动：
   - 魔物娘到慌乱档以上 → 客人加速/换姿势/更投入，言语挑逗"看你乱成这样""里面在吸我"
   - 魔物娘体力归零 → 客人放慢或继续，嘲笑/安慰"失神了还夹这么紧"
@@ -446,11 +445,14 @@ export function buildMarketGirlPrompt(preference: string, existingNames: string[
 
 // ─── 建议回复生成提示词 ────────────────────────────────────────────────────────
 
+/** 建议提示词的上下文：步骤与做法、客人需求、已插入 / 还能插入的 play */
+export interface SuggestionCtx { step?: string; standardAction?: string; desires?: string; needs?: string; plays?: string[]; available?: string[] }
+
 export function buildSuggestionPrompt(
   sessionType: 'service' | 'training',
   lastMessage: string,
   playerTraits: string[],
-  ctx: { step?: string; standardAction?: string; desires?: string } = {}
+  ctx: SuggestionCtx = {}
 ): string {
   const context = sessionType === 'service' ? '操弄客人' : '调教并干翻魔物娘'
   // 先去掉隐藏数据块再截取，取结尾（最新画面）
@@ -458,11 +460,11 @@ export function buildSuggestionPrompt(
   return `根据以下${context}场景的最新淫靡叙述，生成3个简短的玩家色情行动指令。
 
 叙述：${clean.slice(-200)}
-玩家特性：${playerTraits.join('、') || '无'}${ctx.step ? `\n当前步骤：${ctx.step}${ctx.standardAction ? `（标准做法：${ctx.standardAction}，第一条请写它）` : ''}` : ''}${ctx.desires ? `\n客人需求：${ctx.desires}` : ''}
+玩家特性：${playerTraits.join('、') || '无'}${ctx.step ? `\n当前步骤：${ctx.step}${ctx.standardAction ? `（标准做法：${ctx.standardAction}，第一条请写它）` : ''}` : ''}${ctx.desires ? `\n客人需求：${ctx.desires}${ctx.needs ? `（${ctx.needs}）` : ''}` : ''}${ctx.plays?.length ? `\n已插入的 play：${ctx.plays.join('、')}` : ''}${ctx.available?.length ? `\n还能插入的 play：${ctx.available.join('、')}（可以建议其中一个）` : ''}
 
 要求：
 - 每个指令5-15字，直白下流
-- 体现不同玩法风格（温柔抽插、粗暴内射、羞辱玩弄等）
+- 体现不同玩法风格与发起方，贴合当前步骤（前面的步骤不要建议插入），贴合客人需求；后两条可以借用已插入或还能插入的 play
 - 只输出JSON数组：["指令1", "指令2", "指令3"]
 - 不要其他内容
 ${JSON_HALFWIDTH_NOTE}`

@@ -181,3 +181,54 @@ test('5. 多人分工：主位做主类型，协同按最拿手的技能分工�
   assert.match(divisionBlock(lead, [oral], guest, 2), /仍不插入/)
   assert.equal(divisionBlock(lead, [], guest, 3), '')
 })
+
+import { guestVoiceBlock, PERSONALITY_VOICE } from './guest-voice'
+import { GUEST_PERSONALITIES } from './game-data'
+import { extractMetaphors, pushRecent, recentUseLine, shortReplyNote } from './prompt-context'
+import { buildSuggestionPrompt } from './prompt-builder'
+import { initTrainingHeat, trainingHeatTurn, speechBand } from './arousal'
+
+test('6. 客人的声音按性格/身份/挑剔/需求/特性组合，不再是四个模板', () => {
+  for (const p of GUEST_PERSONALITIES) assert.ok(PERSONALITY_VOICE[p], p)
+  const noble = guestVoiceBlock(fxGuest({ personality: '傲慢自大', guestClass: 'noble', demand: 8, desireKind: 'M', traits: ['话痨'] }))
+  assert.match(noble, /居高临下/); assert.match(noble, /贵族/); assert.match(noble, /挑剔的上等客/); assert.match(noble, /想施虐/); assert.match(noble, /实况转播/)
+  const shy = guestVoiceBlock(fxGuest({ personality: '腼腆内向', traits: ['初次体验'] }))
+  assert.doesNotMatch(shy, /挑剔的上等客/); assert.match(shy, /平民/)
+  const p = svc({ heatLocal: true }, [makeGirl()], fxGuest({ personality: '神秘低调', guestClass: 'captain', demand: 8 }))
+  assert.match(p, /【客人的声音（王老板）】/)
+  assert.doesNotMatch(p, /正太\/害羞型/)
+  assert.doesNotMatch(p, /粗暴\/支配型 →/)
+})
+
+test('6. 防重复：抽出喻体、保留最近 N 个、生成「最近已用」行', () => {
+  const m = extractMetaphors('她的腰像拉满的弓一样绷紧，声音仿佛融化的蜜糖般黏腻。<!--STATS:像假的一样-->')
+  assert.deepEqual(m, ['拉满的弓', '融化的蜜糖'])
+  assert.deepEqual(pushRecent(['a', 'b'], ['b', 'c'], 3), ['a', 'b', 'c'])
+  assert.equal(pushRecent([], ['1', '2', '3', '4'], 2).join(), '3,4')
+  assert.match(recentUseLine(['拉满的弓'], ['深喉']), /最近已用，避免重复.*拉满的弓.*深喉/)
+  assert.equal(recentUseLine([], []), '')
+})
+
+test('6. 篇幅回看：不足 300 字提醒写长，够长不提醒', () => {
+  assert.match(shortReplyNote('短短一句。<!--STATS:{}-->'), /偏短/)
+  assert.equal(shortReplyNote('长'.repeat(320)), '')
+})
+
+test('6. 建议提示词知道已插入/可插入的 play 与客人需求', () => {
+  const sp = buildSuggestionPrompt('service', '……', [], { step: '正戏', standardAction: '开始正式侍奉', desires: '想要乳交', needs: '主需求 胸侍；服装偏好 黑丝', plays: ['乳汁侍奉'], available: ['深喉'] })
+  assert.match(sp, /已插入的 play：乳汁侍奉/); assert.match(sp, /还能插入的 play：深喉/); assert.match(sp, /服装偏好 黑丝/)
+  assert.match(buildStepContext({ stepLabel: '正戏', standardAction: 'x', outfitName: 'y', plays: [], availablePlays: ['深喉'] }), /可以借一个还能插入的 play：深喉/)
+})
+
+test('6. 调教的亲自上场也有档位：随回合从从容推进，高潮按档位', () => {
+  const g = makeGirl({ lewdness: 60, affection: 50 })
+  let h = initTrainingHeat(g)
+  assert.equal(speechBand(h.girls[g.id]), '从容')
+  const bands = new Set<string>()
+  let climax = false
+  for (let t = 1; t <= 14; t++) { h = trainingHeatTurn(h, g, t, '用力', '耳朵'); bands.add(speechBand(h.girls[g.id], h.justClimaxed.includes(g.id))); if (h.justClimaxed.includes(g.id)) climax = true }
+  assert.ok(bands.has('慌乱') || bands.has('临界'), [...bands].join())
+  assert.ok(climax)
+  const tp = buildServiceSystemPrompt(fxPlayer, createServiceSession('training', [g], {}), 'standard', heatPromptBlock(initTrainingHeat(g), fxPlayer.name, [g]), { heatLocal: true })
+  assert.match(tp, /【此刻的兴奋与快感/); assert.match(tp, /高潮闸门/)
+})

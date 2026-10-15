@@ -180,3 +180,40 @@ export function heatSatBonus(state: HeatState | undefined): number {
 export function heatBars(h: Heat) { return { arousal: Math.round(h.arousal), pleasure: Math.round(h.pleasure), climaxes: h.climaxes } }
 
 export { getGuestProfile }
+
+// ─── 调教的亲自上场：同样的档位，让她的说话随回合推进（不进调教结算） ───────────
+/** 调教回合的阶段：前 2 回合像挑逗、3–4 回合像前戏、之后像正戏 */
+export const TRAINING_PHASE = (turn: number) => (turn <= 2 ? 1 : turn <= 4 ? 2 : 3)
+export const TRAINER_PLEASURE_MULT = 0.6
+
+export function initTrainingHeat(girl: MonstGirl): HeatState {
+  return {
+    guest: { arousal: 20, pleasure: 0, climaxes: 0 },
+    girls: { [girl.id]: { arousal: clamp(Math.round(girl.lewdness / 3 + girl.affection / 10)), pleasure: 0, climaxes: 0 } },
+    justClimaxed: [],
+    together: false,
+  }
+}
+
+/** 调教的一回合：她按阶段 + 开发部位的敏感 + 用词推进；调教者（馆主）快感涨得慢一些 */
+export function trainingHeatTurn(state: HeatState, girl: MonstGirl, turn: number, text: string, zone?: SensitivityZone): HeatState {
+  const i = TRAINING_PHASE(turn)
+  const intense = INTENSE_WORDS.some((w) => text.includes(w))
+  const gentle = !intense && GENTLE_WORDS.some((w) => text.includes(w))
+  const wordMult = intense ? 1.3 : gentle ? 0.8 : 1
+  const zv = zone ? girl.sensitivities?.[zone] : undefined
+  const zoneMult = zv === undefined ? 1 : ZONE_PLEASURE_MULT[getSensitivityLevel(zv)]
+  const just: string[] = []
+  const step = (h: Heat, dA: number, dP: number, who: string): Heat => {
+    let arousal = clamp(h.arousal + dA)
+    let pleasure = clamp(h.pleasure + dP * (arousal >= 60 ? 1.2 : 1))
+    let climaxes = h.climaxes
+    if (pleasure >= HEAT_MAX) { climaxes += 1; pleasure = CLIMAX_RESET_PLEASURE; arousal = clamp(arousal - CLIMAX_AROUSAL_DROP); just.push(who) }
+    return { arousal: r1(arousal), pleasure: r1(pleasure), climaxes }
+  }
+  const h = state.girls[girl.id] ?? { arousal: 0, pleasure: 0, climaxes: 0 }
+  const g = step(h, STEP_AROUSAL[i] * (0.6 + girl.lewdness / 100), STEP_PLEASURE[i] * zoneMult * wordMult, girl.id)
+  const trainer = step(state.guest, STEP_AROUSAL[i], STEP_PLEASURE[i] * TRAINER_PLEASURE_MULT * wordMult, 'guest')
+  const together = state.together || (just.includes('guest') && just.length > 1)
+  return { guest: trainer, girls: { [girl.id]: g }, justClimaxed: just, together }
+}

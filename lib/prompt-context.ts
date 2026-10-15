@@ -253,3 +253,32 @@ export function outfitCommentLine(guest: Guest, outfit: OutfitId | undefined, st
     ? `【服装反应】${guest.name}偏爱「${guest.prefOutfit}」，她正穿着「${hit.name}」：让他具体地评论这身——布料、开衩、哪一处最合他心意，并在动作里用上它（拉开、撩起、隔着它抚摸）`
     : `【服装反应】${guest.name}偏爱「${guest.prefOutfit}」，她没穿：他可以提一句、略带遗憾或挑剔，但不要喧宾夺主`
 }
+
+// ─── 防重复：本地记最近用过的比喻与玩法 ─────────────────────────────────────────
+const METAPHOR_RE = /(?:像|宛如|仿佛|如同|好似|犹如)([^，。！？、…\n「」『』（）《》,.!?]{1,10}?)(?:一样|一般|般|似的)/g
+/** 从一段回复里抽出比喻的喻体（「像融化的黄油一样」→「融化的黄油」） */
+export function extractMetaphors(text: string): string[] {
+  const clean = text.replace(/<!--[\s\S]*?-->/g, '')
+  const out: string[] = []
+  for (const m of clean.matchAll(METAPHOR_RE)) { const w = m[1].trim(); if (w.length >= 2 && !out.includes(w)) out.push(w) }
+  return out
+}
+/** 最近的喻体只留 max 个（新的在后） */
+export function pushRecent(prev: string[], add: string[], max = 10): string[] {
+  const next = [...prev.filter((x) => !add.includes(x)), ...add]
+  return next.slice(-max)
+}
+/** 【最近已用，避免重复】行；都没有时空串 */
+export function recentUseLine(metaphors: string[], plays: string[]): string {
+  const parts = [metaphors.length ? `比喻/喻体：${metaphors.join('、')}` : '', plays.length ? `已写过的玩法：${plays.join('、')}` : ''].filter(Boolean)
+  return parts.length ? `【最近已用，避免重复】${parts.join('；')}——这一段换新的比喻与动作，已写过的玩法除非玩家点名，不要原样再来一遍` : ''
+}
+
+// ─── 篇幅回看：上一段明显偏短，下一回合提醒写长（不自动续写） ───────────────────
+export function visibleLength(reply: string): number {
+  return reply.replace(/<!--[\s\S]*?-->/g, '').replace(/\s/g, '').length
+}
+export function shortReplyNote(reply: string): string {
+  const n = visibleLength(reply)
+  return n > 0 && n < REPLY_LENGTH.min ? `\n（上一段正文只有约 ${n} 字，偏短：这一段请写足 ${REPLY_LENGTH.min}–${REPLY_LENGTH.max} 字，动作、对白、反应都要展开。）` : ''
+}

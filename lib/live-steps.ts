@@ -222,6 +222,8 @@ export function buildStepContext(opts: {
   stepLabel: string; standardAction: string; outfitName: string; zoneLabel?: string; zoneLevel?: string; plays: string[]
   /** 给出时附上这一步的强度上限 */
   stepIndex?: number
+  /** 还能插入的 play（给推荐行动用） */
+  availablePlays?: string[]
 }): string {
   return [
     '【本场标准流程】迎客 → 挑逗 → 前戏 → 正戏 → 清洗',
@@ -231,6 +233,6 @@ export function buildStepContext(opts: {
     `【当前服装】${opts.outfitName}`,
     opts.zoneLabel ? `【这一步碰到的敏感带】${opts.zoneLabel}：${opts.zoneLevel}` : '',
     opts.plays.length ? `【已插入的追加 play】${opts.plays.join('、')}` : '',
-    '【推荐行动】ACTIONS 的第一条请写这一步的标准做法，后两条自由发挥。',
+    `【推荐行动】ACTIONS 的第一条请写这一步的标准做法，后两条自由发挥${opts.availablePlays?.length ? `（可以借一个还能插入的 play：${opts.availablePlays.join('、')}）` : ''}。`,
   ].filter(Boolean).join('\n')
 }
