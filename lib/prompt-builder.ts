@@ -3,8 +3,10 @@ import { ALL_PLAYS as PLAYS, getSensitivityLevel, getSkillRank } from '@/lib/cat
 import type { OutfitId, StockingId, SceneId } from '@/lib/types'
 import { fetishPromptLine, getScene } from '@/lib/scenes'
 import { girlMemoryBlock, memOf } from '@/lib/girl-memory'
-import { girlStateCard, guestPrefLine, VALID_RACES, REPLY_LENGTH } from '@/lib/prompt-context'
+import { girlStateCard, guestPrefLine, VALID_RACES, REPLY_LENGTH, outfitDescLine, outfitCommentLine } from '@/lib/prompt-context'
 import { speechLine, speechRuleFor } from '@/lib/speech-style'
+import { personalityAnchorBlock } from '@/lib/voice-prompts'
+import { guestVoiceBlock } from '@/lib/guest-voice'
 
 /** 系统提示词的可选游戏状态：天数、当前服装（客人偏好命中用） */
 export interface PromptState { day?: number; outfit?: OutfitId; stockings?: StockingId; scene?: SceneId; /** 快感由本地【此刻的兴奋与快感】给出，不再写模型累计的快感 */ heatLocal?: boolean }
@@ -57,34 +59,31 @@ const JSON_HALFWIDTH_NOTE = '（极重要：JSON 的结构符号 : , " [ ] { } �
 // ─── 服务 / 调教共享锚点（两场景复用，避免重复与漂移） ─────────────────────────
 
 // 服从度 × 快感度 × 淫乱度 综合反应矩阵（service / training 共用）
-const REACTION_MATRIX = `【服从度 × 快感度 × 淫乱度 综合反应锚点（必须严格遵守）】
+const REACTION_MATRIX = `【服从度 × 快感档位 × 淫乱度 综合反应锚点（必须遵守；档位看【此刻的兴奋与快感】里每个人标的「从容/动摇/慌乱/临界/高潮」）】
 服从度 <40（抗拒/倔强阶段）：
-- 快感<60：强烈挣扎、哭喊拒绝、试图挣脱，语言完整抗拒（如"不要……放开我！"），淫叫短促（1-2次短音节），蜜穴却已湿透
-- 快感60+：抗拒中夹杂淫叫，身体背叛（"不要……齁齁齁❤~！停下……哦哦哦❤~！"）
-- 淫乱高：即使抗拒，也会不自觉夹紧/摇臀，内心冲突强烈
+- 从容/动摇：明显的抗拒或迟疑，语言完整（如"不要……放开我"），声音压得很短，身体却已经有了反应
+- 慌乱/临界：抗拒里夹进压不住的喘与叫，身体背叛嘴上的话
+- 淫乱高：即使抗拒，也会不自觉地夹紧、迎上去，内心冲突强烈
 
 服从度 40-69（半推半就/逐渐屈服阶段）：
-- 快感<60：被动承受，偶尔小声求饶或犹豫迎合，淫叫中等
-- 快感60-79：开始主动配合但仍带羞耻，语言断续（如"……要去了……不行……"）
-- 快感80+：屈服明显，潮吹/痉挛时哭求"主人……饶了我……但别停……"
-- 淫乱高：更早出现主动摇臀/求插，抗拒转为"假装"羞耻
+- 从容/动摇：被动承受，偶尔小声求饶或犹豫着迎合
+- 慌乱：开始主动配合但仍带羞耻，语言断续
+- 临界：屈服明显，哭着求"别停"，濒临却还在忍
+- 淫乱高：更早主动迎合，抗拒变成"假装"的羞耻
 
 服从度 70-89（顺从/臣服阶段）：
-- 快感<60：主动张腿、挺胸求玩弄，淫叫柔软带媚
-- 快感60+：完全配合，淫叫覆盖大部分句子，求"再深""射进来"
-- 快感80+：主动求虐、求内射、子宫吸吮，彻底享受
-- 淫乱高：淫堕加速，尖叫求"干坏我""全灌满"
+- 从容/动摇：主动靠近、挺身求碰，声音软而媚
+- 慌乱/临界：完全配合，叫声占满句子，主动求他更深、更快
+- 淫乱高：主动求更过分的玩法
 
-服从度 ≥90（彻底淫堕/奴隶化阶段）：
-- 无论快感：完全臣服、主动求一切玩法，淫叫狂野失神
-- 快感≥60：连续高潮、潮吹不止，语言只剩淫叫+"主人❤~""更多❤~"
-- 快感≥90：意识模糊仍夹紧不放，求精永不停歇
+服从度 ≥90（彻底淫堕阶段）：
+- 任何档位都完全臣服、主动求一切玩法；到临界时意识模糊、只剩称呼与惯用语尾的碎片
 
-额外强制规则：
-- 服从度每提升10点，顺从度/主动性+1级（低服从强制加抗拒描写，高服从强制加臣服/求饶）
-- 服从度变化≥10时，必须明确体现心理转变（"抗拒哭喊"→"半推半就求饶"→"主动求插"）
-- 高服从+高快感+高淫乱 = 极致淫堕（连续失神浪叫、子宫痉挛求内射）
-- 每回合相比上一回合，动作/体位/部位/玩法/淫语组合必须有明显变化或升级，严禁原地复述上一段的画面与措辞，剧情须持续递进（更深入、更激烈或转入新花样）`
+档位规则（与上面的服从度叠加）：
+- 高潮、潮吹、射精、内射、灌满这类画面只属于「高潮」档：谁被标为高潮，谁这回合才写；其余人最多写到「濒临」（忍住、被拉回、差一点）
+- 「连续高潮」只在同一个人已经高潮过、且这回合又被标为高潮时出现
+- 服从度变化≥10时，要写出心理转变；但一个人怎么抗拒、怎么屈服，以她自己的性格为准（温柔/母性的人不会先嘴硬，见【角色人格锚点】）
+- 每回合相比上一回合，动作/体位/部位/玩法/台词组合必须有明显变化或推进，严禁原地复述上一段的画面与措辞；推进的上限是当前步骤的强度上限与各人的档位`
 
 // 淫叫与拟声词规则（service / training 共用）
 const LEWD_VOICE_RULES = `【淫叫与拟声词强制规则（必须严格执行）】
@@ -92,7 +91,7 @@ const LEWD_VOICE_RULES = `【淫叫与拟声词强制规则（必须严格执行
   - 基础音节：齁、呼、咿、咕、喔、啊、哦、噫、嗯、呃、噢、呜
   - 组合：至少5音节（喉音/尖音开头，元音拖长结尾），例：咕齁齁齁齁哦哦哦❤~、咿呀啊啊啊啊啊❤~
   - 频率：激烈抽插/撞击段必须3~5次不同组合；方式：穿插断续词汇 + ❤~ ？！ …… 强化
-  - 触发：快感≥60强制大量；≥80每句带；≥90连续失神浪叫
+  - 触发：动摇档零星、短促；慌乱档明显增多；临界档几乎每句都带、词不成句；高潮档只剩失神的长音与惯用语尾的碎片
 - 特殊淫语（口腔/玩具专用）：
   - 口交/深喉/吞精/插入玩具时使用：啾、噜、咕唧、噗、呕、滋、啾噜、噗噜、呕噗、咕啾
   - 例：啾噜啾噜啾❤~！咕唧滋滋❤~！噗呕……咕啾啾❤~`
@@ -144,7 +143,7 @@ function buildServiceSystemPromptBase(
     .map(
       (g, i) => {
         const bwh = girlBWH(g)
-        return `魔物娘${i + 1}：${g.name}（${g.race}）\n  外貌：${g.bodyDesc}${bwh ? `，三围 ${bwh}` : ''}\n  性格：${g.personality}${speechLine(g, '\n  ')}\n  服装：${g.outfit}\n  服从度：${g.obedience}/100，淫乱度：${g.lewdness}/100，好感度：${g.affection}/100\n  状态：${girlStateCard(g, state.day, { private: session.type === 'training' })}${g.sexualDesc ? `\n  色色设定：${g.sexualDesc}` : ''}${fetishPromptLine(g) ? `\n  ${fetishPromptLine(g)}` : ''}${memLine(g, { type: session.type === 'training' ? 'training' : 'service', guestId: session.guest?.id, scene: state.scene }, '  ')}`
+        return `魔物娘${i + 1}：${g.name}（${g.race}）\n  外貌：${g.bodyDesc}${bwh ? `，三围 ${bwh}` : ''}\n  性格：${g.personality}${speechLine(g, '\n  ')}\n  服装：${session.type === 'service' && i === 0 ? outfitDescLine(g, state.outfit, state.stockings) : g.outfit}\n  服从度：${g.obedience}/100，淫乱度：${g.lewdness}/100，好感度：${g.affection}/100\n  状态：${girlStateCard(g, state.day, { private: session.type === 'training' })}${g.sexualDesc ? `\n  色色设定：${g.sexualDesc}` : ''}${fetishPromptLine(g) ? `\n  ${fetishPromptLine(g)}` : ''}${memLine(g, { type: session.type === 'training' ? 'training' : 'service', guestId: session.guest?.id, scene: state.scene }, '  ')}`
       }
     )
     .join('\n')
@@ -164,6 +163,7 @@ function buildServiceSystemPromptBase(
 【多魔物娘强制规则（必须100%严格遵守，本场有 ${session.girls.length} 位魔物娘：${girlNameList}）】
 - 每一回合的正文都必须同时推进并描写**全部** ${session.girls.length} 位魔物娘（${girlNameList}），每位都要有当回合的具体动作、呻吟或反应，严禁只写其中一位而让其他人消失或沦为背景。
 - 若某位魔物娘当回合未被直接操弄，也必须交代她正在做什么（旁观、自慰、被冷落的反应、等待、相互爱抚等），保持她在场感。
+- 服务场景按【多人分工】来写：主位做主类型，协同各做自己那一份，彼此之间要有交接与互动（对视、接力、一起亲吻），不要让所有人同时做同一件事。
 - 结尾的 STATS 数据块中，${girlNameList} 每一位都必须有独立条目，缺一不可。`
     : ''
 
@@ -187,7 +187,7 @@ ${girlDescriptions}
 【客人信息】
 姓名：${g.name}　种族：${g.race}　性格：${g.personality}
 特性：${g.traits.join('、') || '无'}
-需求：${g.desires}${g.desireDetail ? `（${g.desireDetail}）` : ''}${session.girls.map((x) => guestPrefLine(g, x, state.outfit, state.stockings)).filter(Boolean).map((l) => '\n' + l).join('')}${(g.visits ?? 0) > 0 ? `\n来访：第 ${(g.visits ?? 0) + 1} 次` : ''}
+需求：${g.desires}${g.desireDetail ? `（${g.desireDetail}）` : ''}${session.girls.map((x) => guestPrefLine(g, x, state.outfit, state.stockings)).filter(Boolean).map((l) => '\n' + l).join('')}${(g.visits ?? 0) > 0 ? `\n来访：第 ${(g.visits ?? 0) + 1} 次` : ''}${outfitCommentLine(g, state.outfit, state.stockings) ? `\n${outfitCommentLine(g, state.outfit, state.stockings)}` : ''}
 当前状态 — ${state.heatLocal ? '兴奋与快感见下方【此刻的兴奋与快感】' : `肉棒快感 ${stats?.pleasure ?? 0}/100，体力 ${stats?.stamina ?? 100}/100${stats?.isExhausted ? '（射精过度、阴茎抽搐）' : ''}`}，满意度 ${g.satisfaction}/100
 ${g.memories && Object.keys(g.memories).length > 0 ? `
 【关系记忆（老客人档案，必须自然融入叙述语气）】
@@ -201,22 +201,16 @@ ${session.girls.map(girl => {
 }).filter(Boolean).join('\n')}` : ''}
 
 【角色人格锚点（必须100%严格遵守）】
-${session.girls.map(girl => `- ${girl.name} 的每一句话、呻吟、反应必须完全体现性格「${girl.personality}」${girl.sexualDesc ? `和色色设定「${girl.sexualDesc}」` : ''}：
-  - 傲娇/倔强/M倾向 → 先嘴硬羞辱/抗拒，再快感爆发时崩溃哭求
-  - 痴女/主动求操 → 即使服从低也要摇臀夹紧、下流挑逗
-  - 胆小/纯情 → 带着哭腔、颤抖说出羞耻话，脸红到耳根
-  - 特殊癖好（如乳首开发、子宫高潮、潮吹体质、深喉吞精狂热）必须在合适时机反复触发并强调`).join('\n')}${speechRuleFor(session.girls, '\n- ')}
+${session.girls.map(girl => `- ${girl.name} 的每一句话、呻吟、反应必须完全体现性格「${girl.personality}」${girl.sexualDesc ? `和色色设定「${girl.sexualDesc}」` : ''}：\n${personalityAnchorBlock(girl, 'service', g)}`).join('\n')}${speechRuleFor(session.girls, '\n- ')}
+
+${guestVoiceBlock(g)}
 
 【客人行为与言语锚点（必须严格遵守）】
-- ${g.name} 的行动、言语、玩法必须100%体现性格「${g.personality}」、特性「${g.traits.join('、') || '无'}」和需求「${g.desires}」：
-  - 温柔型 → 缓慢深插、轻抚乳头/腰臀、耳语哄骗赞美，言语多"宝贝好紧""再夹我一下""射给你"
-  - 粗暴/支配型 → 猛烈撞击、抓头发、扇臀、强迫深喉/后入，言语多"贱货""夹紧老子的鸡巴""哭着求我射进去"
-  - 痴汉/变态型 → 专注特定癖好（如闻味、舔脚、强制潮吹、玩弄尾巴），言语痴迷下流
-  - 正太/害羞型 → 脸红喘息、动作先生涩后猛烈，言语带颤抖"姐姐……好热……要射了……"
+- ${g.name} 的行动、言语、玩法必须体现上面【客人的声音】、特性「${g.traits.join('、') || '无'}」和需求「${g.desires}」，不要写成千篇一律的下流台词
 - 客人行动必须与魔物娘状态联动：
-  - 魔物娘快感60+ → 客人加速/换姿势/更粗暴，言语挑逗"看你浪成这样""子宫在吸我的龟头"
-  - 魔物娘体力归零 → 客人继续猛干，嘲笑/安慰"失神了还夹这么紧""再射一次灌满你"
-  - 客人肉棒快感80+ → 描写龟头胀大、射精冲动、精液喷射细节，射后短暂休息或继续第二轮
+  - 魔物娘到慌乱档以上 → 客人加速/换姿势/更投入，言语挑逗"看你乱成这样""里面在吸我"
+  - 魔物娘体力归零 → 客人放慢或继续，嘲笑/安慰"失神了还夹这么紧"
+  - 客人到临界档 → 写他濒临射精：龟头胀大、呼吸急、动作失控、拼命忍；只有他被标为「高潮」档时，才写射精的具体过程，之后短暂脱力或酝酿第二轮
 - 每次回复至少描写1-2次客人的具体动作（抓乳、掐腰、拍臀、强吻、按头深喉等）和言语
 
 ${REACTION_MATRIX}
@@ -225,10 +219,10 @@ ${LEWD_VOICE_RULES}${satisfactionRubric(g.desires)}
 ${proseSection(proseStyle)}
 【写作规则】
 1. 以极度沉浸式第三人称叙述，每次回复正文${proseWordCount}字（不含数据块；明显不足就是不合格），分三到五段：动作推进 → 对白（每个在场角色至少一两句，各按自己的语气说话）→ 身体与心理反应 → 下一步的悬念
-2. 极度强调肉体激烈碰撞、淫液四溅喷射、子宫被顶撞细节，乳浪翻滚、臀肉颤动、精液灌满视觉冲击
+2. 肉体描写按【这一步的强度上限】与各人的档位逐步升级：正戏里强调肉体碰撞、交合处的水声与深处被顶到的细节、乳浪与臀肉的颤动；射精、灌满、潮吹只在对应的人被标为「高潮」档时出现，不要每回合都写
 3. 平衡描写客人与魔物娘双向互动：客人主动进攻、言语羞辱/挑逗、变换姿势/玩法，魔物娘被动/主动回应，形成完整性交循环
-4. 服从度低的魔物娘先挣扎羞耻哭喊，淫乱度高的主动摇臀求内射、夹紧吸吮
-5. 体力归零后描写"彻底被干到失神、子宫痉挛抽搐、潮吹如尿失禁般喷射不止"，仍可继续但状态更虚弱淫乱
+4. 服从度低的魔物娘按她自己的性格表现抗拒（羞耻、躲闪、嘴硬或温柔地推拒），淫乱度高的主动迎合、夹紧吸吮；更露骨的索求留到正戏、且档位到了再写
+5. 体力归零后描写她失神、发软、只能任人摆布，仍可继续但状态更虚弱（高潮画面仍只在「高潮」档写）
 6. 语言极度下流直白，满口鸡巴、小穴、子宫、射精、内射、潮吹等词汇
 7. 结局完全由玩家决定（玩家发送"结束服务"才结算）${multiGirlRule}${STATS_INSTRUCTION}
 
@@ -262,11 +256,7 @@ ${girlDescriptions}
 当前状态 — ${girlStats}
 
 【角色人格锚点（必须100%严格遵守）】
-${session.girls.map(girl => `- ${girl.name} 的每一句话、呻吟、反应必须完全体现性格「${girl.personality}」${girl.sexualDesc ? `和色色设定「${girl.sexualDesc}」` : ''}：
-  - 傲娇/倔强/M倾向 → 先嘴硬反抗/羞辱调教者，再快感爆发时崩溃哭求内射
-  - 痴女/主动求操 → 即使服从低也要摇臀挺胸、用下流话语求虐求插
-  - 胆小/纯情 → 哭腔颤抖、脸红耳根说出羞耻乞求，身体却诚实喷水
-  - 特殊癖好（如乳首开发、子宫高潮、潮吹体质、深喉吞精狂热、M属性失禁等）必须在合适时机反复触发并强调描写`).join('\n')}${speechRuleFor(session.girls, '\n- ')}
+${session.girls.map(girl => `- ${girl.name} 的每一句话、呻吟、反应必须完全体现性格「${girl.personality}」${girl.sexualDesc ? `和色色设定「${girl.sexualDesc}」` : ''}：\n${personalityAnchorBlock(girl, 'training')}`).join('\n')}${speechRuleFor(session.girls, '\n- ')}
 
 ${REACTION_MATRIX}
 
@@ -276,7 +266,7 @@ ${proseSection(proseStyle)}
 1. 以极度沉浸式第三人称叙述，每次回复正文${proseWordCount}字（不含数据块；明显不足就是不合格），分三到五段：动作推进 → 对白（每个在场角色至少一两句，各按自己的语气说话）→ 身体与心理反应 → 下一步的悬念
 2. 调教核心：用肉棒、粗大玩具、皮鞭、言语羞辱把魔物娘干到彻底臣服，提升服从度、淫乱度并解锁更下流的侍奉技巧
 3. 高服从度魔物娘主动张腿求插、夹紧吸吮，低服从度哭喊抵抗却蜜穴湿透、身体背叛
-4. 体力归零后描写"被干到子宫失禁、意识模糊仍被继续内射、潮吹如尿般喷射不止"，效果翻倍（快感加成、淫乱度暴涨）
+4. 体力归零后描写她意识模糊、只剩本能的反应，效果翻倍（快感加成、淫乱度暴涨）；高潮、潮吹、内射只在她或调教者被标为「高潮」档时写
 5. 语言极度淫秽露骨，满口鸡巴、小穴、子宫、射精、内射、失禁、潮吹、干坏、操烂等词汇
 6. 结局完全由玩家决定（玩家发送"结束调教"才结算）${multiGirlRule}${STATS_INSTRUCTION}
 
@@ -455,11 +445,14 @@ export function buildMarketGirlPrompt(preference: string, existingNames: string[
 
 // ─── 建议回复生成提示词 ────────────────────────────────────────────────────────
 
+/** 建议提示词的上下文：步骤与做法、客人需求、已插入 / 还能插入的 play */
+export interface SuggestionCtx { step?: string; standardAction?: string; desires?: string; needs?: string; plays?: string[]; available?: string[] }
+
 export function buildSuggestionPrompt(
   sessionType: 'service' | 'training',
   lastMessage: string,
   playerTraits: string[],
-  ctx: { step?: string; standardAction?: string; desires?: string } = {}
+  ctx: SuggestionCtx = {}
 ): string {
   const context = sessionType === 'service' ? '操弄客人' : '调教并干翻魔物娘'
   // 先去掉隐藏数据块再截取，取结尾（最新画面）
@@ -467,11 +460,11 @@ export function buildSuggestionPrompt(
   return `根据以下${context}场景的最新淫靡叙述，生成3个简短的玩家色情行动指令。
 
 叙述：${clean.slice(-200)}
-玩家特性：${playerTraits.join('、') || '无'}${ctx.step ? `\n当前步骤：${ctx.step}${ctx.standardAction ? `（标准做法：${ctx.standardAction}，第一条请写它）` : ''}` : ''}${ctx.desires ? `\n客人需求：${ctx.desires}` : ''}
+玩家特性：${playerTraits.join('、') || '无'}${ctx.step ? `\n当前步骤：${ctx.step}${ctx.standardAction ? `（标准做法：${ctx.standardAction}，第一条请写它）` : ''}` : ''}${ctx.desires ? `\n客人需求：${ctx.desires}${ctx.needs ? `（${ctx.needs}）` : ''}` : ''}${ctx.plays?.length ? `\n已插入的 play：${ctx.plays.join('、')}` : ''}${ctx.available?.length ? `\n还能插入的 play：${ctx.available.join('、')}（可以建议其中一个）` : ''}
 
 要求：
 - 每个指令5-15字，直白下流
-- 体现不同玩法风格（温柔抽插、粗暴内射、羞辱玩弄等）
+- 体现不同玩法风格与发起方，贴合当前步骤（前面的步骤不要建议插入），贴合客人需求；后两条可以借用已插入或还能插入的 play
 - 只输出JSON数组：["指令1", "指令2", "指令3"]
 - 不要其他内容
 ${JSON_HALFWIDTH_NOTE}`
@@ -483,7 +476,7 @@ export function buildOpeningDialoguePrompt(
   scene: 'game-start' | 'service' | 'training' | 'market' | 'interaction' | 'purchase',
   player: Player,
   girls: MonstGirl[],
-  extra?: { guest?: Guest; girl?: MonstGirl; currentDay?: number; house?: string }
+  extra?: { guest?: Guest; girl?: MonstGirl; currentDay?: number; house?: string; outfit?: OutfitId; stockings?: StockingId }
 ): string {
   const girlNames = girls.map((g) => `${g.name}（${g.race}）`).join('、')
   const mainGirl = extra?.girl ?? girls[0]
@@ -555,7 +548,7 @@ ${presentMems.map((x) => `- ${x.name} 与他相熟（已服务 ${x.mem!.visitCou
 【场景】${player.name}的娼馆私密包间，灯光昏暗柔和，空气中弥漫着淡淡香薰与花香
 【参与魔物娘】${girlNames}
 ${isMulti ? `本次共有 ${serviceGirls.length} 位魔物娘一同侍奉同一位客人，全部都要在开场白中登场亮相：\n${girlBriefs}` : `主要角色：\n${girlBriefs}`}
-${extra?.guest ? `【客人】${extra.guest.name}（${extra.guest.race}），${extra.guest.personality}，需求：${extra.guest.desires}${(extra.guest.prefRace || extra.guest.prefTrait) ? `\n客人偏好：${[extra.guest.prefRace, extra.guest.prefTrait].filter(Boolean).join('、')}——若在场魔物娘命中其偏好（种族相符 / 巨乳·贫乳·丰臀·兽耳等特征相符），开场需明确写出客人一眼相中、眼前一亮、跃跃欲试的神情与反应；若完全不符，则写出他略带挑剔或将就的微妙态度` : ''}` : ''}${regularNote}
+${extra?.outfit && extra.outfit !== 'regular' || (extra?.stockings && extra.stockings !== 'none') ? `【${mainGirl.name}今晚的服装】${outfitDescLine(mainGirl, extra?.outfit, extra?.stockings)}——开场要写到这身打扮${extra?.guest ? `，${outfitCommentLine(extra.guest, extra.outfit, extra.stockings).replace(/^【服装反应】/, '') || '客人第一眼的反应也要有'}` : ''}\n` : ''}${extra?.guest ? `【客人】${extra.guest.name}（${extra.guest.race}），${extra.guest.personality}，需求：${extra.guest.desires}${(extra.guest.prefRace || extra.guest.prefTrait) ? `\n客人偏好：${[extra.guest.prefRace, extra.guest.prefTrait].filter(Boolean).join('、')}——若在场魔物娘命中其偏好（种族相符 / 巨乳·贫乳·丰臀·兽耳等特征相符），开场需明确写出客人一眼相中、眼前一亮、跃跃欲试的神情与反应；若完全不符，则写出他略带挑剔或将就的微妙态度` : ''}` : ''}${regularNote}
 
 要求：
 - ${isMulti ? '200-320' : '150-250'}字，第三人称叙述，含一两句她（们）的开口招呼

@@ -147,6 +147,14 @@ const GUEST_BAND: Record<SpeechBand, string> = {
   高潮: '本回合要写出他射精的过程（具体细节），之后是短暂的脱力',
 }
 
+/** 谁这回合可以写高潮：只有被标为「高潮」的人；没人时全员最多写到濒临 */
+export function climaxGateLine(state: HeatState, guestName: string, girls: Pick<MonstGirl, 'id' | 'name'>[]): string {
+  const who = [state.justClimaxed.includes('guest') ? guestName : '', ...girls.filter((g) => state.justClimaxed.includes(g.id)).map((g) => g.name)].filter(Boolean)
+  return who.length
+    ? `本回合只有${who.join('、')}可以写高潮${state.justClimaxed.includes('guest') ? '（客人射精）' : ''}；其余人最多写到「濒临」——忍住、被拉回、差一点`
+    : '本回合没有人到达高潮：任何人都不许写射精、内射、潮吹、绝顶；最多写到「濒临」——忍住、被拉回、差一点'
+}
+
 export function heatPromptBlock(state: HeatState, guestName: string, girls: Pick<MonstGirl, 'id' | 'name'>[]): string {
   const line = (name: string, h: Heat, band: SpeechBand, desc: string) =>
     `- ${name}：兴奋 ${Math.round(h.arousal)}/100，快感 ${Math.round(h.pleasure)}/100${h.climaxes ? `，已高潮 ${h.climaxes} 次` : ''}｜${band}：${desc}`
@@ -157,7 +165,7 @@ export function heatPromptBlock(state: HeatState, guestName: string, girls: Pick
     const b = speechBand(h, state.justClimaxed.includes(g.id))
     return line(g.name, h, b, GIRL_BAND[b])
   })].filter(Boolean)
-  return `【此刻的兴奋与快感（本地计算，叙述与台词必须对得上）】\n${rows.join('\n')}\n说话方式随档位变化，但每个人的性格、自称与口癖保持不变——只改变说话的完整度和节奏。${state.together ? '\n（本场已经一起高潮过一次，可以在余韵里呼应。）' : ''}`
+  return `【此刻的兴奋与快感（本地计算，叙述与台词必须对得上）】\n${rows.join('\n')}\n说话方式随档位变化，但每个人的性格、自称与口癖保持不变——只改变说话的完整度和节奏。\n高潮闸门：${climaxGateLine(state, guestName, girls)}${state.together ? '\n（本场已经一起高潮过一次，可以在余韵里呼应。）' : ''}`
 }
 
 /** 喂给亲自上场满意度的部分：客人高潮过 +3，和她一起高潮过再 +2（合计封顶 5） */
@@ -172,3 +180,40 @@ export function heatSatBonus(state: HeatState | undefined): number {
 export function heatBars(h: Heat) { return { arousal: Math.round(h.arousal), pleasure: Math.round(h.pleasure), climaxes: h.climaxes } }
 
 export { getGuestProfile }
+
+// ─── 调教的亲自上场：同样的档位，让她的说话随回合推进（不进调教结算） ───────────
+/** 调教回合的阶段：第 1 回合像挑逗、2–3 回合像前戏、之后像正戏（一场调教通常 6–10 回合） */
+export const TRAINING_PHASE = (turn: number) => (turn <= 1 ? 1 : turn <= 3 ? 2 : 3)
+export const TRAINER_PLEASURE_MULT = 0.6
+
+export function initTrainingHeat(girl: MonstGirl): HeatState {
+  return {
+    guest: { arousal: 20, pleasure: 0, climaxes: 0 },
+    girls: { [girl.id]: { arousal: clamp(Math.round(girl.lewdness / 3 + girl.affection / 10)), pleasure: 0, climaxes: 0 } },
+    justClimaxed: [],
+    together: false,
+  }
+}
+
+/** 调教的一回合：她按阶段 + 开发部位的敏感 + 用词推进；调教者（馆主）快感涨得慢一些 */
+export function trainingHeatTurn(state: HeatState, girl: MonstGirl, turn: number, text: string, zone?: SensitivityZone): HeatState {
+  const i = TRAINING_PHASE(turn)
+  const intense = INTENSE_WORDS.some((w) => text.includes(w))
+  const gentle = !intense && GENTLE_WORDS.some((w) => text.includes(w))
+  const wordMult = intense ? 1.3 : gentle ? 0.8 : 1
+  const zv = zone ? girl.sensitivities?.[zone] : undefined
+  const zoneMult = zv === undefined ? 1 : ZONE_PLEASURE_MULT[getSensitivityLevel(zv)]
+  const just: string[] = []
+  const step = (h: Heat, dA: number, dP: number, who: string): Heat => {
+    let arousal = clamp(h.arousal + dA)
+    let pleasure = clamp(h.pleasure + dP * (arousal >= 60 ? 1.2 : 1))
+    let climaxes = h.climaxes
+    if (pleasure >= HEAT_MAX) { climaxes += 1; pleasure = CLIMAX_RESET_PLEASURE; arousal = clamp(arousal - CLIMAX_AROUSAL_DROP); just.push(who) }
+    return { arousal: r1(arousal), pleasure: r1(pleasure), climaxes }
+  }
+  const h = state.girls[girl.id] ?? { arousal: 0, pleasure: 0, climaxes: 0 }
+  const g = step(h, STEP_AROUSAL[i] * (0.6 + girl.lewdness / 100), STEP_PLEASURE[i] * zoneMult * wordMult, girl.id)
+  const trainer = step(state.guest, STEP_AROUSAL[i], STEP_PLEASURE[i] * TRAINER_PLEASURE_MULT * wordMult, 'guest')
+  const together = state.together || (just.includes('guest') && just.length > 1)
+  return { guest: trainer, girls: { [girl.id]: g }, justClimaxed: just, together }
+}

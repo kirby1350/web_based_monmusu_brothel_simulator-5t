@@ -3,7 +3,7 @@
 // 亲自上场的对话场景（阶段 2：整段搬自旧 service-screen，阶段 3 再改成步骤条）
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { Loader2, Send, ChevronRight, Shirt, Plus, Check } from 'lucide-react'
-import { MonstGirl, Guest, ChatMessage, ServiceSession, AppSettings, Player, OutfitId, StockingId, SceneId } from '@/lib/types'
+import { MonstGirl, Guest, ChatMessage, ServiceSession, AppSettings, Player, OutfitId, StockingId, SceneId, SensitivityZone, SkillKey } from '@/lib/types'
 import { getScene, detectShadowTrigger } from '@/lib/scenes'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -11,27 +11,29 @@ import { ChatEngine, ChatEngineHandle, type SendOpts } from '@/components/chat-e
 import { SuggestionBar } from '@/components/suggestion-bar'
 import { getStepActions } from '@/lib/custom-props'
 import { stepActionsWithPlays } from '@/lib/service-flows'
-import { buildServiceSystemPrompt, buildOpeningDialoguePrompt, buildSuggestionPrompt, buildBehaviourLines, stepBehaviour, buildTrainingOpeningPrompt } from '@/lib/prompt-builder'
+import { buildServiceSystemPrompt, buildOpeningDialoguePrompt, buildSuggestionPrompt, type SuggestionCtx, buildBehaviourLines, stepBehaviour, buildTrainingOpeningPrompt } from '@/lib/prompt-builder'
 import {
   createServiceSession, applyStatDelta, estimateStatDelta, parseStatsFromReply, getGirlDelta,
-  updateGuestSatisfaction, parseActionsFromReply, computeInitialSatisfaction,
+  parseActionsFromReply, computeInitialSatisfaction,
 } from '@/lib/game-engine'
 import { parseLooseJson, cn } from '@/lib/utils'
 import { OUTFITS, STOCKINGS, STEP_MAX, getSensitivityLevel, playIconPath, ALL_PLAYS } from '@/lib/catalog'
-import { buildStepRecap, provokeSection, lengthReminder, transitionTurn, transitionFallback } from '@/lib/prompt-context'
+import { buildStepRecap, provokeSection, lengthReminder, transitionTurn, transitionFallback, climaxSlipNote, shortReplyNote, extractMetaphors, pushRecent, recentUseLine } from '@/lib/prompt-context'
 import { ItemIcon } from '@/components/item-icon'
 import { SERVICE_STEPS } from '@/lib/resolve-service'
 import {
   initLiveState, recordTurn, nextStep, canChangeOutfit, changeOutfit, insertablePlays, insertPlay,
   resolveLiveSteps, buildStepContext, recordModelStats, topicHit, type LiveState,
 } from '@/lib/live-steps'
-import { heatPromptBlock, speechBand } from '@/lib/arousal'
+import { heatPromptBlock, speechBand, initTrainingHeat, trainingHeatTurn, type HeatState } from '@/lib/arousal'
 import { HeatPanel } from '@/components/heat-panel'
 import { GuestPrefs } from '@/components/guest-prefs'
 import { applyPartners } from '@/lib/multi-service'
 import { getMainService } from '@/lib/resolve-service'
 import type { ServicePlan } from '@/components/session-setup'
 import { speechLine } from '@/lib/speech-style'
+import { buildCraftBlock, presetFlowRace, playStepOf, skillCraftLine } from '@/lib/play-prompts'
+import { divisionBlock, partnerRole } from '@/lib/multi-prompts'
 
 export interface SceneOutcome {
   state: LiveState
@@ -54,6 +56,13 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
   const cast = [girl, ...(plan.partners ?? [])]
   const [live, setLive] = useState<LiveState>(() => initLiveState(plan))
   const [panel, setPanel] = useState<'none' | 'outfit' | 'play'>('none')
+  // 下一回合附在玩家消息后的本地校正（高潮越界 / 篇幅过短）
+  const [nextNote, setNextNote] = useState('')
+  const [recentMetaphors, setRecentMetaphors] = useState<string[]>([])
+  const liveRef = useRef(live)
+  useEffect(() => { liveRef.current = live }, [live])
+  // 现场插入的 play 记在插入时的那一步（写作素材只在那一步给）
+  const [insertedAt, setInsertedAt] = useState<Record<string, number>>({})
   const [phase, setPhase] = useState<'opening' | 'active'>('opening')
   const [session, setSession] = useState<ServiceSession>(() =>
     createServiceSession('service', cast, { guest: { ...guest, satisfaction: computeInitialSatisfaction(guest, cast) } }))
@@ -72,7 +81,7 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
     const fallback = '客人踏入了包间……'
     const scene = (async () => {
       try {
-        const prompt = buildOpeningDialoguePrompt('service', player, cast, { guest })
+        const prompt = buildOpeningDialoguePrompt('service', player, cast, { guest, outfit: plan.outfit, stockings: plan.stockings })
         const res = await fetch('/api/chat', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], model: settings.chatModel, apiKey, stream: false }),
@@ -107,6 +116,9 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
   // ─── 回复解析：STATS 只驱动会话内快感/推荐行动，最终满意度以结算函数为准 ───
   const handleRawReply = useCallback((raw: string) => {
     const wasTransition = transitionRef.current
+    // 本地回看：越过高潮闸门就在下一回合附一句校正
+    setNextNote(climaxSlipNote(raw, liveRef.current.heat?.justClimaxed ?? []) + shortReplyNote(raw))
+    setRecentMetaphors((m) => pushRecent(m, extractMetaphors(raw)))
     transitionRef.current = false
     const actions = parseActionsFromReply(raw)
     if (actions) setSuggestions(actions)
@@ -133,22 +145,18 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
       const gd = multi ? getGirlDelta(multi, g.name) : null
       return recordModelStats(s, i === 0 ? multi?.satisfactionDelta : undefined, gd ? { girlId: g.id, delta: gd.pleasureDelta } : undefined)
     }, s0))
+    // 只记体力（提示词里的「体力」）；快感与满意度已由本地兴奋/快感与步骤结算给出，不再另算
     setSession((prev) => {
       const girlsStats = { ...prev.girlsStats }
-      const delta = multi ? (getGirlDelta(multi, girl.name) ?? { pleasureDelta: 5, staminaDelta: -8 }) : fallback!
-      for (const g of cast) girlsStats[g.id] = applyStatDelta(girlsStats[g.id], multi ? (getGirlDelta(multi, g.name) ?? delta) : delta)
-      return {
-        ...prev,
-        girlsStats,
-        guestStats: prev.guestStats ? applyStatDelta(prev.guestStats, delta) : undefined,
-        guest: prev.guest ? updateGuestSatisfaction(prev.guest, delta.pleasureDelta, multi?.satisfactionDelta) : undefined,
-      }
+      const delta = multi ? (getGirlDelta(multi, girl.name) ?? { pleasureDelta: 0, staminaDelta: -8 }) : fallback!
+      for (const g of cast) girlsStats[g.id] = applyStatDelta(girlsStats[g.id], { pleasureDelta: 0, staminaDelta: (multi ? (getGirlDelta(multi, g.name) ?? delta) : delta).staminaDelta })
+      return { ...prev, girlsStats, guestStats: prev.guestStats ? applyStatDelta(prev.guestStats, { pleasureDelta: 0, staminaDelta: delta.staminaDelta }) : undefined }
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [girl.id, girl.name])
 
   const finish = (state: LiveState) => onFinish({ state, messages })
-  const sugCtxRef = useRef<{ step?: string; standardAction?: string; desires?: string }>({})
+  const sugCtxRef = useRef<SuggestionCtx>({})
   const stepDef = SERVICE_STEPS[live.stepIndex]
   // 准备页定下的这一场流程（没有就按她的专属 → 全馆默认）；挂到某步的 play 只写进那一步的做法提示
   const stepActions = plan.flow?.actions ?? getStepActions(player, girl)
@@ -159,15 +167,29 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
   const outfitName = `${OUTFITS.find((o) => o.id === live.outfit)?.name ?? '常服'}${live.stockings !== 'none' ? ' + ' + STOCKINGS.find((x) => x.id === live.stockings)?.name : ''}`
   const stepContext = buildStepContext({
     stepLabel: stepDef.label,
+    stepIndex: live.stepIndex,
     standardAction: promptActions[live.stepIndex],
     outfitName,
     zoneLabel: currentStep.zone,
     zoneLevel: zoneVal !== undefined ? getSensitivityLevel(zoneVal) : undefined,
     plays: preview.plays.map((p) => p.name),
+    availablePlays: insertablePlays(plan, live).map((p) => p.name),
   })
-  const behaviour = cast.map((g) => buildBehaviourLines(g.name, stepBehaviour(g, live.stepIndex, currentStep.zone, currentStep.note, preview.plays.map((p) => p.id)))).filter(Boolean).join('\n')
+  const stepPlayIds = preview.plays.map((p) => p.id).filter((id) => playStepOf(id, plan.flow?.playSteps, insertedAt) === live.stepIndex)
+  const craft = buildCraftBlock({ stepIndex: live.stepIndex, girl, mainSkill: getMainService(guest), playIds: stepPlayIds, flowRace: presetFlowRace(plan.flow, live.stepIndex) })
+  // 多人：分工 + 正戏时协同那一份的写作素材
+  const partnersList = plan.partners ?? []
+  const division = divisionBlock(girl, partnersList, guest, live.stepIndex)
+  const partnerCraft = live.stepIndex === 3 ? partnersList.map((p) => { const r = partnerRole(p, getMainService(guest)); return r === '无' ? '' : skillCraftLine(p, r) }).filter(Boolean).join('\n') : ''
+  // 协同在正戏里按自己的分工技能来写（不再全员都写主类型）；play 只算主位的
+  const behaviour = cast.map((g, i) => {
+    const role = i === 0 ? currentStep.note : partnerRole(g, getMainService(guest))
+    return buildBehaviourLines(g.name, stepBehaviour(g, live.stepIndex, currentStep.zone, role === '无' ? undefined : role, i === 0 ? preview.plays.map((p) => p.id) : []))
+  }).filter(Boolean).join('\n')
   const heatBlock = live.heat ? heatPromptBlock(live.heat, guest.name, cast) : ''
-  const ctxAll = [stepContext, behaviour, heatBlock].filter(Boolean).join('\n')
+  const usedPlays = preview.plays.filter((p) => playStepOf(p.id, plan.flow?.playSteps, insertedAt) < live.stepIndex).map((p) => p.name)
+  const recentLine = recentUseLine(recentMetaphors.slice(-8), usedPlays)
+  const ctxAll = [stepContext, craft, partnerCraft, division, behaviour, heatBlock, recentLine].filter(Boolean).join('\n')
   // 提示词里的「满意度」用结算同一个数（不再有另算的射精满足度）
   const promptSession = { ...session, messages, guest: session.guest ? { ...session.guest, satisfaction: preview.satisfaction } : session.guest }
   const systemPrompt = buildServiceSystemPrompt(player, promptSession, settings.proseStyle, ctxAll, { outfit: live.outfit, stockings: live.stockings, heatLocal: !!live.heat })
@@ -175,12 +197,16 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
     label: SERVICE_STEPS[i].label, score: st.score, max: STEP_MAX, turns: live.turns[i],
     key: i === 3 && preview.plays.length ? `${st.note ?? ''}+${preview.plays.map((p) => p.name).join('、')}` : (st.zone ?? stepActions[i]?.slice(0, 8)),
   })), live.stepIndex)
-  sugCtxRef.current = { step: stepDef.label, standardAction: promptActions[live.stepIndex], desires: guest.desires }
   const shownSuggestions: [string, string, string] = [stepActions[live.stepIndex], suggestions?.[1] ?? '与她贴身调情', suggestions?.[2] ?? '她主动靠近']
   const owned = new Set(wardrobe)
   const outfitOpts = OUTFITS.filter((o) => o.id === 'regular' || owned.has(o.id))
   const stockingOpts = STOCKINGS.filter((x) => x.id === 'none' || owned.has(x.id))
   const playOpts = insertablePlays(plan, live)
+  sugCtxRef.current = {
+    step: stepDef.label, standardAction: promptActions[live.stepIndex], desires: guest.desires,
+    plays: preview.plays.map((p) => p.name), available: playOpts.map((p) => p.name),
+    needs: [guest.desireDetail, `主需求 ${getMainService(guest)}`, guest.prefOutfit ? `服装偏好 ${guest.prefOutfit}` : ''].filter(Boolean).join('；'),
+  }
   const mainSkill = getMainService(guest)
   const playsUsedRef = useRef(live.plays.length)
   const [pending, setPending] = useState<{ text: string; opts?: SendOpts } | null>(null)
@@ -292,7 +318,7 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
           <div className="flex flex-wrap gap-1.5">
             {playOpts.map((p) => (
               <button key={p.id} className="rounded-md border border-border pl-1 pr-2 py-0.5 text-[11px] hover:border-amber-400/60 inline-flex items-center gap-1"
-                onClick={() => { setLive((s) => insertPlay(plan, s, p.id)); setPanel('none') }}><ItemIcon src={playIconPath(p.id)} name={p.name} size={18} />{p.name}</button>
+                onClick={() => { setLive((s) => insertPlay(plan, s, p.id)); setInsertedAt((m) => ({ ...m, [p.id]: live.stepIndex })); setPanel('none') }}><ItemIcon src={playIconPath(p.id)} name={p.name} size={18} />{p.name}</button>
             ))}
           </div>
         )}
@@ -312,7 +338,7 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
       {/* 对话区 */}
       <div className="flex-1 flex flex-col min-h-0">
         <ChatEngine ref={chatRef} systemPrompt={systemPrompt} recap={recap} messages={messages} onMessagesChange={setMessages} onRememberUser={onRemember}
-          settings={settings} turnSuffix={lengthReminder('service')} onRawStreamComplete={handleRawReply} showInput={false} className="flex-1 min-h-0" />
+          settings={settings} turnSuffix={lengthReminder('service') + nextNote} onRawStreamComplete={handleRawReply} showInput={false} className="flex-1 min-h-0" />
         <SuggestionBar suggestions={shownSuggestions} onSelect={(t) => setInputValue(t)} />
         <div className="border-t border-border px-3 pb-3 pt-2 flex gap-2 items-end">
           <textarea value={inputValue} onChange={(e) => setInputValue(e.target.value)} data-testid="scene-input"
@@ -332,8 +358,12 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
 
 // ─── 调教的亲自上场（仍用旧调教提示词，无步骤条） ──────────────────────────────
 
-export function TrainingScene({ player, girl, directionLabel, trainingInfo, extraPrompt, settings, onFinish, scene, day, onRemember }: {
+export function TrainingScene({ player, girl, directionLabel, trainingInfo, extraPrompt, settings, onFinish, scene, day, onRemember, zone, drillSkill }: {
   onRemember?: (text: string) => void
+  /** 敏感开发的部位（她的快感按这条带的敏感档推进） */
+  zone?: SensitivityZone
+  /** 特训的技能（提示词附上这项技能的写作素材） */
+  drillSkill?: SkillKey
   player: Player
   girl: MonstGirl
   directionLabel: string
@@ -373,7 +403,15 @@ export function TrainingScene({ player, girl, directionLabel, trainingInfo, extr
   const [suggestions, setSuggestions] = useState<[string, string, string] | null>(['命令她跪下', '抬起她的下巴', '她低声求饶'])
   const [inputValue, setInputValue] = useState('')
   const chatRef = useRef<ChatEngineHandle>(null)
-  const systemPrompt = buildServiceSystemPrompt(player, { ...session, messages }, settings.proseStyle, undefined, { scene, day }) + `\n\n${trainingInfo ?? `【本次调教方向】${directionLabel}`}` + (extraPrompt ? `\n${extraPrompt}` : '') + (provoked ? provokeSection(girl, provoked) : '')
+  // 本地兴奋/快感档位：她的说话随回合推进（调教结算仍用下方的「快感」）
+  const [heat, setHeat] = useState<HeatState>(() => initTrainingHeat(girl))
+  const heatRef = useRef(heat)
+  useEffect(() => { heatRef.current = heat }, [heat])
+  const [nextNote, setNextNote] = useState('')
+  const [recentMetaphors, setRecentMetaphors] = useState<string[]>([])
+  const drillCraft = drillSkill ? `【特训技能的写法】\n${skillCraftLine(girl, drillSkill)}` : ''
+  const trainCtx = [heatPromptBlock(heat, player.name, [girl]), drillCraft, recentUseLine(recentMetaphors.slice(-8), [])].filter(Boolean).join('\n')
+  const systemPrompt = buildServiceSystemPrompt(player, { ...session, messages }, settings.proseStyle, trainCtx, { scene, day, heatLocal: true }) + `\n\n${trainingInfo ?? `【本次调教方向】${directionLabel}`}` + (extraPrompt ? `\n${extraPrompt}` : '') + (provoked ? provokeSection(girl, provoked) : '')
 
   // 激发后要等提示词更新再发这句话
   useEffect(() => {
@@ -383,6 +421,8 @@ export function TrainingScene({ player, girl, directionLabel, trainingInfo, extr
   }, [pending, systemPrompt])
 
   const onRaw = useCallback((raw: string) => {
+    setNextNote(climaxSlipNote(raw, heatRef.current.justClimaxed) + shortReplyNote(raw))
+    setRecentMetaphors((m) => pushRecent(m, extractMetaphors(raw)))
     const a = parseActionsFromReply(raw)
     if (a) setSuggestions(a)
     const multi = parseStatsFromReply(raw)
@@ -393,9 +433,11 @@ export function TrainingScene({ player, girl, directionLabel, trainingInfo, extr
     if (!t.trim()) return
     setTurns((n) => n + 1)
     setInputValue('')
+    // 先推进档位，等提示词更新后再发（这一回合的叙述要对得上新档位）
+    setHeat((h) => trainingHeatTurn(h, girl, turns + 1, t, zone))
     const hit = !provoked && day ? detectShadowTrigger(girl, scene, t, day) : null
-    if (hit) { setProvoked(hit); setPending(t.trim()); return }
-    chatRef.current?.sendMessage(t.trim())
+    if (hit) setProvoked(hit)
+    setPending(t.trim())
   }
 
   if (!messages.length) {
@@ -424,6 +466,7 @@ export function TrainingScene({ player, girl, directionLabel, trainingInfo, extr
         <span>{directionLabel}</span>
         <span data-testid="tr-turns">回合 {turns}</span>
         <span>快感 {pleasure}</span>
+        <span data-testid="tr-band">{girl.name}：{speechBand(heat.girls[girl.id] ?? { arousal: 0, pleasure: 0, climaxes: 0 }, heat.justClimaxed.includes(girl.id))}</span>
         <span className="flex-1" />
         <Button size="sm" variant="outline" className="h-7 text-xs border-rose-500/30 text-rose-400" onClick={() => onFinish(turns, pleasure, provoked)} data-testid="btn-end-training">
           结束调教
@@ -435,7 +478,7 @@ export function TrainingScene({ player, girl, directionLabel, trainingInfo, extr
         </p>
       )}
       <ChatEngine ref={chatRef} systemPrompt={systemPrompt} messages={messages} onMessagesChange={setMessages} onRememberUser={onRemember}
-        settings={settings} turnSuffix={lengthReminder('training')} onRawStreamComplete={onRaw} showInput={false} className="flex-1 min-h-0" />
+        settings={settings} turnSuffix={lengthReminder('training') + nextNote} onRawStreamComplete={onRaw} showInput={false} className="flex-1 min-h-0" />
       <SuggestionBar suggestions={suggestions} onSelect={(t) => setInputValue(t)} />
       <div className="border-t border-border px-3 pb-3 pt-2 flex gap-2 items-end">
         <textarea value={inputValue} onChange={(e) => setInputValue(e.target.value)}
