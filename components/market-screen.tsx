@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
+import { topSkillsText } from '@/lib/proficiency'
+import { withInitialProficiency } from '@/lib/proficiency'
 import { ArrowLeft, RefreshCw, Loader2, Coins, ShoppingCart, Filter, Send, Settings2, X, BookOpen, Star } from 'lucide-react'
 import { GameSave, MonstGirl, AppSettings } from '@/lib/types'
 import { Button } from '@/components/ui/button'
@@ -24,9 +26,11 @@ interface MarketScreenProps {
   settings: AppSettings
   onSaveChange: (save: GameSave) => void
   onBack: () => void
+  /** 嵌在「市场」页里：不显示自己的顶栏 */
+  embedded?: boolean
 }
 
-export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScreenProps) {
+export function MarketScreen({ save, settings, onSaveChange, onBack, embedded }: MarketScreenProps) {
   const { player, girls } = save
 
   const [step, setStep] = useState<'market' | 'purchase-dialogue'>('market')
@@ -187,7 +191,7 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
 
     const updatedSave: GameSave = {
       ...save,
-      girls: [...girls, { ...girl, price: 0 }],
+      girls: [...girls, withInitialProficiency({ ...girl, price: 0 })],
       player: { ...player, gold: player.gold - price, marketPreference: preference },
     }
     onSaveChange(updatedSave)
@@ -331,7 +335,7 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
 
   return (
     <div className="flex flex-col h-full bg-background relative">
-      <header className="border-b border-border px-4 py-3 flex items-center justify-between shrink-0">
+      {!embedded && <header className="border-b border-border px-4 py-3 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" className="w-7 h-7" onClick={onBack}><ArrowLeft className="w-4 h-4" /></Button>
           <h1 className="text-sm font-bold gold-text">奴隶市场</h1>
@@ -345,7 +349,7 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
             <span className="text-xs gold-text font-semibold">{player.gold} G</span>
           </div>
         </div>
-      </header>
+      </header>}
 
       {atCapacity && (
         <div className="bg-rose-500/10 border-b border-rose-500/20 px-4 py-1.5 text-center text-[11px] text-rose-400">
@@ -411,6 +415,7 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
                       <StatBar label="好感度" value={template.affection} color="pink" size="sm" />
                       <StatBar label="服从度" value={template.obedience} color="blue" size="sm" />
                       <StatBar label="淫乱度" value={template.lewdness} color="rose" size="sm" />
+                      <p className="text-[10px] text-sky-300/90" data-testid="top-skills">拿手：{topSkillsText(template as MonstGirl)}</p>
                     </div>
                     <Button
                       variant="outline"
@@ -513,6 +518,7 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
                       <StatBar label="好感度" value={girl.affection} color="pink" size="sm" />
                       <StatBar label="服从度" value={girl.obedience} color="blue" size="sm" />
                       <StatBar label="淫乱度" value={girl.lewdness} color="rose" size="sm" />
+                      <p className="text-[10px] text-sky-300/90" data-testid="top-skills">拿手：{topSkillsText(girl)}</p>
                     </div>
                     <Button
                       variant="outline"
@@ -584,6 +590,7 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
                 <StatBar label="好感度" value={detailGirl.affection} color="pink" size="sm" />
                 <StatBar label="服从度" value={detailGirl.obedience} color="blue" size="sm" />
                 <StatBar label="淫乱度" value={detailGirl.lewdness} color="rose" size="sm" />
+                <p className="text-[10px] text-sky-300/90">拿手：{topSkillsText(detailGirl, 3)}</p>
               </div>
             </div>
             <div className="px-4 pb-4 pt-2 shrink-0">

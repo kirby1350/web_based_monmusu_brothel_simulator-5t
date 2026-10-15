@@ -15,6 +15,7 @@ import { ItemIcon } from '@/components/item-icon'
 import type { TrainingResult } from '@/lib/resolve-training'
 import type { ServiceResult } from '@/lib/resolve-service'
 import type { SettleInfo } from '@/lib/settle-session'
+import { profShow, type ProfChange } from '@/lib/proficiency'
 import { cn } from '@/lib/utils'
 import { speechLine } from '@/lib/speech-style'
 
@@ -32,9 +33,11 @@ interface SessionResultProps {
   /** 写入关系记忆后回调（同步回头客池） */
   onSaveRegular?: (guest: Guest) => void
   onBack: () => void
+  /** 这一场的五步做法（只进叙述提示词） */
+  flowActions?: string[]
 }
 
-export function SessionResult({ mode, girl, guest, outfit, stockings, result, info, settings, transcript, onSaveRegular, onBack }: SessionResultProps) {
+export function SessionResult({ mode, girl, guest, outfit, stockings, result, info, settings, transcript, onSaveRegular, onBack, flowActions }: SessionResultProps) {
   const [memState, setMemState] = useState<'idle' | 'saving' | 'saved'>('idle')
   // 「保存为常客」：生成双方印象写入关系记忆（对话 API 不通时用本地摘要）
   const saveRegular = async () => {
@@ -76,7 +79,7 @@ export function SessionResult({ mode, girl, guest, outfit, stockings, result, in
     setLoading(true)
     const apiKey = settings.chatModel.startsWith('grok') ? settings.grokApiKey : settings.chatApiKey
     const prompt = `用中文写一段约200字的第三人称叙事，描写魔物娘${girl.name}（${girl.race}，性格：${girl.personality}${speechLine(girl, '；')}）接待客人${guest.name}（${guest.race}，需求：${guest.desires}）的经过。` +
-      `流程依次是：${result.steps.map((s) => s.label).join('、')}${result.plays.length ? `，中间追加了${result.plays.map((p) => p.name).join('、')}` : ''}。` +
+      `流程依次是：${result.steps.map((s, i) => (flowActions?.[i] ? `${s.label}（${flowActions[i]}）` : s.label)).join('、')}${result.plays.length ? `，中间追加了${result.plays.map((p) => p.name).join('、')}` : ''}。` +
       `她穿着${OUTFITS.find((o) => o.id === outfit)?.name}。客人最终评价为「${result.tier.label}」。只输出正文，不要输出任何数据块。`
     try {
       const res = await fetch('/api/chat', {
@@ -109,6 +112,13 @@ export function SessionResult({ mode, girl, guest, outfit, stockings, result, in
             <span className={info.reputationDelta > 0 ? 'text-pink-300' : 'text-rose-400'}>{info.reputationDelta > 0 ? '+' : ''}{info.reputationDelta}</span></div>
         )}
         {info.incident && <p className="text-rose-300" data-testid="result-incident">{girl.name}记下一条事件：{info.incident.kind}（可在调教里「惩罚」）</p>}
+        {(info.profChanges ?? []).length > 0 && (
+          <div className="pt-1 border-t border-border/60 space-y-0.5" data-testid="result-prof">
+            <p className="text-[10px] text-muted-foreground">熟练度</p>
+            {info.profChanges!.map((c) => <ProfLine key={c.skill} c={c} />)}
+          </div>
+        )}
+        {info.becameTwoSided && <p className="text-emerald-300">{girl.name}成为了「两面」</p>}
         {info.becameRegular && <p className="flex items-center gap-1 text-emerald-400"><Star className="w-3.5 h-3.5" />「{guest.name}」成为了回头客</p>}
 
         <Section title={`五步得分 ${result.standardScore} / 70`}>
@@ -203,9 +213,7 @@ export function TrainingResultCard({ mode, before, result, incident, onBack }: {
     ['服从', before.obedience, after.obedience], ['淫乱', before.lewdness, after.lewdness], ['好感', before.affection, after.affection],
   ]
   const zoneChanges = Object.entries(after.sensitivities ?? {}).filter(([z, v]) => (before.sensitivities?.[z as keyof typeof before.sensitivities] ?? v) !== v)
-  const skillChanges = Object.keys(after.skillProgress ?? {}).filter((k) =>
-    (after.skillProgress as Record<string, number>)[k] !== ((before.skillProgress ?? {}) as Record<string, number>)[k] ||
-    (after.skillRanks as Record<string, string> | undefined)?.[k] !== (before.skillRanks as Record<string, string> | undefined)?.[k])
+  const skillChanges = result.profChanges ?? []
   return (
     <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3" data-testid="training-result">
       <div className="text-center space-y-1">
@@ -233,10 +241,7 @@ export function TrainingResultCard({ mode, before, result, incident, onBack }: {
           {rows.filter(([, a, b]) => a !== b).map(([l, a, b]) => (
             <div key={l} className="flex justify-between"><span className="text-muted-foreground">{l}</span><span data-testid={`tr-${l}`}>{a} → {b}</span></div>
           ))}
-          {(result.delta.m > 0 || result.delta.s > 0) && <p>{result.delta.m > 0 ? `M 进度 +${result.delta.m}` : `S 进度 +${result.delta.s}`}</p>}
-          {skillChanges.map((k) => (
-            <p key={k} data-testid="tr-skill">{k}：{(before.skillRanks as Record<string, string> | undefined)?.[k]} 进度 {((before.skillProgress ?? {}) as Record<string, number>)[k] ?? 0} → {(after.skillRanks as Record<string, string>)[k]} 进度 {(after.skillProgress as Record<string, number>)[k]}（+{result.delta.skillProgress}）</p>
-          ))}
+          {skillChanges.map((c) => <ProfLine key={c.skill} c={c} testId="tr-skill" />)}
           {result.becameTwoSided && <p className="text-emerald-300">她成为了「两面」</p>}
         </Section>
         {result.measurement && (
@@ -253,6 +258,16 @@ export function TrainingResultCard({ mode, before, result, incident, onBack }: {
         {result.notes.length > 0 && <Section title="加成"><p className="text-muted-foreground">{result.notes.join('；')}</p></Section>}
       </div>
       <Button className="w-full h-10 glow-btn" onClick={onBack} data-testid="btn-back-hub">返回大厅</Button>
+    </div>
+  )
+}
+
+/** 熟练度一行：「胸侍 48 → 50  熟练！」 */
+function ProfLine({ c, testId }: { c: ProfChange; testId?: string }) {
+  return (
+    <div className="flex justify-between" data-testid={testId}>
+      <span className="text-muted-foreground">{c.skill}</span>
+      <span>{profShow(c.from)} → {profShow(c.to)}{c.rankUp && <span className="ml-1 text-amber-300 font-semibold">升到{c.rankUp}！</span>}</span>
     </div>
   )
 }

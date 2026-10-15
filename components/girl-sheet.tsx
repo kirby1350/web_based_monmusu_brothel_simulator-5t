@@ -11,9 +11,9 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { GIFT_OPTIONS, canGiveGiftToday, giveGift, pendingSkillPicks } from '@/lib/hub-logic'
+import { GIFT_OPTIONS, canGiveGiftToday, giveGift } from '@/lib/hub-logic'
 import { COMMON_ZONES, RACE_ZONE_NAMES, RACE_TRAITS, RACE_PLAYS, getSensitivityLevel } from '@/lib/catalog'
-import { SkillPicker } from '@/components/skill-picker'
+import { SkillBars } from '@/components/skill-bars'
 import { useRecovery, recoveryUsedToday } from '@/lib/shop'
 import { RECOVERY_ITEMS, itemIconPath } from '@/lib/catalog'
 import { ItemIcon } from '@/components/item-icon'
@@ -97,7 +97,7 @@ export function GirlSheet({ girl, save, settings, onSaveChange, onClose, intro }
           <TabsTrigger value="overview" className="text-xs">概览</TabsTrigger>
           <TabsTrigger value="body" className="text-xs">身体</TabsTrigger>
           <TabsTrigger value="skills" className="text-xs">
-            技能{pendingSkillPicks(girl) > 0 && <span className="ml-1 w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />}
+            技能
           </TabsTrigger>
           <TabsTrigger value="sens" className="text-xs">敏感带</TabsTrigger>
           <TabsTrigger value="memory" className="text-xs" data-testid="tab-memory">回忆</TabsTrigger>
@@ -176,7 +176,7 @@ export function GirlSheet({ girl, save, settings, onSaveChange, onClose, intro }
                 {usedToday && <Badge variant="secondary" className="text-[9px] bg-emerald-500/15 text-emerald-300" data-testid="recovery-used-badge">今日已用</Badge>}
               </div>
               {RECOVERY_ITEMS.filter((i) => (player.inventory?.[i.id] ?? 0) > 0).length === 0 ? (
-                <p className="text-[11px] text-muted-foreground">背包里没有恢复药，可以在大厅「商店」购买。</p>
+                <p className="text-[11px] text-muted-foreground">背包里没有恢复药，可以在「市场 › 道具」购买。</p>
               ) : (
                 <div className="flex flex-wrap gap-1.5">
                   {RECOVERY_ITEMS.filter((i) => (player.inventory?.[i.id] ?? 0) > 0).map((i) => (
@@ -224,24 +224,7 @@ export function GirlSheet({ girl, save, settings, onSaveChange, onClose, intro }
           </TabsContent>
 
           <TabsContent value="skills" className="space-y-4 mt-0">
-            <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-2">服侍技能（最多 3 个）</p>
-              {Object.keys(girl.skillRanks ?? {}).length === 0 ? (
-                <p className="text-[11px] text-muted-foreground">还没有选择技能。服从 30、淫乱 40、好感 50 时各可选一次。</p>
-              ) : (
-                <div className="space-y-1.5">
-                  {Object.entries(girl.skillRanks ?? {}).map(([k, rank]) => (
-                    <div key={k} className="flex items-center justify-between rounded-lg border border-border bg-secondary/30 px-3 py-1.5">
-                      <span className="text-xs">{k}</span>
-                      <Badge variant="secondary" className="text-[10px] bg-emerald-500/15 text-emerald-300">{rank}</Badge>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            {pendingSkillPicks(girl) > 0 && (
-              <SkillPicker girl={girl} onPicked={(g) => { updateGirl(g); setFeedback(`${g.name} 学会了新技能`) }} />
-            )}
+            <SkillBars girl={girl} />
             <StepActionsEditor title="标准做法（只对她）" testId="girl-step-actions" value={girl.stepActions}
               placeholders={getStepActions(player)}
               onSave={(v) => updateGirl({ ...girl, stepActions: v })} />

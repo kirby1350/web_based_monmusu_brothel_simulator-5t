@@ -1,6 +1,7 @@
 // 接客结算（纯函数）：五步标准流程 + 额外 play → 满意度 / 档位 / 收入 / 体力
 import { fetishMatchesGuest, fetishName, FETISH_GREET_BONUS } from './scenes'
 import { regularBonus } from './girl-memory'
+import { SERVICE_PROF_MAIN, SERVICE_PROF_SIDE, SERVICE_PROF_LIVE_MULT, type Proficiency } from './proficiency'
 import type { Guest, MonstGirl, OutfitId, SensitivityZone, ServingSkill, SkillRank, StockingId } from './types'
 import {
   GREET_HOSTING_SCORE, STEP_SCORE, STEP_MAX, SKILL_RANK_BONUS, PLAY_SCORE, PLAYS, RACE_PLAYS, SKIP_MATCH_BONUS, racePlayMatched, PlayDef, WRONG_SIDE_PLAY_PENALTY,
@@ -38,6 +39,8 @@ export interface StepResult { key: ServiceStepKey; label: string; score: number;
 export interface PlayResult { id: string; name: string; score: number; matched: boolean; rank: SkillRank; zone?: SensitivityZone }
 
 export interface ServiceResult {
+  /** 这一场给熟练度的基础增量（递减前）：主服务 +2、待客 / 手技 / 每个额外 play 来源 +1；亲自上场 ×1.5 */
+  profGains: Proficiency
   /** 写进关系记忆的要点行 */
   memoryDetail?: string
   canSkip: boolean
@@ -299,7 +302,14 @@ export function resolveService(input: ServiceInput): ServiceResult {
   if (staminaRefund) raceNotes.push('反哺：满意后返还 15 体力')
   const staminaCost = skip ? serviceStaminaCost(SKIP_SERVICE_STAMINA, { staminaExtra, staminaMult, staminaRefund }) : Math.max(0, staminaExtra)
 
+  const profMult = skip ? 1 : SERVICE_PROF_LIVE_MULT
+  const profGains: Proficiency = {}
+  const addGain = (k: keyof Proficiency, v: number) => { profGains[k] = (profGains[k] ?? 0) + v * profMult }
+  addGain(main, SERVICE_PROF_MAIN); addGain('待客', SERVICE_PROF_SIDE); addGain('手技', SERVICE_PROF_SIDE)
+  for (const p of plays) { const d = PLAYS.find((x) => x.id === p.id); if (d && d.source !== 'race') addGain(d.source as keyof Proficiency, SERVICE_PROF_SIDE) }
+
   return {
+    profGains,
     canSkip: canSkipService(girl),
     steps, standardScore, plays, playScore, outfitMatched,
     satisfaction, tier, reward, staminaCost,

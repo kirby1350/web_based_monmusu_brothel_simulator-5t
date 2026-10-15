@@ -152,7 +152,7 @@ export type StockingId = 'none' | 'black' | 'white' | 'garter' | 'fishnet' | 'la
 export type OutfitPref = '制服' | '和服' | '黑丝' | '白丝' | '暴露' | '想施虐的客人' | '想被榨的客人' | '兔女郎' | '异域' | '圣洁'
 export type TrainingDirection = 'tame' | 'release' | 'sculpt' | 'drill' | 'sensitize' | 'punish'
 /** 可购买的调教场景（设备）；缺省 = 普通调教室 */
-export type SceneId = 'dungeon' | 'water' | 'stage' | 'machine' | 'tentacle' | 'hypnosis' | 'altar' | 'onsen'
+export type SceneId = 'dungeon' | 'water' | 'stage' | 'machine' | 'tentacle' | 'hypnosis' | 'altar' | 'onsen' | 'queen_room' | 'throne'
 /** 某魔物娘在某场景上的累积：最近使用日（≤7 条）、性癖积累、阴影积累 */
 export interface SceneState { uses: number[]; fp: number; sp: number }
 
@@ -182,9 +182,19 @@ export interface Player {
   inventory?: Record<string, number> // 道具 id → 数量（恢复药 / 塑形药）
   ownedTrainingProps?: string[]      // 已购调教道具 id
   customProps?: CustomProp[]         // 定制调教道具（全馆最多 6 件）
-  stepActions?: string[]             // 五步「标准做法」馆主自定义（长度 5，空串=默认）
+  stepActions?: string[]             // 旧：五步「标准做法」馆主自定义（v4 起迁移进 serviceFlows 的「标准」模板）
+  serviceFlows?: ServiceFlow[]       // 服务流程模板（最多 5 个；只影响叙述与推荐，不计分）
+  defaultFlowId?: string             // 全馆默认流程
   giftGivenOnDay?: number     // 当天已送礼（全馆每天一次）
   ownedScenes?: SceneId[]     // 已购调教场景（每天收维护费）
+}
+
+/** 服务流程模板：名字 + 五步做法（空串 = 用默认文字）+ 偏好 play（挂在某一步） */
+export interface ServiceFlow {
+  id: string
+  name: string
+  actions: string[]
+  plays?: { step: number; playId: string }[]
 }
 
 export interface MonstGirl {
@@ -216,7 +226,9 @@ export interface MonstGirl {
   exhausted?: boolean                           // 疲惫
   stepActions?: string[]             // 五步「标准做法」按魔物娘覆盖（优先于馆主）
   incident?: Incident | null         // 未处理事件（每人最多一条）
-  skillRanks?: Partial<Record<SkillKey, SkillRank>> // 服侍技能 / M性 / S性 → 档位
+  /** 技能熟练度 0–100（UX 8）：有它时档位、倾向都由它推出；旧字段 skillRanks / msProgress / skillProgress 只在迁移时读 */
+  proficiency?: Partial<Record<SkillKey, number>>
+  skillRanks?: Partial<Record<SkillKey, SkillRank>> // 旧版：服侍技能 / M性 / S性 → 档位
   inclination?: Inclination                     // 无 / M / S / 两面
   msProgress?: { m: number; s: number }         // 驯服积累 M、放权积累 S
   skillProgress?: Partial<Record<SkillKey, number>> // 特训进度
@@ -316,7 +328,7 @@ export interface GameSave {
   regulars?: Guest[]
   // 单间宿舍指定的额外回复对象
   bestBedGirlId?: string
-  // 今天已出场（接客/调教/休息）的魔物娘 id，结束今天时清空
+  // 今天已出场（接客/调教）的魔物娘 id，结束今天时清空
   appearedToday?: string[]
   // 存档格式版本（缺省 = 0，旧存档），由 migrateSave 升到 SAVE_VERSION
   saveVersion?: number

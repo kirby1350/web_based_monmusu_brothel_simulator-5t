@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { GameSave, MonstGirl } from './types'
-import { giveGift, restGirl, endDay, upgradeDorm, pendingSkillPicks, pickSkill, selectableSkills } from './hub-logic'
+import { giveGift, endDay, upgradeDorm, nightPlan, restSummary } from './hub-logic'
 
 const girl = (o: Partial<MonstGirl> = {}): MonstGirl => ({
   id: 'a', name: 'A', race: '猫娘', age: '', bodyDesc: '', bodyTags: '', bust: 85, waist: 60, hip: 88,
@@ -30,13 +30,26 @@ test('金币不足不能送礼', () => {
   assert.equal(giveGift(s, 'a', 0).ok, false)
 })
 
-test('休息：体力 +50 封顶 100，行动 +1，行动用尽不可休息', () => {
-  const r = restGirl(save(), 'a')
-  assert.ok(r.ok); if (!r.ok) return
-  assert.equal(r.save.girls[0].stamina, 100)
-  assert.equal(r.save.actionsUsedToday, 1)
-  assert.deepEqual(r.save.appearedToday, ['a'])
-  assert.equal(restGirl(save({ actionsUsedToday: 3 }), 'a').ok, false)
+test('结束今天的休养：没出场 +15 并解除疲惫，每剩 1 次行动全员 +15；挂机减半不吃加成', () => {
+  // a 出场了、b 没出场；用了 1 次行动 → 剩 2 次，全员 +30
+  const s = save({ actionsUsedToday: 1, appearedToday: ['a'], girls: [girl({ stamina: 10 }), girl({ id: 'b', name: 'B', stamina: 10, exhausted: true })] })
+  const p = nightPlan(s)
+  assert.deepEqual(p.map((x) => [x.dorm, x.idle, x.unused, x.after]), [[25, 0, 30, 65], [25, 15, 30, 80]])
+  const n = endDay(s, () => 0.99)
+  assert.equal(n.girls[0].stamina, 65)
+  assert.equal(n.girls[1].stamina, 80)
+  assert.equal(n.girls[1].exhausted, false)
+  assert.ok(n.lastDaySummary!.rest!.includes('剩 2 次行动，全员 +30'))
+  assert.ok(restSummary(s).includes('没出场的B再 +15'))
+  // 用满 3 次、都出场：没有休养加成
+  const busy = save({ actionsUsedToday: 3, appearedToday: ['a', 'b'] })
+  assert.equal(restSummary(busy), '')
+  assert.ok(nightPlan(busy).every((x) => x.idle === 0 && x.unused === 0))
+  // 机械挂机：宿舍减半，不吃休养加成
+  const m = save({ actionsUsedToday: 0, machineNightGirlId: 'b', player: { ...save().player, ownedScenes: ['machine'] }, girls: [girl({ stamina: 10 }), girl({ id: 'b', name: 'B', stamina: 10 })] })
+  const mp = nightPlan(m)
+  assert.equal(mp[1].machine, true); assert.equal(mp[1].after, 10 + 12)
+  assert.equal(mp[0].after, 10 + 25 + 15 + 45)
 })
 
 test('结束今天：通铺 +25、行动归零、客人池刷新、出场清空', () => {
@@ -51,7 +64,8 @@ test('结束今天：通铺 +25、行动归零、客人池刷新、出场清空'
 
 test('宿舍等级回复：软床 40，浴场 55 解除疲惫，单间 70 + 指定 15', () => {
   const lv = (dormLevel: number, extra: Partial<GameSave> = {}) => {
-    const s = save({ ...extra, girls: [girl({ stamina: 0, exhausted: true }), girl({ id: 'b', stamina: 0, exhausted: true })] })
+    // 行动用满、都出场了：只看宿舍恢复（没有休养加成）
+    const s = save({ actionsUsedToday: 3, appearedToday: ['a', 'b'], ...extra, girls: [girl({ stamina: 0, exhausted: true }), girl({ id: 'b', stamina: 0, exhausted: true })] })
     s.player.dormLevel = dormLevel
     return endDay(s).girls
   }
@@ -71,16 +85,3 @@ test('宿舍升级 400/900/1600，与娼馆等级分开', () => {
   assert.equal(upgradeDorm(r.save).ok, false)
 })
 
-test('技能选择：阈值弹出、最多 3 个、M/S 互斥', () => {
-  let g = girl({ obedience: 30 })
-  assert.equal(pendingSkillPicks(g), 1)
-  g = pickSkill(g, 'M性')!
-  assert.equal(g.inclination, 'M')
-  assert.equal(pendingSkillPicks(g), 0)
-  assert.equal(pickSkill(g, '口侍'), null)
-  g = { ...g, lewdness: 40, affection: 50 }
-  assert.equal(pendingSkillPicks(g), 2)
-  assert.ok(!selectableSkills(g).includes('S性'))
-  g = pickSkill(g, '口侍')!; g = pickSkill(g, '手技')!
-  assert.equal(pendingSkillPicks({ ...g, obedience: 100, lewdness: 100, affection: 100 }), 0)
-})

@@ -8,6 +8,8 @@ import { AppSettings, GameSave, Guest } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { SessionSetup, type ServicePlan } from '@/components/session-setup'
+import { stepActionsWithPlays } from '@/lib/service-flows'
+import { ALL_PLAYS } from '@/lib/catalog'
 import { SessionScene } from '@/components/session-scene'
 import { SessionResult } from '@/components/session-result'
 import { mergeRegularMemories } from '@/lib/hub-logic'
@@ -80,6 +82,7 @@ export function ServiceFlow({ save, settings, onSaveChange, onBack }: ServiceFlo
           info={phase.info}
           settings={settings}
           transcript={phase.transcript}
+          flowActions={phase.plan.flow ? stepActionsWithPlays(phase.plan.flow.actions, phase.plan.flow.playSteps, (id) => ALL_PLAYS.find((p) => p.id === id)?.name) : undefined}
           onSaveRegular={onSaveRegular}
           onBack={onBack}
         />

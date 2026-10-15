@@ -57,14 +57,14 @@ test('每个模板的结算与对应现成道具一致；体力仍为 20', () =>
   }
 })
 
-test('同一效果只算一次；进度 +1 比空房多 1', () => {
+test('同一效果只算一次；熟练度 +6 比空房多 6', () => {
   const cp: CustomProp = { id: 'c', name: '金镜', desc: '', templateId: 'tpl_progress' }
   assert.deepEqual(expandProps(['mirror', 'c'], [cp]), ['mirror'])
   const g = girl()
   const none = resolveTraining({ girl: g, direction: 'drill', skill: '口侍', skip: true, roomLevel: 2 })
   const withC = resolveTraining({ girl: g, direction: 'drill', skill: '口侍', skip: true, roomLevel: 2, props: ['c'], customProps: [cp] })
   const both = resolveTraining({ girl: g, direction: 'drill', skill: '口侍', skip: true, roomLevel: 2, props: ['c', 'mirror'], customProps: [cp] })
-  assert.equal(withC.delta.skillProgress, none.delta.skillProgress + 1)
+  assert.equal(withC.delta.skillProgress, none.delta.skillProgress + 6)
   assert.equal(both.delta.skillProgress, withC.delta.skillProgress)
 })
 
@@ -89,7 +89,7 @@ test('旧档迁移补 customProps，幂等，照常结算', () => {
 test('定制道具的加成说明用定制名', () => {
   const cp: CustomProp = { id: 'c', name: '金镜', desc: '', templateId: 'tpl_progress' }
   const r = resolveTraining({ girl: girl(), direction: 'drill', skill: '口侍', skip: true, roomLevel: 2, props: ['c'], customProps: [cp] })
-  assert.ok(r.notes.includes('金镜：进度 +1'), r.notes.join('|'))
+  assert.ok(r.notes.includes('金镜：熟练度 +6'), r.notes.join('|'))
   assert.ok(!r.notes.some((n) => n.startsWith('练习镜')))
   const z: CustomProp = { id: 'z', name: '狐尾刷', desc: '', templateId: 'tpl_zone_耳朵' }
   const r2 = resolveTraining({ girl: girl(), direction: 'sensitize', zone: '耳朵', skip: true, roomLevel: 2, props: ['z'], customProps: [z] })

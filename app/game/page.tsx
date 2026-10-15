@@ -14,11 +14,14 @@ import { fetishPromptLine } from '@/lib/scenes'
 import { DailyHub } from '@/components/daily-hub'
 import { TrainingFlow } from '@/components/training-flow'
 import { ServiceFlow } from '@/components/service-flow'
-import { MarketScreen } from '@/components/market-screen'
+import { MarketHub, type MarketSub } from '@/components/market-hub'
+import { FacilitiesScreen } from '@/components/facilities-screen'
+import { FlowsScreen } from '@/components/flows-screen'
+import { BottomNav } from '@/components/bottom-nav'
 import { SettingsPanel } from '@/components/settings-panel'
 import { Button } from '@/components/ui/button'
 
-export type GameTab = 'hub' | 'service' | 'training' | 'market'
+export type GameTab = 'hub' | 'service' | 'training' | 'market' | 'facilities' | 'flows'
 
 /** 已发出的心里话请求（day:girlId），保证每人每天最多一次 */
 const summaryInflight = new Set<string>()
@@ -29,6 +32,7 @@ export default function GamePage() {
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [activeTab, setActiveTab] = useState<GameTab>('hub')
+  const [marketSub, setMarketSub] = useState<MarketSub>('slaves')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [confirmReset, setConfirmReset] = useState(false)
   // Track newly purchased girl to trigger hub dialogue
@@ -149,7 +153,8 @@ export default function GamePage() {
       {/* centered frame */}
       <div className="relative w-full max-w-2xl h-[92vh] max-h-[860px] rounded-xl overflow-hidden dungeon-frame bg-background flex flex-col">
 
-        {/* tab content fills the frame */}
+        {/* tab content fills the frame; bottom nav below */}
+        <div className="flex-1 min-h-0 flex flex-col">
         {activeTab === 'hub' && (
           <DailyHub
             save={save}
@@ -173,18 +178,31 @@ export default function GamePage() {
           <TrainingFlow save={save} settings={settings} onSaveChange={handleSaveChange} onBack={() => setActiveTab('hub')} />
         )}
         {activeTab === 'market' && (
-          <MarketScreen
+          <MarketHub
             save={save}
             settings={settings}
-            onSaveChange={(updated) => {
+            sub={marketSub}
+            onSubChange={setMarketSub}
+            onSaveChange={handleSaveChange}
+            onBuyGirl={(updated) => {
               // Detect a newly added girl by comparing girl IDs
               const prevIds = new Set(save.girls.map((g) => g.id))
               const added = updated.girls.find((g) => !prevIds.has(g.id))
               if (added) setNewlyPurchasedGirl(added)
               handleSaveChange(updated)
             }}
-            onBack={() => setActiveTab('hub')}
+            onBackToHub={() => setActiveTab('hub')}
           />
+        )}
+        {activeTab === 'facilities' && (
+          <FacilitiesScreen save={save} onSaveChange={handleSaveChange} onOpenScenes={() => { setMarketSub('scenes'); setActiveTab('market') }} />
+        )}
+        {activeTab === 'flows' && <FlowsScreen save={save} onSaveChange={handleSaveChange} />}
+
+        </div>
+
+        {(activeTab === 'hub' || activeTab === 'market' || activeTab === 'facilities' || activeTab === 'flows') && (
+          <BottomNav active={activeTab} onChange={(t) => { if (t === 'market' && activeTab !== 'market') setMarketSub('slaves'); setActiveTab(t) }} />
         )}
 
         {/* Settings drawer — slides in from right, scoped inside frame */}

@@ -29,6 +29,8 @@ export interface SceneDef {
   place: string
   /** 图片标签 */
   tags: string
+  /** 叙事提示：这一场由谁主导（放权场景：她主导） */
+  roleNote?: string
 }
 
 export const TRAINING_SCENES: SceneDef[] = [
@@ -36,7 +38,7 @@ export const TRAINING_SCENES: SceneDef[] = [
     id: 'dungeon', name: '拘束地牢', price: 600, upkeep: 1, directions: ['tame', 'punish'],
     fetish: '拘束癖', fetishDesc: '被锁住、动弹不得时反而最安心也最湿',
     affinity: ['犬娘'], aversion: ['狼娘'], unlock: {}, affection: -2, staminaExtra: 0,
-    effect: '驯服/惩罚：服从 +4、M 进度 +1；好感 −2',
+    effect: '驯服/惩罚：服从 +4、M性 +4；好感 −2',
     desc: '铁链、木枷与一只刚好容得下她的铁笼，石墙上还留着前人挣扎的抓痕。',
     place: '娼馆地下的拘束地牢，潮冷的石墙上挂满铁链与木枷，角落立着一只刚好容得下一人的铁笼，火把把影子拉得很长',
     tags: 'dungeon, chains, shackles, stocks, cage, stone wall, torch light',
@@ -81,7 +83,7 @@ export const TRAINING_SCENES: SceneDef[] = [
     id: 'hypnosis', name: '催眠室', price: 1400, upkeep: 3, directions: ['tame', 'drill'],
     fetish: '催眠癖', fetishDesc: '一听到摆锤声或某个口令就眼神放空、乖乖服从，并以此为乐',
     affinity: ['犬娘'], aversion: ['狐娘', '魔女'], unlock: { trainingRoom: 3, orRaces: ['魔女', '狐娘'] }, affection: 0, staminaExtra: 0,
-    effect: '驯服：服从 +10、好感不降（前一天刚催眠过减半）｜特训：进度 +1',
+    effect: '驯服：服从 +10、好感不降（前一天刚催眠过减半）｜特训：熟练度 +6',
     desc: '紫水晶摆锤与安神香，醒来时她只会记得一场模糊的梦。',
     place: '娼馆的催眠室，紫水晶摆锤在烛光里缓缓摇晃，安神香让空气变得黏稠，她的眼神正一点点失去焦点',
     tags: 'hypnosis, empty eyes, spiral eyes, pendulum, purple light, dazed',
@@ -103,6 +105,27 @@ export const TRAINING_SCENES: SceneDef[] = [
     desc: '引温泉水入室的小间，热气、花瓣和只属于你们两人的时间。',
     place: '娼馆浴场旁的温泉恩宠间，热气氤氲，水面漂着花瓣，只有馆主和她两个人',
     tags: 'onsen, hot spring, steam, wet skin, petals, gentle, embrace',
+  },
+  // ── 放权（S 侧）场景：她来主导，涨 S性 ──
+  {
+    id: 'queen_room', name: '女王调教室', price: 800, upkeep: 1, directions: ['release'],
+    fetish: '女王癖', fetishDesc: '让人跪在脚边、听她发号施令时会兴奋得发烫，越被顺从越想要更多',
+    affinity: ['黑暗精灵', '吸血鬼', '魔女'], aversion: ['兔娘', '史莱姆'], unlock: { trainingRoom: 2 }, affection: 1, staminaExtra: 0,
+    effect: '放权：S性 +8、淫乱 +3；好感 +1',
+    desc: '黑红天鹅绒、高背皮椅和一排任她挑选的短鞭与项圈——这间屋子里，她说了算。',
+    place: '娼馆里布置成女王寝殿的调教室，黑红天鹅绒帷幔、高背皮椅与脚凳，墙上挂着一排任她挑选的短鞭、项圈与牵绳',
+    tags: 'femdom, dominatrix, leather, high heels, riding crop, red velvet, sitting on chair, looking down',
+    roleNote: '这一场由她主导：她坐在高背椅上居高临下地发号施令、决定节奏与奖惩，馆主配合她',
+  },
+  {
+    id: 'throne', name: '王座间', price: 1500, upkeep: 2, directions: ['release'],
+    fetish: '支配欲', fetishDesc: '看着别人在自己面前低头时会满足得发抖，渴望被仰望、被侍奉',
+    affinity: ['龙娘', '拉米亚', '蜘蛛娘'], aversion: ['犬娘', '哈比'], unlock: { reputation: 40, orRaces: ['龙娘', '吸血鬼'] }, affection: 0, staminaExtra: 5,
+    effect: '放权：S性 +10、淫乱 +2；每场声望 +1；体力 +5；服从 <30 时可能恃宠而骄',
+    desc: '大厅尽头垫高的黑曜石王座，台阶下是供人跪拜的软垫，客人们会来瞻仰新女王。',
+    place: '娼馆大厅尽头的王座间，九级台阶上是一张黑曜石王座，猩红地毯一路铺到台阶下供人跪拜的软垫，几位熟客远远地垂首候着',
+    tags: 'throne, queen, crown, sitting on throne, crossed legs, looking down, red carpet, from below',
+    roleNote: '这一场由她主导：她端坐王座，被仰望、被侍奉，命令馆主与台下的人；写出她第一次尝到支配滋味时的高昂',
   },
 ]
 
@@ -151,6 +174,8 @@ export const SHADOW_TRIGGERS: Record<SceneId, { names: string[]; words: string[]
   hypnosis: { names: ['催眠'], words: ['摆锤', '怀表', '看着我的眼睛', '睡吧', '放空', '指令', '响指'] },
   altar: { names: ['淫纹', '祭坛'], words: ['刻印', '纹路', '发烫', '发光', '咒文', '烙'] },
   onsen: { names: ['温泉'], words: ['热水', '泡汤', '水汽', '池子'] },
+  queen_room: { names: ['女王调教室', '女王'], words: ['跪下', '脚凳', '短鞭', '项圈', '命令我', '舔干净'] },
+  throne: { names: ['王座'], words: ['陛下', '臣服', '跪拜', '仰望', '王冠', '台阶'] },
 }
 /** 阴影层数：积累 3/6/9 → 1/2/3 层 */
 export const SHADOW_LEVEL_STEP = 3
@@ -342,7 +367,7 @@ export function fetishMatchesGuest(id: SceneId, guest: Guest): boolean {
   const p = getGuestProfile(guest)
   switch (id) {
     case 'dungeon': case 'water': case 'hypnosis': case 'tentacle': return p.kind === 'M'
-    case 'altar': return p.kind === 'S'
+    case 'altar': case 'queen_room': case 'throne': return p.kind === 'S'
     case 'stage': return guest.prefOutfit === '暴露'
     case 'machine': return /长时间|多次内射/.test(guest.desires ?? '')
     case 'onsen': return p.kind === '中性'
@@ -364,6 +389,7 @@ export function sceneRiskIncident(
   if (!id || after.incident) return null
   if (id === 'stage' && before.affection < 30) return rng() < 0.25 ? { kind: '闯祸', text: '在公开调教台上当众顶撞了你，场面一度失控', day } : null
   if (id === 'tentacle' && (after.stamina ?? 100) === 0) return rng() < 0.2 ? { kind: '闯祸', text: '被触手房吓坏了，躲在被子里不肯出来', day } : null
+  if (id === 'throne' && after.obedience < 30) return rng() < 0.2 ? { kind: '闯祸', text: '在王座上尝到了权力的滋味，回来后对你也颐指气使', day } : null
   if (id === 'hypnosis') return rng() < 0.1 ? { kind: '闯祸', text: '催眠反噬，整天发呆，还叫错了你的名字', day } : null
   return null
 }

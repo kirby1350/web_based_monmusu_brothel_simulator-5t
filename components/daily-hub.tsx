@@ -1,22 +1,15 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Settings, Coins, Calendar, Store, Sword, ShoppingBag, Moon, Zap, Crown, Bed, DoorOpen, BedDouble } from 'lucide-react'
+import { Settings, Coins, Calendar, Store, Sword, Moon, Zap } from 'lucide-react'
 import { GameSave, MonstGirl, AppSettings } from '@/lib/types'
 import { ImageDisplay } from '@/components/image-display'
 import { GirlSheet } from '@/components/girl-sheet'
-import { StepActionsEditor } from '@/components/step-actions-editor'
-import { getStepActions } from '@/lib/custom-props'
-import { SkillPicker } from '@/components/skill-picker'
-import { ShopPanel } from '@/components/shop-panel'
-import { upgradeServiceRoom, upgradeTrainingRoom } from '@/lib/shop'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { MAX_ACTIONS_PER_DAY, getGirlCapacity, getGuestCapacity, getUpgradeCost } from '@/lib/game-engine'
-import { endDay, restGirl, upgradeDorm, getDormInfo, pendingSkillPicks, pickArrivalLeader, arrivalFallbackText, arrivalPromptNote, setBestBed, setMachineNight, bannerPath, shortfallText, upgradeChangeText, type FacilityKey } from '@/lib/hub-logic'
-import { getScene, sceneUpkeep, ownsScene, MACHINE_NIGHT_OBEDIENCE } from '@/lib/scenes'
-import { SERVICE_ROOM_UPGRADE_COSTS, TRAINING_ROOM_UPGRADE_COSTS, getUpgradeCostFor, getPlaySlots, TRAINING_ROOM_MULT, TRAINING_ROOM_PROP_SLOTS, REST_STAMINA } from '@/lib/catalog'
+import { MAX_ACTIONS_PER_DAY } from '@/lib/game-engine'
+import { endDay, nightPlan, unusedActions, getDormInfo, pickArrivalLeader, arrivalFallbackText, arrivalPromptNote } from '@/lib/hub-logic'
+import { IDLE_REST_BONUS, UNUSED_ACTION_REST_BONUS } from '@/lib/catalog'
 import { clearOpeningCache, getOpeningCache, saveOpeningCache } from '@/lib/storage'
 import { contextImageTags, hubOpeningPrompt } from '@/lib/prompt-context'
 import { dismissDaySummary } from '@/lib/day-summary'
@@ -40,9 +33,8 @@ const KIND_LABEL: Record<string, string> = { M: '想施虐 · M 性对口', S: '
 export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSettings, newlyPurchasedGirl, onNewGirlGreeted }: DailyHubProps) {
   const { player, girls } = save
   const [openGirlId, setOpenGirlId] = useState<string | null>(null)
-  const [restPicking, setRestPicking] = useState(false)
+  const [endDayOpen, setEndDayOpen] = useState(false)
   const [notice, setNotice] = useState('')
-  const [dismissedPicks, setDismissedPicks] = useState<string[]>([])
 
   const [intro, setIntro] = useState<{ girlId: string; speaker: string; text: string; loading: boolean } | null>(null)
 
@@ -98,58 +90,16 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
   const actionsUsed = save.actionsUsedToday ?? 0
   const actionsLeft = Math.max(0, MAX_ACTIONS_PER_DAY - actionsUsed)
   const noActionsLeft = actionsLeft <= 0
-  const level = player.level ?? 1
-  const girlCap = getGirlCapacity(level)
   const guests = save.dailyGuests ?? []
   const appeared = new Set(save.appearedToday ?? [])
   const openGirl = girls.find((g) => g.id === openGirlId) ?? null
-  const pickGirl = girls.find((g) => pendingSkillPicks(g) > 0 && !dismissedPicks.includes(g.id) && g.id !== openGirlId)
 
-  const [lit, setLit] = useState<FacilityKey | null>(null)
-  const celebrate = (k: FacilityKey, from: number, to: number) => {
-    flash(upgradeChangeText(k, from, to))
-    setLit(k); setTimeout(() => setLit((x) => (x === k ? null : x)), 1600)
-  }
-  const handleUpgrade = () => {
-    const cost = getUpgradeCost(level)
-    if (player.gold < cost) return
-    onSaveChange({ ...save, player: { ...player, gold: player.gold - cost, level: level + 1 } })
-    celebrate('brothel', level, level + 1)
-  }
-  const handleDorm = () => {
-    const from = getDormInfo(player.dormLevel).level
-    const r = upgradeDorm(save)
-    if (r.ok) { onSaveChange(r.save); celebrate('dorm', from, from + 1) } else flash(r.error)
-  }
-  const handleRoom = (kind: 'service' | 'training') => {
-    const from = kind === 'service' ? roomLv : trainLv
-    const r = kind === 'service' ? upgradeServiceRoom(save) : upgradeTrainingRoom(save)
-    if (r.ok) { onSaveChange(r.save); celebrate(kind, from, from + 1) } else flash(r.error)
-  }
-  const handleBestBed = (id: string) => {
-    const r = setBestBed(save, id || null)
-    if (r.ok) { onSaveChange(r.save); flash(r.message) } else flash(r.error)
-  }
-  const handleMachineNight = (id: string) => {
-    const r = setMachineNight(save, id || null)
-    if (r.ok) { onSaveChange(r.save); flash(r.message) } else flash(r.error)
-  }
-  const handleRest = (girlId: string) => {
-    const r = restGirl(save, girlId)
-    setRestPicking(false)
-    if (r.ok) { onSaveChange(r.save); flash(r.message) } else flash(r.error)
-  }
   const handleEndDay = () => {
+    setEndDayOpen(false)
     clearOpeningCache()
     onSaveChange(endDay(save))
-    flash(`第 ${save.currentDay + 1} 天开始了，宿舍让大家恢复了体力`)
+    flash(`第 ${save.currentDay + 1} 天开始了，大家休整了一晚`)
   }
-
-  const dorm = getDormInfo(player.dormLevel)
-  const roomLv = player.serviceRoomLevel ?? 1
-  const trainLv = player.trainingRoomLevel ?? 1
-  const roomCost = getUpgradeCostFor(SERVICE_ROOM_UPGRADE_COSTS, roomLv)
-  const trainCost = getUpgradeCostFor(TRAINING_ROOM_UPGRADE_COSTS, trainLv)
 
   return (
     <div className="flex flex-col h-full bg-background relative">
@@ -189,6 +139,7 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
               {!!d.unresolved && <p className="text-rose-300/70">仍有 {d.unresolved} 件旧事件未处理</p>}
               {!!d.upkeep && <p className="text-muted-foreground" data-testid="day-upkeep">调教场景维护 −{d.upkeep} G</p>}
               {d.night && <p className="text-muted-foreground" data-testid="day-night">{d.night}</p>}
+              {d.rest && <p className="text-emerald-300/90" data-testid="day-rest">休养：{d.rest}</p>}
               {d.stats.length > 0 && <p className="text-muted-foreground">{d.stats.map((x) => `${x.girl} ${[x.ob && `服${sign(x.ob)}`, x.lw && `淫${sign(x.lw)}`, x.aff && `好${sign(x.aff)}`].filter(Boolean).join(' ')}`).join('｜')}</p>}
               <div className="flex justify-end pt-1">
                 <button className="text-primary font-semibold" data-testid="day-summary-close" onClick={() => onSaveChange(dismissDaySummary(save))}>知道了</button>
@@ -229,16 +180,15 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
           {girls.map((g) => {
             const st = g.stamina ?? 100
             return (
-              <div key={g.id} role="button" tabIndex={0} data-testid={`girl-${g.name}`} onClick={() => restPicking ? handleRest(g.id) : setOpenGirlId(g.id)}
-                onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); if (restPicking) { handleRest(g.id) } else { setOpenGirlId(g.id) } } }}
+              <div key={g.id} role="button" tabIndex={0} data-testid={`girl-${g.name}`} onClick={() => setOpenGirlId(g.id)}
+                onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setOpenGirlId(g.id) } }}
                 className={cn('w-16 shrink-0 rounded-lg border bg-card p-1 text-left transition-colors cursor-pointer',
-                  restPicking ? 'border-emerald-400/60 hover:bg-emerald-400/10' : 'border-border hover:border-primary/50')}>
+                  'border-border hover:border-primary/50')}>
                 <div className="relative w-full aspect-square rounded-md overflow-hidden">
                   <ImageDisplay tags={contextImageTags(g, { exhausted: g.exhausted || (g.stamina ?? 100) < 30, incident: !!g.incident })} settings={settings} cachedUrl={g.imageUrl}
                     onUrlCached={(url) => onSaveChange({ ...save, girls: girls.map((x) => x.id === g.id ? { ...x, imageUrl: url } : x) })}
                     alt={g.name} size="sm" className="w-full h-full object-cover" />
                   {appeared.has(g.id) && <span className="absolute top-0 right-0 text-[8px] bg-black/70 text-amber-300 px-1 rounded-bl">已出场</span>}
-                  {pendingSkillPicks(g) > 0 && <span className="absolute top-0.5 left-0.5 w-2 h-2 rounded-full bg-amber-400" />}
                   {g.incident && <span data-testid={`incident-mark-${g.name}`} title={`${g.incident.kind}：${g.incident.text}`} className="absolute bottom-0 left-0 text-[8px] bg-rose-600/85 text-white px-1 rounded-tr">{g.incident.kind === '闯祸' ? '闯祸' : '失败'}</span>}
                 </div>
                 <p className="text-[10px] truncate mt-0.5 gold-text">{g.name}</p>
@@ -250,30 +200,15 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
             )
           })}
         </div>
-        {restPicking && (
-          <p className="text-[10px] text-emerald-300 mt-1">选择要休息的魔物娘（体力 +{REST_STAMINA}，占 1 次行动）
-            <button className="ml-2 underline text-muted-foreground" onClick={() => setRestPicking(false)}>取消</button></p>
-        )}
       </div>
 
       {notice && <div className="mx-4 mt-2 bg-primary/10 border border-primary/30 rounded-lg px-3 py-1.5 text-xs text-primary" data-testid="notice">{notice}</div>}
 
-      {pickGirl && (
-        <div className="mx-4 mt-2">
-          <SkillPicker girl={pickGirl} onPicked={(g) => onSaveChange({ ...save, girls: girls.map((x) => x.id === g.id ? g : x) })} />
-          <button className="text-[10px] text-muted-foreground underline mt-1" onClick={() => setDismissedPicks((d) => [...d, pickGirl.id])}>稍后再选</button>
-        </div>
-      )}
-
-      {/* 三页：今日客人 / 设施 / 商店 */}
-      <Tabs defaultValue="guests" className="flex-1 min-h-0 flex flex-col">
-        <TabsList className="mx-4 mt-2 shrink-0">
-          <TabsTrigger value="guests" className="text-xs">今日客人（{guests.length}）</TabsTrigger>
-          <TabsTrigger value="facilities" className="text-xs">设施</TabsTrigger>
-          <TabsTrigger value="shop" className="text-xs">商店</TabsTrigger>
-        </TabsList>
-        <div className="flex-1 overflow-y-auto px-4 py-3">
-          <TabsContent value="guests" className="space-y-2 mt-0" data-testid="guest-list">
+      {/* 今日客人（设施 / 商店 已移到底部导航的「设施」「市场」） */}
+      <div className="flex-1 min-h-0 flex flex-col">
+        <p className="mx-4 mt-2 text-xs font-semibold gold-text shrink-0">今日客人（{guests.length}）</p>
+        <div className="flex-1 overflow-y-auto px-4 py-2">
+          <div className="space-y-2" data-testid="guest-list">
             {guests.length === 0 && <p className="text-xs text-muted-foreground">今天的客人都接待完了。</p>}
             {guests.map((gu) => (
               <div key={gu.id} className="rounded-lg border border-border bg-card px-3 py-2 space-y-1" data-testid="guest-card">
@@ -294,116 +229,27 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
                 </div>
               </div>
             ))}
-          </TabsContent>
-
-          <TabsContent value="facilities" className="grid grid-cols-2 gap-2 mt-0">
-            <FacilityCard icon={Crown} title="娼馆" level={level} desc={`魔物娘 ${girls.length}/${girlCap} · 每日客人 ${getGuestCapacity(level)}`}
-              cost={getUpgradeCost(level)} gold={player.gold} onUpgrade={handleUpgrade} testId="upgrade-brothel"
-              banner={bannerPath('brothel', level)} flash={lit === 'brothel'} />
-            <FacilityCard icon={BedDouble} title={`宿舍 · ${dorm.name}`} level={dorm.level}
-              desc={`每晚体力 +${dorm.nightly}${dorm.clearsExhaustion ? '，解除疲惫' : ''}${dorm.bestBedBonus ? `，指定一人再 +${dorm.bestBedBonus}` : ''}`}
-              cost={dorm.upgradeCost} gold={player.gold} onUpgrade={handleDorm} testId="upgrade-dorm"
-              banner={bannerPath('dorm', dorm.level)} flash={lit === 'dorm'}>
-              {dorm.bestBedBonus ? (
-                <select data-testid="best-bed" value={save.bestBedGirlId ?? ''} onChange={(e) => handleBestBed(e.target.value)}
-                  className="w-full rounded-md border border-border bg-background px-1.5 py-1 text-[10px]">
-                  <option value="">指定床位：无</option>
-                  {girls.map((g) => <option key={g.id} value={g.id}>指定床位：{g.name}</option>)}
-                </select>
-              ) : null}
-            </FacilityCard>
-            <FacilityCard icon={DoorOpen} title="服务房间" level={roomLv} desc={`额外 play 槽 ${getPlaySlots(roomLv)}`}
-              cost={roomCost} gold={player.gold} onUpgrade={() => handleRoom('service')} testId="upgrade-room"
-              banner={bannerPath('service', roomLv)} flash={lit === 'service'} />
-            <FacilityCard icon={Sword} title="调教室" level={trainLv} desc={`收益倍率 ×${TRAINING_ROOM_MULT[trainLv - 1]} · 道具槽 ${TRAINING_ROOM_PROP_SLOTS[trainLv - 1]}`}
-              cost={trainCost} gold={player.gold} onUpgrade={() => handleRoom('training')} testId="upgrade-training"
-              banner={bannerPath('training', trainLv)} flash={lit === 'training'} />
-            {(player.ownedScenes ?? []).length > 0 && (
-              <div className="col-span-2 rounded-lg border border-border bg-card px-3 py-2 space-y-1.5" data-testid="hub-scenes">
-                <div className="flex items-baseline justify-between">
-                  <p className="text-xs font-semibold gold-text">调教场景</p>
-                  <p className="text-[10px] text-muted-foreground">维护 {sceneUpkeep(player)} G/天（结束今天时扣）</p>
-                </div>
-                <p className="text-[11px] text-foreground/80">{(player.ownedScenes ?? []).map((id) => getScene(id)!.name).join('、')}</p>
-                {ownsScene(save, 'machine') && (
-                  <select data-testid="machine-night" value={save.machineNightGirlId ?? ''} onChange={(e) => handleMachineNight(e.target.value)}
-                    className="w-full rounded-md border border-border bg-background px-1.5 py-1 text-[10px]">
-                    <option value="">今晚机械挂机：无</option>
-                    {girls.filter((g) => !appeared.has(g.id)).map((g) => <option key={g.id} value={g.id}>今晚机械挂机：{g.name}（服从 +{MACHINE_NIGHT_OBEDIENCE}，体力恢复减半）</option>)}
-                  </select>
-                )}
-              </div>
-            )}
-            <Button variant="outline" size="sm" className="col-span-2 h-8 text-xs" onClick={() => onNavigate('market')}>
-              <ShoppingBag className="w-3.5 h-3.5 mr-1.5" />前往奴隶市场
-            </Button>
-            <StepActionsEditor title="标准做法（全馆）" testId="hub-step-actions" value={player.stepActions}
-              placeholders={getStepActions()}
-              onSave={(v) => { onSaveChange({ ...save, player: { ...player, stepActions: v } }); flash(v ? '已更新全馆标准做法' : '全馆标准做法已恢复默认') }} />
-          </TabsContent>
-
-          <TabsContent value="shop" className="mt-0">
-            <ShopPanel save={save} onSaveChange={onSaveChange} onOpenMarket={() => onNavigate('market')} />
-          </TabsContent>
+          </div>
         </div>
-      </Tabs>
+      </div>
 
-      {/* 底部四个按钮 */}
+      {/* 底部三个按钮（休息并入结束今天） */}
       <div className="border-t border-border px-4 py-2 shrink-0">
         {noActionsLeft && <p className="text-[10px] text-rose-400/80 text-center mb-1.5">今日行动已用尽，点击「结束今天」进入下一天</p>}
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <ActionButton icon={Store} label="接客" color="primary" onClick={() => onNavigate('service')}
             disabled={girls.length === 0 || noActionsLeft || guests.length === 0} />
           <ActionButton icon={Sword} label="调教" color="rose" onClick={() => onNavigate('training')}
             disabled={girls.length === 0 || noActionsLeft} />
-          <ActionButton icon={Bed} label="休息" color="emerald" onClick={() => setRestPicking((v) => !v)}
-            disabled={girls.length === 0 || noActionsLeft} testId="btn-rest" />
-          <ActionButton icon={Moon} label="结束今天" color="amber" onClick={handleEndDay} testId="btn-endday" />
+          <ActionButton icon={Moon} label="结束今天" color="amber" onClick={() => setEndDayOpen(true)} testId="btn-endday" />
         </div>
       </div>
+
+      {endDayOpen && <EndDaySheet save={save} onCancel={() => setEndDayOpen(false)} onConfirm={handleEndDay} />}
 
       {openGirl && (
         <GirlSheet key={openGirl.id} girl={openGirl} save={save} settings={settings} onSaveChange={onSaveChange} onClose={() => { setOpenGirlId(null); setIntro(null) }} intro={intro && intro.girlId === openGirl.id ? intro : null} />
       )}
-    </div>
-  )
-}
-
-function FacilityCard({ icon: Icon, title, level, desc, cost, gold, onUpgrade, locked, testId, banner, flash, children }: {
-  icon: typeof Store; title: string; level: number; desc: string; cost: number | null; gold: number
-  onUpgrade?: () => void; locked?: boolean; testId?: string; banner?: string; flash?: boolean; children?: React.ReactNode
-}) {
-  const can = !locked && cost !== null && gold >= cost
-  const [bannerOk, setBannerOk] = useState(true)
-  const short = locked ? '' : shortfallText(cost, gold)
-  return (
-    <div data-testid={testId ? `${testId}-card` : undefined}
-      className={cn('rounded-xl border bg-card overflow-hidden flex flex-col transition-shadow duration-700',
-        flash ? 'border-amber-400 shadow-[0_0_14px_oklch(0.78_0.18_85/0.55)]' : 'border-border')}>
-      {banner && bannerOk && (
-        <div className="relative h-10 shrink-0">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img key={banner} src={banner} alt="" data-testid={testId ? `${testId}-banner` : undefined} onError={() => setBannerOk(false)}
-            className="absolute inset-0 w-full h-full object-cover animate-in fade-in duration-500" />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/30 to-card" />
-        </div>
-      )}
-      <div className="p-3 pt-2 flex flex-col gap-1.5 flex-1">
-        <div className="flex items-center gap-1.5">
-          <Icon className="w-3.5 h-3.5 text-amber-400" />
-          <span className="text-xs font-semibold">{title}</span>
-          <span className="flex-1" />
-          <span className="text-[10px] gold-text">Lv.{level}</span>
-        </div>
-        <p className="text-[10px] text-muted-foreground leading-snug flex-1">{desc}</p>
-        {children}
-        <button data-testid={testId} disabled={!can} onClick={onUpgrade}
-          className={cn('text-[10px] rounded-md border px-2 py-1 transition-colors',
-            can ? 'border-amber-400/40 text-amber-400 hover:bg-amber-400/10' : 'border-border text-muted-foreground/50 cursor-not-allowed')}>
-          {cost === null ? '已满级' : locked ? `升级 ${cost}G（即将开放）` : `升级 ${cost}G`}
-        </button>
-        {short && <p className="text-[10px] text-rose-400/80 text-center" data-testid={testId ? `${testId}-short` : undefined}>{short}</p>}
-      </div>
     </div>
   )
 }
@@ -429,5 +275,40 @@ function ActionButton({ icon: Icon, label, color, onClick, disabled, testId }: {
       <Icon className="w-4 h-4" />
       {label}
     </button>
+  )
+}
+
+/** 结束今天的确认抽屉：预览每个人明早的体力（宿舍 / 休养 / 挂机分开写） */
+function EndDaySheet({ save, onCancel, onConfirm }: { save: GameSave; onCancel: () => void; onConfirm: () => void }) {
+  const plan = nightPlan(save)
+  const left = unusedActions(save)
+  const dorm = getDormInfo(save.player.dormLevel)
+  return (
+    <div className="absolute inset-0 z-40 bg-black/60 flex items-end" data-testid="endday-sheet" onClick={onCancel}>
+      <div className="w-full rounded-t-2xl border-t border-border bg-card px-4 pt-3 pb-4 space-y-2.5" onClick={(e) => e.stopPropagation()}>
+        <div className="mx-auto w-10 h-1 rounded-full bg-muted-foreground/30" />
+        <p className="text-sm font-bold gold-text">结束第 {save.currentDay} 天</p>
+        <p className="text-[11px] text-muted-foreground leading-relaxed">
+          宿舍「{dorm.name}」每晚 +{dorm.nightly}{dorm.clearsExhaustion ? '、解除疲惫' : ''}。
+          {left > 0 ? <span className="text-emerald-300"> 还剩 {left} 次行动没用：全员再 +{left * UNUSED_ACTION_REST_BONUS}。</span> : ' 行动已用完。'}
+          今天没出场的人 +{IDLE_REST_BONUS} 并解除疲惫。
+        </p>
+        <div className="space-y-1">
+          {plan.map((p) => (
+            <div key={p.girlId} className="flex items-center gap-2 rounded-lg border border-border bg-secondary/30 px-3 py-1.5 text-xs" data-testid={`endday-${p.name}`}>
+              <span className="w-16 truncate gold-text">{p.name}</span>
+              <span className="flex-1 text-[10px] text-muted-foreground">
+                {p.machine ? `机械挂机：宿舍减半 +${p.dorm}` : [`宿舍 +${p.dorm}`, p.bestBed && `床位 +${p.bestBed}`, p.idle && `休养 +${p.idle}`, p.unused && `空闲 +${p.unused}`].filter(Boolean).join(' · ')}
+              </span>
+              <span className="text-emerald-300 tabular-nums">{p.before} → {p.after}</span>
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-2 gap-2 pt-1">
+          <Button variant="outline" className="h-9 text-xs" onClick={onCancel}>再想想</Button>
+          <Button className="h-9 text-xs" onClick={onConfirm} data-testid="endday-confirm">结束今天</Button>
+        </div>
+      </div>
+    </div>
   )
 }
