@@ -1,6 +1,7 @@
 'use client'
 
 // 接客流程容器：准备向导 → （跳过 | 亲自上场场景）→ 结算卡
+import { recordQuote } from '@/lib/girl-memory'
 import { useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { AppSettings, GameSave, Guest } from '@/lib/types'
@@ -64,6 +65,7 @@ export function ServiceFlow({ save, settings, onSaveChange, onBack }: ServiceFlo
           plan={phase.plan}
           wardrobe={save.player.wardrobe ?? []}
           settings={settings}
+          onRemember={(t) => onSaveChange({ ...save, girls: save.girls.map((g) => (g.id === phase.plan.girl.id ? recordQuote(g, t, save.currentDay) : g)) })}
           onFinish={({ state, messages }) => settle({ ...phase.plan, outfit: state.outfit, stockings: state.stockings }, 'live', resolveLiveSteps(phase.plan, state), messages.map((m) => m.content).join('\n'))}
         />
       )}

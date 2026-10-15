@@ -7,6 +7,8 @@ import {
 import { traitMatched } from './resolve-service'
 import { resolveTraining, TRAINING_DIRECTIONS, type TrainingInput } from './resolve-training'
 import { stripStatsBlock } from './game-engine'
+import { awakenedFetishes, getScene, sceneReaction, shadowScenes, shadowLevel, SHADOW_LEVEL_LABEL, REACTION_LABEL } from './scenes'
+import type { SceneId } from './types'
 
 /** 种族被动的一句效果（写进提示词，让叙述能体现） */
 export const RACE_TRAIT_EFFECT: Record<string, string> = {
@@ -18,7 +20,8 @@ export const RACE_TRAIT_EFFECT: Record<string, string> = {
 const SERVING: ServingSkill[] = ['待客', '手技', '口侍', '胸侍', '身侍']
 
 /** 1. 每位魔物娘的状态卡（替代旧「技能」行） */
-export function girlStateCard(girl: MonstGirl, day?: number): string {
+/** private：调教 / 私下场合才带阴影；接客不带 */
+export function girlStateCard(girl: MonstGirl, day?: number, opts: { private?: boolean } = {}): string {
   const skills = SERVING.map((k) => { const r = getSkillRank(girl, k); return r ? `${k} ${r}` : '' }).filter(Boolean)
   const incl = getInclination(girl)
   const ms = girl.msProgress
@@ -34,6 +37,8 @@ export function girlStateCard(girl: MonstGirl, day?: number): string {
     trait ? `种族被动：${trait}（${RACE_TRAIT_EFFECT[trait] ?? ''}）` : '',
     zones.length ? `敏感：${zones.join('、')}` : '',
     girl.incident ? `事件：${girl.incident.kind}·${girl.incident.text}（未处理）` : '',
+    girl.awakened?.length ? `觉醒性癖：${awakenedFetishes(girl).map((d) => d.fetish).join('、')}` : '',
+    opts.private && shadowScenes(girl).length ? `阴影：${shadowScenes(girl).map((id) => getScene(id)!.name).join('、')}` : '',
     day ? `第${day}天` : '',
   ].filter(Boolean)
   return parts.join('｜')
@@ -54,7 +59,31 @@ export function trainingContext(input: TrainingInput): string {
   } else if (input.direction === 'sensitize' && input.zone) target = `｜开发：${input.zone}`
   const propNotes = preview.ok ? preview.notes.filter((n) => TRAINING_PROPS.some((p) => n.startsWith(p.name)) || n.includes('：')) : []
   const props = (input.props ?? []).length ? `\n道具：${propNotes.join('、') || (input.props ?? []).join('、')}——请在叙述中实际使用这些道具` : ''
-  return `【本次调教】${dir?.label ?? input.direction}（${dir?.hint ?? ''}）${target}｜调教室 Lv${lv}（×${TRAINING_ROOM_MULT[lv - 1]}）${props}`
+  return `【本次调教】${dir?.label ?? input.direction}（${dir?.hint ?? ''}）${target}｜调教室 Lv${lv}（×${TRAINING_ROOM_MULT[lv - 1]}）${props}${sceneContext(input)}${input.provoke ? provokeSection(input.girl, input.provoke) : ''}`
+}
+
+/** 调教场景段：场景描写 + 她的反应（亲和/抗拒/觉醒/阴影）；没有场景时空串 */
+export function sceneContext(input: Pick<TrainingInput, 'girl' | 'scene'>): string {
+  const def = getScene(input.scene)
+  if (!def) return ''
+  const g = input.girl
+  const r = sceneReaction(g, def.id)
+  const react = r === 'awakened' ? `她已觉醒「${def.fetish}」（${def.fetishDesc}），一进来就控制不住地期待`
+    : r === 'affinity' ? `她是${g.race}，天生亲近这里，比别人更快沉进去`
+    : r === 'aversion' ? `她是${g.race}，本能地抗拒这里：要写出她的害怕与挣扎，但不要让她崩坏`
+    : '她第一次面对这样的地方时会紧张，身体却诚实'
+  const lv = shadowLevel(g, def.id)
+  const shadow = lv ? `；这里在她心里留有阴影（${SHADOW_LEVEL_LABEL[lv]}），会发抖、想逃` : ''
+  return `\n【调教场景】${def.name}：${def.place}\n她的反应（${REACTION_LABEL[r] || '普通'}）：${react}${shadow}——请让场景本身成为叙述的主角，道具与环境要被实际使用`
+}
+
+/**
+ * 【激发阴影】段：对话里触到阴影（或跳过时掷中）后，本场剩下的回合都带着它。只进调教提示词。
+ */
+export function provokeSection(girl: Pick<MonstGirl, 'name'>, scene: SceneId): string {
+  const def = getScene(scene)
+  if (!def) return ''
+  return `\n【激发阴影】馆主的话揭开了${girl.name}在${def.name}留下的阴影：从现在起写出她被唤起的恐惧、发抖与无力抵抗后的顺从（服从大幅上升）；她仍是原来的性格、自称与口癖，不要崩坏、不要恶堕，事后要有余悸`
 }
 
 /** 3. 客人偏好命中 */
@@ -88,7 +117,7 @@ export function trimHistory(messages: ChatMessage[], keep = 6, recap?: string): 
 }
 
 /** 6. 按当前状态拼图片标签（替换服装 tag，加状态 tag），最多 cap 个 */
-export function contextImageTags(girl: MonstGirl, ctx: { outfit?: OutfitId; stockings?: StockingId; exhausted?: boolean; incident?: boolean; scene?: 'service' | 'training' } = {}, cap = 40): string {
+export function contextImageTags(girl: MonstGirl, ctx: { outfit?: OutfitId; stockings?: StockingId; exhausted?: boolean; incident?: boolean; scene?: 'service' | 'training'; trainingScene?: SceneId } = {}, cap = 40): string {
   const split = (s?: string) => (s ?? '').split(',').map((t) => t.trim()).filter(Boolean)
   const o = OUTFITS.find((x) => x.id === ctx.outfit)
   const st = STOCKINGS.find((x) => x.id === ctx.stockings)
@@ -99,7 +128,7 @@ export function contextImageTags(girl: MonstGirl, ctx: { outfit?: OutfitId; stoc
     ...split(o?.tags), ...split(st?.tags),
     ...(ctx.exhausted ? ['sweat', 'heavy breathing', 'exhausted'] : []),
     ...(ctx.incident ? ['nervous', 'looking away'] : []),
-    ...(ctx.scene === 'training' ? ['dungeon', 'restrained'] : ctx.scene === 'service' ? ['bedroom', 'dim lighting'] : []),
+    ...(ctx.scene === 'training' ? (getScene(ctx.trainingScene) ? split(getScene(ctx.trainingScene)!.tags) : ['dungeon', 'restrained']) : ctx.scene === 'service' ? ['bedroom', 'dim lighting'] : []),
   ]
   // 质量词（masterpiece 等）放最后保底，去重后截断
   const quality = base.filter((t) => /masterpiece|best quality|highly detailed|^anime$/i.test(t))
@@ -122,6 +151,11 @@ export function houseStateLines(save: GameSave): string {
   const fac = [['宿舍', p.dormLevel], ['接客间', p.serviceRoomLevel], ['调教室', p.trainingRoomLevel]].filter(([, v]) => (v as number) > 1)
   if (fac.length) lines.push(fac.map(([n, v]) => `${n} Lv${v}`).join('、'))
   if (save.regulars?.length) lines.push(`回头客 ${save.regulars.length} 位`)
+  // 昨天经历最多的那位的心里话（最多一人，截断）
+  const y = save.currentDay - 1
+  const mood = save.girls.filter((g) => g.memory?.summary && g.memory.events.some((e) => e.day === y))
+    .sort((a, b) => (b.memory!.events.filter((e) => e.day === y).length - a.memory!.events.filter((e) => e.day === y).length))[0]
+  if (mood) lines.push(`${mood.name}的心事：${mood.memory!.summary.slice(0, 40)}`)
   return lines.length ? `【馆内近况】${lines.join('｜')}` : ''
 }
 

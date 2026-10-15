@@ -16,6 +16,10 @@ export interface DaySummary {
   /** 之前就挂着、今天仍未处理的事件数（只出一行） */
   unresolved?: number
   stats: { girl: string; ob: number; lw: number; aff: number }[]
+  /** 调教场景维护费（结束今天时扣） */
+  upkeep?: number
+  /** 机械调教室夜间挂机 */
+  night?: string
 }
 
 /** 「差一点」成为回头客的满意度线 */

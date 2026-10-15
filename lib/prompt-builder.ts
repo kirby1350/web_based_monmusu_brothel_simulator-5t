@@ -1,11 +1,13 @@
 import { Player, MonstGirl, Guest, ServiceSession, GameSave, ProseStyle } from '@/lib/types'
 import { ALL_PLAYS as PLAYS, getSensitivityLevel, getSkillRank } from '@/lib/catalog'
-import type { OutfitId, StockingId } from '@/lib/types'
+import type { OutfitId, StockingId, SceneId } from '@/lib/types'
+import { fetishPromptLine, getScene } from '@/lib/scenes'
+import { girlMemoryBlock, memOf } from '@/lib/girl-memory'
 import { girlStateCard, guestPrefLine, VALID_RACES } from '@/lib/prompt-context'
 import { speechLine, speechRuleFor } from '@/lib/speech-style'
 
 /** 系统提示词的可选游戏状态：天数、当前服装（客人偏好命中用） */
-export interface PromptState { day?: number; outfit?: OutfitId; stockings?: StockingId }
+export interface PromptState { day?: number; outfit?: OutfitId; stockings?: StockingId; scene?: SceneId }
 
 // ─── 文风控制（去油黑名单常驻 + 可切换文风片段） ───────────────────────────────
 
@@ -41,6 +43,12 @@ const PROSE_STYLE_PROMPTS: Record<ProseStyle, string> = {
 function proseSection(style: ProseStyle = 'standard'): string {
   const extra = PROSE_STYLE_PROMPTS[style] ? `\n\n${PROSE_STYLE_PROMPTS[style]}` : ''
   return `\n${PROSE_BAN}${extra}\n`
+}
+
+/** 记忆段（带前导换行）；没有记忆时空串 */
+function memLine(g: MonstGirl, ctx: Parameters<typeof girlMemoryBlock>[1], indent = ''): string {
+  const b = girlMemoryBlock(g, ctx, indent)
+  return b ? `\n${b}` : ''
 }
 
 // JSON 输出场景统一追加：要求结构符号用半角，避免全角导致 JSON.parse 失败
@@ -136,7 +144,7 @@ function buildServiceSystemPromptBase(
     .map(
       (g, i) => {
         const bwh = girlBWH(g)
-        return `魔物娘${i + 1}：${g.name}（${g.race}）\n  外貌：${g.bodyDesc}${bwh ? `，三围 ${bwh}` : ''}\n  性格：${g.personality}${speechLine(g, '\n  ')}\n  服装：${g.outfit}\n  服从度：${g.obedience}/100，淫乱度：${g.lewdness}/100，好感度：${g.affection}/100\n  状态：${girlStateCard(g, state.day)}${g.sexualDesc ? `\n  色色设定：${g.sexualDesc}` : ''}`
+        return `魔物娘${i + 1}：${g.name}（${g.race}）\n  外貌：${g.bodyDesc}${bwh ? `，三围 ${bwh}` : ''}\n  性格：${g.personality}${speechLine(g, '\n  ')}\n  服装：${g.outfit}\n  服从度：${g.obedience}/100，淫乱度：${g.lewdness}/100，好感度：${g.affection}/100\n  状态：${girlStateCard(g, state.day, { private: session.type === 'training' })}${g.sexualDesc ? `\n  色色设定：${g.sexualDesc}` : ''}${fetishPromptLine(g) ? `\n  ${fetishPromptLine(g)}` : ''}${memLine(g, { type: session.type === 'training' ? 'training' : 'service', guestId: session.guest?.id, scene: state.scene }, '  ')}`
       }
     )
     .join('\n')
@@ -239,7 +247,7 @@ ${proseSection(proseStyle)}
     return `你是一个重口味成人互动小说写作引擎，为一款魔物娘娼馆经营模拟器提供极致色情调教叙述。
 
 【当前场景：淫虐调教训练】
-地点：${player.name}娼馆的调教室，墙上挂满皮鞭、铁链、拘束架与各种粗大玩具，地板上沾满干涸的精液、淫水与潮吹痕迹，空气浓郁着皮革、汗液与发情腥甜的混合气味
+地点：${getScene(state.scene)?.place ?? `${player.name}娼馆的调教室，墙上挂满皮鞭、铁链、拘束架与各种粗大玩具，地板上沾满干涸的精液、淫水与潮吹痕迹，空气浓郁着皮革、汗液与发情腥甜的混合气味`}
 
 【玩家信息】
 名称：${player.name}
@@ -326,7 +334,7 @@ export function buildInteractionSystemPrompt(
 性格：${girl.personality}${speechLine(girl)}
 外貌：${girl.bodyDesc}${girlBWH(girl) ? `，三围 ${girlBWH(girl)}` : ''}
 好感度：${girl.affection}/100，服从度：${girl.obedience}/100
-当前服装：${girl.outfit}
+当前服装：${girl.outfit}${fetishPromptLine(girl) ? `\n${fetishPromptLine(girl)}` : ''}${memLine(girl, { type: 'interaction' })}
 
 【规则】
 1. 以第一人称扮演魔物娘 ${girl.name} 回应玩家
@@ -606,7 +614,7 @@ ${isMulti ? `- 每一位魔物娘都必须在开场白中出现，各自有专�
       return `你是一个幻想互动小说写作引擎。以第一人称扮演 ${mainGirl.name} 向 ${player.name} 进行日常问候与闲聊。
 
 【魔物娘】${mainGirl.name}（${mainGirl.race}），性格：${mainGirl.personality}${speechLine(mainGirl)}
-好感度：${mainGirl.affection}/100，淫乱度：${mainGirl.lewdness}/100${bwh ? `\n三围：${bwh}` : ''}
+好感度：${mainGirl.affection}/100，淫乱度：${mainGirl.lewdness}/100${bwh ? `\n三围：${bwh}` : ''}${memLine(mainGirl, { type: 'interaction' })}
 【玩家】${player.name}
 
 要求：
@@ -671,7 +679,7 @@ export function buildMemoryPrompt(
 1. 客人${guest.name}（${guest.race}，性格：${guest.personality}）对魔物娘${girl.name}新形成的最新印象（15-25字，第一人称，体现情感变化）
 2. 魔物娘${girl.name}（${girl.race}，性格：${girl.personality}${speechLine(girl, '；')}）对客人${guest.name}新形成的最新印象（15-25字，第一人称，贴合她的性格语气）
 
-${prevContext}
+${prevContext}${memOf(girl).summary ? `\n${girl.name}此刻的心里话（印象要与之相符）：${memOf(girl).summary}` : ''}
 第${visitCount}次服务摘要：${sessionSummary}
 
 只输出JSON：{"guestAboutGirl":"...","girlAboutGuest":"..."}

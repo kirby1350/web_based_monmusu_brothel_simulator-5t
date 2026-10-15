@@ -3,7 +3,8 @@
 // 亲自上场的对话场景（阶段 2：整段搬自旧 service-screen，阶段 3 再改成步骤条）
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { Loader2, Send, ChevronRight, Shirt, Plus, Check } from 'lucide-react'
-import { MonstGirl, Guest, ChatMessage, ServiceSession, AppSettings, Player, OutfitId, StockingId } from '@/lib/types'
+import { MonstGirl, Guest, ChatMessage, ServiceSession, AppSettings, Player, OutfitId, StockingId, SceneId } from '@/lib/types'
+import { getScene, detectShadowTrigger } from '@/lib/scenes'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ChatEngine, ChatEngineHandle } from '@/components/chat-engine'
@@ -16,7 +17,7 @@ import {
 } from '@/lib/game-engine'
 import { parseLooseJson, cn } from '@/lib/utils'
 import { OUTFITS, STOCKINGS, STEP_MAX, getSensitivityLevel, playIconPath } from '@/lib/catalog'
-import { buildStepRecap } from '@/lib/prompt-context'
+import { buildStepRecap, provokeSection } from '@/lib/prompt-context'
 import { ItemIcon } from '@/components/item-icon'
 import { SERVICE_STEPS } from '@/lib/resolve-service'
 import {
@@ -32,6 +33,8 @@ export interface SceneOutcome {
 }
 
 interface SessionSceneProps {
+  /** 玩家消息上的「让她记住」 */
+  onRemember?: (text: string) => void
   player: Player
   plan: ServicePlan
   wardrobe: string[]
@@ -39,7 +42,7 @@ interface SessionSceneProps {
   onFinish: (outcome: SceneOutcome) => void
 }
 
-export function SessionScene({ player, plan, wardrobe, settings, onFinish }: SessionSceneProps) {
+export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRemember }: SessionSceneProps) {
   const { girl, guest } = plan
   const [live, setLive] = useState<LiveState>(() => initLiveState(plan))
   const [panel, setPanel] = useState<'none' | 'outfit' | 'play'>('none')
@@ -257,7 +260,7 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish }: Ses
 
       {/* 对话区 */}
       <div className="flex-1 flex flex-col min-h-0">
-        <ChatEngine ref={chatRef} systemPrompt={systemPrompt} recap={recap} messages={messages} onMessagesChange={setMessages}
+        <ChatEngine ref={chatRef} systemPrompt={systemPrompt} recap={recap} messages={messages} onMessagesChange={setMessages} onRememberUser={onRemember}
           settings={settings} onRawStreamComplete={handleRawReply} showInput={false} className="flex-1 min-h-0" />
         <SuggestionBar suggestions={shownSuggestions} onSelect={(t) => setInputValue(t)} />
         <div className="border-t border-border px-3 pb-3 pt-2 flex gap-2 items-end">
@@ -278,21 +281,27 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish }: Ses
 
 // ─── 调教的亲自上场（仍用旧调教提示词，无步骤条） ──────────────────────────────
 
-export function TrainingScene({ player, girl, directionLabel, trainingInfo, extraPrompt, settings, onFinish }: {
+export function TrainingScene({ player, girl, directionLabel, trainingInfo, extraPrompt, settings, onFinish, scene, day, onRemember }: {
+  onRemember?: (text: string) => void
   player: Player
   girl: MonstGirl
   directionLabel: string
+  scene?: SceneId
+  day?: number
   /** 调教上下文（方向效果 / 道具 / 调教室 / 目标），缺省只写方向名 */
   trainingInfo?: string
   /** 附在提示词末尾（惩罚缘由等） */
   extraPrompt?: string
   settings: AppSettings
-  onFinish: (turns: number, pleasure: number) => void
+  onFinish: (turns: number, pleasure: number, provoke?: SceneId) => void
 }) {
   const [session] = useState<ServiceSession>(() => createServiceSession('training', [girl], {}))
+  // 对话里触到阴影：本场激发一次，之后每回合的提示词都带【激发阴影】，结算时生效
+  const [provoked, setProvoked] = useState<SceneId | undefined>()
+  const [pending, setPending] = useState<string | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>(() => [{
     role: 'assistant',
-    content: `调教室的门缓缓关上。${girl.name}被带到你面前，今天的项目是「${directionLabel}」。` +
+    content: `${getScene(scene) ? `${getScene(scene)!.name}的门缓缓关上。${getScene(scene)!.desc}` : '调教室的门缓缓关上。'}${girl.name}被带到你面前，今天的项目是「${directionLabel}」。` +
       `\n<!--STATS:${JSON.stringify({ girls: { [girl.name]: { pleasure: 0, stamina: 0 } }, satisfaction: 0 })}-->` +
       `\n<!--ACTIONS:["命令她跪下","抬起她的下巴","她低声求饶"]-->`,
   }])
@@ -301,7 +310,14 @@ export function TrainingScene({ player, girl, directionLabel, trainingInfo, extr
   const [suggestions, setSuggestions] = useState<[string, string, string] | null>(['命令她跪下', '抬起她的下巴', '她低声求饶'])
   const [inputValue, setInputValue] = useState('')
   const chatRef = useRef<ChatEngineHandle>(null)
-  const systemPrompt = buildServiceSystemPrompt(player, { ...session, messages }, settings.proseStyle) + `\n\n${trainingInfo ?? `【本次调教方向】${directionLabel}`}` + (extraPrompt ? `\n${extraPrompt}` : '')
+  const systemPrompt = buildServiceSystemPrompt(player, { ...session, messages }, settings.proseStyle, undefined, { scene, day }) + `\n\n${trainingInfo ?? `【本次调教方向】${directionLabel}`}` + (extraPrompt ? `\n${extraPrompt}` : '') + (provoked ? provokeSection(girl, provoked) : '')
+
+  // 激发后要等提示词更新再发这句话
+  useEffect(() => {
+    if (pending === null) return
+    chatRef.current?.sendMessage(pending)
+    setPending(null)
+  }, [pending, systemPrompt])
 
   const onRaw = useCallback((raw: string) => {
     const a = parseActionsFromReply(raw)
@@ -313,8 +329,10 @@ export function TrainingScene({ player, girl, directionLabel, trainingInfo, extr
   const send = (t: string) => {
     if (!t.trim()) return
     setTurns((n) => n + 1)
-    chatRef.current?.sendMessage(t.trim())
     setInputValue('')
+    const hit = !provoked && day ? detectShadowTrigger(girl, scene, t, day) : null
+    if (hit) { setProvoked(hit); setPending(t.trim()); return }
+    chatRef.current?.sendMessage(t.trim())
   }
 
   return (
@@ -325,11 +343,16 @@ export function TrainingScene({ player, girl, directionLabel, trainingInfo, extr
         <span data-testid="tr-turns">回合 {turns}</span>
         <span>快感 {pleasure}</span>
         <span className="flex-1" />
-        <Button size="sm" variant="outline" className="h-7 text-xs border-rose-500/30 text-rose-400" onClick={() => onFinish(turns, pleasure)} data-testid="btn-end-training">
+        <Button size="sm" variant="outline" className="h-7 text-xs border-rose-500/30 text-rose-400" onClick={() => onFinish(turns, pleasure, provoked)} data-testid="btn-end-training">
           结束调教
         </Button>
       </div>
-      <ChatEngine ref={chatRef} systemPrompt={systemPrompt} messages={messages} onMessagesChange={setMessages}
+      {provoked && (
+        <p className="px-3 py-1 text-[10px] text-slate-300 bg-slate-500/10 border-b border-slate-400/20 shrink-0" data-testid="tr-provoked-notice">
+          你的话触到了她在{getScene(provoked)!.name}的阴影……她在发抖（本场服从大涨、多耗体力，阴影加深）
+        </p>
+      )}
+      <ChatEngine ref={chatRef} systemPrompt={systemPrompt} messages={messages} onMessagesChange={setMessages} onRememberUser={onRemember}
         settings={settings} onRawStreamComplete={onRaw} showInput={false} className="flex-1 min-h-0" />
       <SuggestionBar suggestions={suggestions} onSelect={(t) => setInputValue(t)} />
       <div className="border-t border-border px-3 pb-3 pt-2 flex gap-2 items-end">

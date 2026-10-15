@@ -21,6 +21,8 @@ import { StepActionsEditor } from '@/components/step-actions-editor'
 import { getStepActions } from '@/lib/custom-props'
 import { cn } from '@/lib/utils'
 import { SpeechStyleBlock } from '@/components/speech-style-block'
+import { awakenedFetishes, shadowScenes, shadowLevel, SHADOW_LEVEL_LABEL, getScene } from '@/lib/scenes'
+import { MemoryTab } from '@/components/memory-tab'
 
 interface GirlSheetProps {
   girl: MonstGirl
@@ -98,6 +100,7 @@ export function GirlSheet({ girl, save, settings, onSaveChange, onClose, intro }
             技能{pendingSkillPicks(girl) > 0 && <span className="ml-1 w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />}
           </TabsTrigger>
           <TabsTrigger value="sens" className="text-xs">敏感带</TabsTrigger>
+          <TabsTrigger value="memory" className="text-xs" data-testid="tab-memory">回忆</TabsTrigger>
         </TabsList>
 
         <div className="flex-1 overflow-y-auto px-4 py-3">
@@ -112,6 +115,16 @@ export function GirlSheet({ girl, save, settings, onSaveChange, onClose, intro }
                 <p className="text-xs">{girl.name}{girl.incident.text}。去调教里选「惩罚」处理；过夜不处理每晚服从 −3。</p>
               </div>
             )}
+            {(girl.awakened?.length || shadowScenes(girl).length) ? (
+              <div className="flex flex-wrap gap-1" data-testid="girl-fetishes">
+                {awakenedFetishes(girl).map((d) => (
+                  <span key={d.id} title={d.fetishDesc} className="rounded-full border border-fuchsia-400/40 bg-fuchsia-500/10 px-2 py-0.5 text-[10px] text-fuchsia-200">✦ {d.fetish}</span>
+                ))}
+                {shadowScenes(girl).map((id) => (
+                  <span key={id} title="只在调教里起作用：可以激发换服从；温泉恩宠间可以慢慢抚平" className="rounded-full border border-slate-400/30 bg-slate-500/10 px-2 py-0.5 text-[10px] text-slate-300">阴影·{SHADOW_LEVEL_LABEL[shadowLevel(girl, id)]} · {getScene(id)!.name}</span>
+                ))}
+              </div>
+            ) : null}
             {intro && (
               <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 space-y-1" data-testid="arrival-intro">
                 <p className="text-[11px] text-amber-300">入馆 · {intro.speaker}带路</p>
@@ -250,6 +263,10 @@ export function GirlSheet({ girl, save, settings, onSaveChange, onClose, intro }
             })}
             <p className="text-[10px] text-muted-foreground pt-1"><Sparkles className="w-3 h-3 inline mr-1" />敏感开发在调教里进行。</p>
           </TabsContent>
+
+          <TabsContent value="memory" className="mt-0">
+            <MemoryTab girl={girl} onChange={updateGirl} />
+          </TabsContent>
         </div>
       </Tabs>
 
@@ -262,6 +279,7 @@ export function GirlSheet({ girl, save, settings, onSaveChange, onClose, intro }
           onGirlUpdated={updateGirl}
           onGift={doGift}
           giftBlockedReason={giftBlockedReason}
+          day={save.currentDay}
         />
       )}
     </div>

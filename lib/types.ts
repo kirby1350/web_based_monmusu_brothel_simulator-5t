@@ -151,6 +151,10 @@ export type OutfitId = 'regular' | 'maid' | 'kimono' | 'crotchless' | 'restraint
 export type StockingId = 'none' | 'black' | 'white' | 'garter' | 'fishnet' | 'lace_white'
 export type OutfitPref = '制服' | '和服' | '黑丝' | '白丝' | '暴露' | '想施虐的客人' | '想被榨的客人' | '兔女郎' | '异域' | '圣洁'
 export type TrainingDirection = 'tame' | 'release' | 'sculpt' | 'drill' | 'sensitize' | 'punish'
+/** 可购买的调教场景（设备）；缺省 = 普通调教室 */
+export type SceneId = 'dungeon' | 'water' | 'stage' | 'machine' | 'tentacle' | 'hypnosis' | 'altar' | 'onsen'
+/** 某魔物娘在某场景上的累积：最近使用日（≤7 条）、性癖积累、阴影积累 */
+export interface SceneState { uses: number[]; fp: number; sp: number }
 
 /** 魔物娘身上的未处理事件（阶段 10） */
 export interface Incident { kind: '接客失败' | '闯祸'; text: string; day: number }
@@ -180,6 +184,7 @@ export interface Player {
   customProps?: CustomProp[]         // 定制调教道具（全馆最多 6 件）
   stepActions?: string[]             // 五步「标准做法」馆主自定义（长度 5，空串=默认）
   giftGivenOnDay?: number     // 当天已送礼（全馆每天一次）
+  ownedScenes?: SceneId[]     // 已购调教场景（每天收维护费）
 }
 
 export interface MonstGirl {
@@ -218,6 +223,10 @@ export interface MonstGirl {
   sensitivities?: Partial<Record<SensitivityZone, number>> // 六条共通带 + 种族带，0–100
   sculptCounts?: { bust: number; waist: number; hip: number } // 各项塑形次数（涨价）
   itemUsedOnDay?: number                        // 当天已用过恢复药（每人每天一瓶）
+  provokedDays?: number[]  // 激发阴影的日子（≤7 条；只在调教里用）
+  sceneState?: Partial<Record<SceneId, SceneState>> // 调教场景：使用记录 / 性癖积累 / 阴影
+  awakened?: SceneId[]                          // 已觉醒的性癖（按场景记，名字见 TRAINING_SCENES）
+  memory?: import('./girl-memory').GirlMemory   // 她自己的记忆（事件 + 心里话）
   // 图片缓存
   imageTags: string
   imageUrl?: string
@@ -319,6 +328,8 @@ export interface GameSave {
   lastDaySummary?: import('./day-summary').DaySummary | null
   // AI 润色客人已尝试过的那一天（成功或失败都记，刷新不重复请求）
   aiGuestsDay?: number
+  // 今晚挂在机械调教室过夜的魔物娘（结束今天时结算并清空）
+  machineNightGirlId?: string
 }
 
 /** 定制调教道具：名字、描述自填，效果来自固定模板 */

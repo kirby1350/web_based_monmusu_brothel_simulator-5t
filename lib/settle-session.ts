@@ -6,6 +6,8 @@ import { resolveService, serviceStaminaCost, type ServiceInput, type ServiceResu
 import type { TrainingResult } from './resolve-training'
 import { applyReputationDelta, calcServiceReward, MAX_ACTIONS_PER_DAY } from './game-engine'
 import { LIVE_SERVICE_STAMINA_LONG, LIVE_SERVICE_STAMINA_SHORT, MAX_STAMINA } from './catalog'
+import { sceneRiskIncident } from './scenes'
+import { recordService, recordTraining } from './girl-memory'
 
 /** 预览：收入区间（亲自上场最差到最好的大致范围）与体力 */
 export function previewService(input: Omit<ServiceInput, 'skip'>) {
@@ -62,7 +64,7 @@ export function applyServiceToSave(
         reputation: applyReputationDelta(save.player.reputation, tier.reputationDelta),
       },
       girls: save.girls.map((g) => g.id !== girlId ? g : {
-        ...g,
+        ...recordService(g, guest, { tier: tier.label, sat: result.satisfaction, reward: result.reward }, save.currentDay),
         stamina: after,
         exhausted: after === 0 ? true : g.exhausted,
         affection: Math.min(100, g.affection + result.affectionDelta),
@@ -76,18 +78,29 @@ export function applyServiceToSave(
   }
 }
 
-/** 把一场调教写进存档：魔物娘数值/三围/敏感带/体力、塑形药出背包、行动 +1、已出场；金币不变 */
-export function applyTrainingToSave(save: GameSave, result: TrainingResult, potionId?: string): GameSave {
+/**
+ * 把一场调教写进存档：魔物娘数值/三围/敏感带/体力、塑形药出背包、行动 +1、已出场；金币不变。
+ * 场景：公开调教台加声望；有风险的场景在这里掷骰记事件（rng 只在有风险时消耗）。
+ */
+export function applyTrainingToSave(save: GameSave, result: TrainingResult, potionId?: string, rng: () => number = Math.random): GameSave {
   if (!result.ok) return save
   const inv = { ...(save.player.inventory ?? {}) }
   if (potionId && inv[potionId]) { inv[potionId] -= 1; if (inv[potionId] <= 0) delete inv[potionId] }
   const appeared = save.appearedToday ?? []
   const id = result.girl.id
+  const before = save.girls.find((g) => g.id === id) ?? result.girl
+  const risk = sceneRiskIncident(result.scene, before, result.girl, save.currentDay, rng)
+  // 记忆以存档里的为准（亲自上场时可能刚「让她记住」了一句）
+  const base = { ...result.girl, memory: before.memory, ...(risk ? { incident: risk } : {}) }
+  const girlAfter = recordTraining(base, before, result, save.currentDay)
   return {
     ...save,
     dayLog: currentDayLog(save),  // 调教前先拍当天快照，小结里才看得到数值变化
-    player: { ...save.player, inventory: inv },
-    girls: save.girls.map((g) => (g.id === id ? result.girl : g)),
+    player: {
+      ...save.player, inventory: inv,
+      ...(result.reputationDelta ? { reputation: applyReputationDelta(save.player.reputation, result.reputationDelta) } : {}),
+    },
+    girls: save.girls.map((g) => (g.id === id ? girlAfter : g)),
     actionsUsedToday: Math.min(MAX_ACTIONS_PER_DAY, (save.actionsUsedToday ?? 0) + 1),
     appearedToday: appeared.includes(id) ? appeared : [...appeared, id],
   }

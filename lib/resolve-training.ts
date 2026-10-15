@@ -1,13 +1,17 @@
 import { expandProps, getTemplate } from './custom-props'
 import { canPunish } from './incidents'
 import { PUNISH_EXTRA_OBEDIENCE, PUNISH_EXTRA_M, PUNISH_M_AFFECTION } from './catalog'
-import type { CustomProp } from './types'
+import type { CustomProp, SceneId } from './types'
+import {
+  getScene, sceneReaction, sceneDecay, hasShadow, provokeBlock, provokeEffect, recentProvokes, deepenShadow, SHADOW_LEVEL_LABEL, usedYesterday, accumulateScene, fetishName, FETISH_THRESHOLD,
+  AFFINITY_MAIN_BONUS, AVERSION_MAIN_PENALTY, AVERSION_AFFECTION, SHADOW_AFFECTION, REACTION_LABEL,
+} from './scenes'
 // 调教结算（纯函数）：驯服 / 放权 / 塑形 / 特训 / 敏感开发
 // 基础值 × 调教室倍率；道具、服装是固定小数，不吃倍率；塑形厘米数不吃倍率。
 import type { MonstGirl, OutfitId, SensitivityZone, SkillKey, SkillRank, TrainingDirection } from './types'
 import {
   SCULPT_POTIONS, SCULPT_BOUNDS, TRAINING_ROOM_MULT, TRAINING_ROOM_PROP_SLOTS, SKILL_PROGRESS_PER_RANK,
-  SKIP_OBEDIENCE_MIN, TRAINING_PROPS, MAX_STAMINA, outfitName,
+  SKIP_OBEDIENCE_MIN, TRAINING_PROPS, MAX_STAMINA, COMMON_ZONES, SENSITIVITY_DEFAULT, outfitName,
 } from './catalog'
 
 export const TRAINING_DIRECTIONS: { key: TrainingDirection; label: string; hint: string }[] = [
@@ -38,6 +42,9 @@ export interface TrainingInput {
   potionId?: string           // 塑形
   skill?: SkillKey | typeof TWO_SIDED_KEY  // 特训
   zone?: SensitivityZone      // 敏感开发
+  scene?: SceneId             // 调教场景（须已拥有且对口方向，由调用方保证）
+  day?: number                // 当前天数（场景递减、使用记录用；缺省 1）
+  provoke?: SceneId           // 本场被激发的阴影（对话里触到 / 跳过时掷中；由调用方判定）
   /** 内部用：亲自上场对特训进度的修正 */
   progressAdjust?: number
 }
@@ -55,6 +62,16 @@ export interface TrainingResult {
   girl: MonstGirl   // 应用后的魔物娘
   notes: string[]   // 道具 / 服装 / 种族加成说明
   summary: string
+  scene?: SceneId
+  direction?: TrainingDirection
+  /** 本场让她觉醒的性癖（场景 id） */
+  awakenedScene?: SceneId
+  /** 本场让她留下阴影的场景 */
+  shadowScene?: SceneId
+  /** 本场激发了阴影的场景 */
+  provokedScene?: SceneId
+  /** 公开调教台：声望变化 */
+  reputationDelta?: number
 }
 
 const RANKS: SkillRank[] = ['初学', '熟练', '精通']
@@ -95,7 +112,18 @@ export function resolveTraining(input: TrainingInput): TrainingResult {
   let measurement: TrainingResult['measurement']
   let newRank: SkillRank | undefined
   let becameTwoSided = false
-  const stamina = TRAINING_STAMINA_COST
+  let stamina = TRAINING_STAMINA_COST
+  const sceneDef = getScene(input.scene)
+  if (input.scene && !sceneDef) return { ok: false, error: '未知的调教场景', delta, staminaCost: 0, girl, notes, summary: '未知的调教场景' }
+  if (sceneDef && !sceneDef.directions.includes(direction)) {
+    return { ok: false, error: `${sceneDef.name}不适合这个方向`, delta, staminaCost: 0, girl, notes, summary: `${sceneDef.name}不适合这个方向` }
+  }
+  if (input.provoke) {
+    const why = provokeBlock(girl, input.provoke, input.day ?? 1)
+    if (why) return { ok: false, error: why, delta, staminaCost: 0, girl, notes, summary: why }
+  }
+  // 催眠室特训：进度 +1（要在升档计算前加进去）
+  const sceneProg = input.scene === 'hypnosis' && direction === 'drill' ? 1 : 0
   const fail = (error: string): TrainingResult => ({ ok: false, error, delta, staminaCost: 0, girl, notes, summary: error })
 
   switch (direction) {
@@ -168,7 +196,8 @@ export function resolveTraining(input: TrainingInput): TrainingResult {
       if (!skill || !rank) return fail('只能特训已选的技能')
       // 舞娘纱衣：特训「待客」+1，与练习镜不叠加
       const dancerBonus = input.outfit === 'dancer' && skill === '待客' && !props.has('mirror') ? 1 : 0
-      delta.skillProgress = Math.max(0, m(1) + (props.has('mirror') ? 1 : 0) + dancerBonus + (input.progressAdjust ?? 0))
+      delta.skillProgress = Math.max(0, m(1) + (props.has('mirror') ? 1 : 0) + dancerBonus + sceneProg + (input.progressAdjust ?? 0))
+      if (sceneProg) notes.push('催眠室：进度 +1')
       if (props.has('mirror')) notes.push('练习镜：进度 +1')
       if (dancerBonus) notes.push(`${outfitName(input.outfit)}：待客进度 +1`)
       const prog = (girl.skillProgress?.[skill] ?? 0) + delta.skillProgress
@@ -196,6 +225,18 @@ export function resolveTraining(input: TrainingInput): TrainingResult {
     }
   }
 
+  let sceneOut: { awakenedNow?: boolean; shadowNow?: boolean; rep: number } = { rep: 0 }
+  if (sceneDef) {
+    const r = applyScene(input, sceneDef.id, next, delta, notes)
+    stamina += sceneDef.staminaExtra
+    sceneOut = r
+  }
+  if (input.provoke) {
+    const pe = provokeEffect(girl, input.provoke, input.day ?? 1)
+    delta.obedience += pe.obedience; stamina += pe.stamina
+    notes.push(`激发阴影（${SHADOW_LEVEL_LABEL[pe.level]}·${getScene(input.provoke)!.name}）：服从 +${pe.obedience}，体力 +${pe.stamina}，阴影加深，这一场不长性癖${pe.decay < 1 ? `（本周第 ${recentProvokes(girl, input.day ?? 1) + 1} 次 ×${pe.decay}）` : ''}`)
+  }
+
   // 纯白婚纱内衣：任意方向好感 +1
   if (input.outfit === 'bridal') { delta.affection = (delta.affection ?? 0) + 1; notes.push(`${outfitName(input.outfit)}：好感 +1`) }
 
@@ -207,9 +248,106 @@ export function resolveTraining(input: TrainingInput): TrainingResult {
   applyDelta(girl, next, delta)
   next.stamina = Math.max(0, (girl.stamina ?? MAX_STAMINA) - stamina)
   if (next.stamina === 0) next.exhausted = true
+  // 场景使用记录 / 性癖 / 阴影（用结算后的淫乱）
+  let awakenedScene: SceneId | undefined, shadowScene: SceneId | undefined, provokedScene: SceneId | undefined
+  if (input.provoke) {
+    const d = input.day ?? 1
+    next.provokedDays = [...(girl.provokedDays ?? []), d].filter((x) => x > d - 7).slice(-7)
+    provokedScene = input.provoke
+    // 激发的是别处的阴影：那个场景的阴影单独加深
+    if (input.provoke !== sceneDef?.id) next.sceneState = deepenShadow(next, input.provoke).sceneState
+  }
+  if (sceneDef) {
+    const acc = accumulateScene(next, sceneDef.id, input.day ?? 1, input.provoke ? (input.provoke === sceneDef.id ? { provoke: true } : { noFetish: true }) : {})
+    next.sceneState = acc.girl.sceneState; next.awakened = acc.girl.awakened
+    if (acc.awakenedNow) { awakenedScene = sceneDef.id; notes.push(`觉醒性癖「${sceneDef.fetish}」！以后她在${sceneDef.name}里不再抗拒`) }
+    else if (acc.fpGain) notes.push(`${sceneDef.fetish}积累 ${Math.min(acc.girl.sceneState?.[sceneDef.id]?.fp ?? 0, FETISH_THRESHOLD)}/${FETISH_THRESHOLD}`)
+    if (acc.shadowNow) { shadowScene = sceneDef.id; notes.push(`${sceneDef.name}在她心里留下了阴影`) }
+  }
   const label = TRAINING_DIRECTIONS.find((d) => d.key === direction)!.label
   for (let i = 0; i < notes.length; i++) for (const [from, to] of customNames) if (notes[i].startsWith(`${from}：`)) notes[i] = to + notes[i].slice(from.length)
-  return { ok: true, delta, measurement, newRank, becameTwoSided, staminaCost: stamina, girl: next, notes, summary: trainingSummary(girl.name, label, delta, measurement, newRank) }
+  return {
+    ok: true, direction, delta, measurement, newRank, becameTwoSided, staminaCost: stamina, girl: next, notes,
+    summary: trainingSummary(girl.name, sceneDef ? `${sceneDef.name}·${label}` : label, delta, measurement, newRank),
+    ...(sceneDef ? { scene: sceneDef.id, reputationDelta: sceneOut.rep } : {}),
+    ...(awakenedScene ? { awakenedScene } : {}), ...(shadowScene ? { shadowScene } : {}), ...(provokedScene ? { provokedScene } : {}),
+  }
+}
+
+/**
+ * 场景加成：固定值、不吃倍率；×递减系数；种族亲和/抗拒、觉醒、阴影修正好感与主项。
+ * 直接改 delta 与 next（敏感带）；返回声望变化。
+ */
+function applyScene(input: TrainingInput, id: SceneId, next: MonstGirl, delta: TrainingDelta, notes: string[]): { rep: number } {
+  const { girl, direction } = input
+  const def = getScene(id)!
+  const day = input.day ?? 1
+  const decay = sceneDecay(girl, id, day)
+  const reaction = sceneReaction(girl, id)
+  const holyHalf = id === 'altar' && (input.outfit === 'nun' || input.outfit === 'bridal')
+  const k = (n: number) => Math.round(n * decay * (holyHalf ? 0.5 : 1))
+  let ob = 0, lw = 0, sens = 0, m = 0, rep = 0
+  const extraZones: Partial<Record<SensitivityZone, number>> = {}
+  const tameLike = direction === 'tame' || direction === 'punish'
+  switch (id) {
+    case 'dungeon': ob = k(4); m = 1; break
+    case 'water': ob = k(5) + (direction === 'punish' && girl.incident ? 2 : 0); break
+    case 'stage': if (direction === 'tame') { ob = k(4); lw = k(2) } else { lw = k(4); ob = k(2) } rep = 1; break
+    case 'machine': if (direction === 'tame') ob = k(6); else sens = k(6); break
+    case 'tentacle':
+      if (direction === 'tame') { ob = k(8); lw = k(3) }
+      else if (direction === 'release') lw = k(8)
+      else {
+        sens = k(4)
+        const others = COMMON_ZONES.filter((z) => z !== input.zone)
+        const low = others.reduce((a, z) => ((girl.sensitivities?.[z] ?? SENSITIVITY_DEFAULT) < (girl.sensitivities?.[a] ?? SENSITIVITY_DEFAULT) ? z : a), others[0])
+        extraZones[low] = k(3)
+      }
+      break
+    case 'hypnosis': if (direction === 'tame') { ob = k(10); if (usedYesterday(girl, id, day)) { ob = Math.round(ob / 2); notes.push('昨天刚催眠过：服从加成减半') } } break
+    case 'altar':
+      if (direction === 'release') lw = k(8)
+      else for (const z of COMMON_ZONES) if (z !== input.zone) extraZones[z] = k(2)
+      break
+    case 'onsen': if (direction === 'tame') ob = k(3); else lw = k(3); break
+  }
+  // 主项：亲和/觉醒 +2，抗拒 −2
+  const mainAdj = reaction === 'affinity' || reaction === 'awakened' ? AFFINITY_MAIN_BONUS : reaction === 'aversion' ? -AVERSION_MAIN_PENALTY : 0
+  if (mainAdj) {
+    if (tameLike) ob = Math.max(0, ob + mainAdj)
+    else if (direction === 'release') lw = Math.max(0, lw + mainAdj)
+    else if (direction === 'sensitize') sens = Math.max(0, sens + mainAdj)
+  }
+  // 好感
+  let aff = def.affection > 0 ? Math.round(def.affection * decay) : def.affection
+  if (reaction === 'awakened') aff = Math.max(0, aff) + 1
+  else if (reaction === 'affinity') aff = Math.max(0, aff)
+  else if (reaction === 'aversion') aff += AVERSION_AFFECTION
+  if (hasShadow(girl, id)) aff += SHADOW_AFFECTION
+
+  delta.obedience += ob; delta.lewdness += lw; delta.m += m; delta.affection += aff
+  if (sens && input.zone) {
+    delta.sensitivity += sens
+    next.sensitivities = { ...next.sensitivities, [input.zone]: clamp100((girl.sensitivities?.[input.zone] ?? SENSITIVITY_DEFAULT) + delta.sensitivity) }
+  }
+  for (const [z, v] of Object.entries(extraZones)) {
+    if (!v) continue
+    const zone = z as SensitivityZone
+    next.sensitivities = { ...next.sensitivities, [zone]: clamp100((next.sensitivities?.[zone] ?? girl.sensitivities?.[zone] ?? SENSITIVITY_DEFAULT) + v) }
+  }
+
+  const gains = [ob && `服从 +${ob}`, lw && `淫乱 +${lw}`, sens && `敏感 +${sens}`, m && `M 进度 +${m}`,
+    Object.keys(extraZones).length && `${Object.entries(extraZones).map(([z, v]) => `${z} +${v}`).join('、')}`, rep && `声望 +${rep}`].filter(Boolean)
+  notes.push(`${def.name}：${gains.join('，') || '—'}${aff ? `，好感 ${aff > 0 ? '+' : '−'}${Math.abs(aff)}` : ''}${def.staminaExtra ? `，体力 ${def.staminaExtra > 0 ? '+' : '−'}${Math.abs(def.staminaExtra)}` : ''}`)
+  if (decay < 1) notes.push(`本周第 ${countLabel(girl, id, day)} 次用${def.name}：加成 ×${decay}`)
+  if (holyHalf) notes.push('圣洁服装与淫纹相冲：加成减半')
+  if (reaction !== 'neutral') notes.push(`${REACTION_LABEL[reaction]}（${reaction === 'awakened' ? fetishName(id) : girl.race}）：${reaction === 'aversion' ? '主项 −2、好感 −3' : '主项 +2、不扣好感'}`)
+  if (hasShadow(girl, id)) notes.push(`阴影：好感再 −2`)
+  return { rep }
+}
+
+function countLabel(girl: MonstGirl, id: SceneId, day: number): number {
+  return (girl.sceneState?.[id]?.uses ?? []).filter((d) => d > day - 7 && d <= day).length + 1
 }
 
 function applyDelta(girl: MonstGirl, next: MonstGirl, delta: TrainingDelta) {
@@ -264,6 +402,7 @@ const STAT_LABEL: [keyof TrainingDelta, string][] = [
 
 export function trainingSummary(name: string, label: string, delta: TrainingDelta, measurement?: TrainingResult['measurement'], newRank?: SkillRank): string {
   const gains = STAT_LABEL.filter(([k]) => delta[k] > 0).map(([k, l]) => `${l} +${delta[k]}`)
+  if (delta.affection < 0) gains.push(`好感 −${-delta.affection}`)
   const parts = [`${name}在调教室里接受了一轮${label}。`]
   if (measurement) parts.push(`${{ bust: '胸围', waist: '腰围', hip: '臀围' }[measurement.stat]}从 ${measurement.from} 变成了 ${measurement.to}。`)
   if (gains.length) parts.push(`结束时她${gains.join('，')}。`)
