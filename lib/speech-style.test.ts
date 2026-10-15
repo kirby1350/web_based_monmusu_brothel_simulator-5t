@@ -23,7 +23,7 @@ test('预设：全员成年，新角色与种族对应，图片/简介数组与�
     assert.ok(/mature female|adult/.test(`${t.bodyTags}, ${t.imageTags}, ${t.otherTags}`), `${t.name} adult tag`)
     assert.ok(!/high school|school uniform|高中|女高中生|\bteen\b|\bloli\b/i.test(`${t.bodyTags} ${t.imageTags} ${t.otherTags} ${t.otherDesc}`), t.name)
   }
-  const want: Record<string, string> = { 柴郡: '猫娘', 爱宕: '犬娘', 赤城: '狐娘', 出云: '鬼娘' }
+  const want: Record<string, string> = { 柴郡: '猫娘', 爱宕: '犬娘', 赤城: '狐娘', 大凤: '哈比' }
   for (const [name, race] of Object.entries(want)) {
     assert.equal(GIRL_TEMPLATES.find((t) => t.name === name)?.race, race, name)
   }
@@ -65,4 +65,13 @@ test('口癖进入互动系统提示词、开场白与记忆提示词', () => {
   }
   const mp = buildMemoryPrompt(fxGuest(), g, '客人点了一壶茶，两人聊了很久')
   assert.ok(mp.includes('口癖：'))
+})
+
+test('两位病娇区分：赤城谋划清除情敌，大凤撒娇求宠、独占', () => {
+  const akagi = GIRL_TEMPLATES.find((t) => t.name === '赤城')!
+  const taihou = GIRL_TEMPLATES.find((t) => t.name === '大凤')!
+  assert.ok(/scheming/.test(akagi.personalityTags) && !/wants to be pampered/.test(akagi.personalityTags))
+  assert.ok(/wants to be pampered/.test(taihou.personalityTags) && /monopolizing/.test(taihou.personalityTags) && !/scheming/.test(taihou.personalityTags))
+  assert.ok(!GIRL_TEMPLATES.some((t) => t.name === '出云'))
+  assert.notEqual(speechRows(akagi.speechStyle)[0][1], speechRows(taihou.speechStyle)[0][1])
 })

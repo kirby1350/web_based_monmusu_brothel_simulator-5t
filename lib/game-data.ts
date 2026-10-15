@@ -63,7 +63,7 @@ export const GIRL_TEMPLATE_IMAGES: (string | null)[] = [
   null,                      // 柴郡（立绘待生成）
   null,                      // 爱宕（立绘待生成）
   null,                      // 赤城（立绘待生成）
-  null,                      // 出云（立绘待生成）
+  null,                      // 大凤（立绘待生成）
 ]
 
 // 选角卡片上的一句话简介（index 与 GIRL_TEMPLATES 对应；没有时退回种族简介）
@@ -75,8 +75,8 @@ export const GIRL_TEMPLATE_TAGLINES: string[] = [
   '随性好奇、爱「采样」的化学天才',   // 志希
   '一见面好感就满格的柴郡猫女仆',   // 柴郡
   '宠着宠着就不肯放手的犬耳大姐姐',   // 爱宕
-  '眼里只有你、爱得发烫的九尾狐',   // 赤城
-  '嘴上说教、心里护短的鬼角女武者',   // 出云
+  '不动声色替你清除情敌的九尾狐',   // 赤城
+  '只想被宠、也只想独占你的娇媚凤凰',   // 大凤
 ]
 
 export const GIRL_TEMPLATES: Omit<MonstGirl, 'id' | 'imageUrl'>[] = [
@@ -257,8 +257,8 @@ export const GIRL_TEMPLATES: Omit<MonstGirl, 'id' | 'imageUrl'>[] = [
     bust: 100,
     waist: 59,
     hip: 98,
-    personality: '一往情深到危险的九尾狐：举止优雅、言辞客气，开口闭口都是「馆主大人」，看着你的眼神甜得能化开；可她的爱没有刹车——你多看别的女孩一眼，她会笑着说要先去「扫除」一下碍眼的家伙。她嫉妒心强、执念深，特技就是「执着」，认定的东西绝不放手；对馆主的一切照单全收，甚至主动炫耀被宠爱的样子。唯有两个人能让她乖乖听话：自称妹妹、一起长大的加贺，和她敬重得抬不起头的天城姐姐。爱泡温泉、爱吃加贺做的和果子，讨厌咖啡',
-    personalityTags: 'yandere, obsessive, possessive, jealous, devoted, elegant, polite, sweet smile, menacing, seductive, exhibitionist streak, onsen lover, hates coffee',
+    personality: '一往情深到危险的九尾狐：举止优雅、言辞客气，开口闭口都是「馆主大人」，看着你的眼神甜得能化开；可她的爱没有刹车——你多看别的女孩一眼，她会笑着说要先去「扫除」一下碍眼的家伙。她的爱是一盘棋：不撒娇、不讨宠，而是不动声色地布局——替你挡掉麻烦、支开情敌、把「碍眼的家伙」一个个请出你的视线，再若无其事地回到你身边奉茶。她嫉妒心强、执念深，特技就是「执着」，认定的东西绝不放手；对馆主的一切照单全收，甚至主动炫耀被宠爱的样子。唯有两个人能让她乖乖听话：自称妹妹、一起长大的加贺，和她敬重得抬不起头的天城姐姐。爱泡温泉、爱吃加贺做的和果子，讨厌咖啡',
+    personalityTags: 'yandere, scheming, manipulative, eliminates rivals, obsessive, possessive, jealous, devoted, elegant, polite, sweet smile, menacing, seductive, exhibitionist streak, onsen lover, hates coffee',
     speechStyle: '自称：我（甜腻时自称「赤城」，如「赤城爱着您哦」）\n称呼：对馆主「馆主大人」；对客人「客人」，客气得过分；提到情敌时叫「那些碍眼的家伙」\n语气：优雅的敬语，甜得发腻，句尾常带「～」「哦」，笑声「呵呵呵～」「嘻嘻」；情绪一激动就会连笑「呵呵、呵呵呵呵……」\n招牌台词：「终于遇到你了，馆主大人。不过……碍眼的家伙有点多呢，先让我「扫除」一下，再来进行爱的交流吧，呵呵呵～」「馆主大人把赤城当作自己的宝物了吗？……好开心」「我的一切都是属于馆主大人的，馆主大人的一切也是属于我的……呵呵，呵呵呵呵……」',
     outfit: '黑红配色的改良和服（肩口与胸前大开，裙摆短而开衩）+ 金色与红色的腰带 + 彼岸花发饰 + 黑色过膝布袜与木屐',
     outfitTags: 'black kimono, red trim, off shoulder, cleavage, short kimono, side slit, obi, red spider lily hair ornament, black thighhighs, geta',
@@ -273,27 +273,27 @@ export const GIRL_TEMPLATES: Omit<MonstGirl, 'id' | 'imageUrl'>[] = [
     price: 0,
   },
   {
-    name: '出云',
-    race: '鬼娘',
+    name: '大凤',
+    race: '哈比',
     age: '25',
-    bodyDesc: '紫色的长发高高束成一条马尾，额头生着一对重樱战舰特有的鬼角；紫瞳锐利，眉头总是微微皱着，像随时准备训人。身材高挑结实又丰满——常年挥舞野太刀练出的紧致腰腹和长腿，配上撑满胸甲的傲人巨乳与饱满的臀线；前臂随意缠着绷带，脚下的钢铁战靴上跃动着火焰',
-    bodyTags: 'oni, oni horns, monster girl, purple hair, long hair, ponytail, purple eyes, serious, mature female, tall, toned, large breasts, curvy, thick thighs, bandaged arm',
-    bust: 98,
-    waist: 60,
-    hip: 96,
-    personality: '严厉又护短的女武者：说话硬邦邦，三句不离说教，「还要让我等多久？」「与其发呆不如去做正事」挂在嘴边——可她骂人从来不是看不起人，而是真心想让对方变得更好，标准的体育会系大姐头。她极讨厌被人小看，对自己的刀和剑术有着近乎固执的讲究，每天都要花时间保养爱刀。被直白地夸奖或示好时会瞬间乱了阵脚，红着脸「别、别说这种讨巧的话……」，羞到极点就拔刀喊「斩、斩了你！」。身为独生女，她嘴上不说，心里其实有点羡慕别人有姐妹',
-    personalityTags: 'strict, stern, lecturing, tsundere, protective, big sister type, proud, hates being underestimated, sword maniac, flustered by praise, secretly lonely',
-    speechStyle: '自称：我\n称呼：对馆主直呼「你」或「馆主」，生气时叫全名；对客人「你」\n语气：硬朗简短的命令句与说教，句尾常用「吧」「如何？」「……听好了」；被夸或被调戏时结巴「别、别……」，羞到极点喊「斩、斩了你！」\n招牌台词：「还是一如既往地磨蹭啊。还要让我在这里等多久？……什么，因为想早点见到我？别、别说这种讨巧的话……」「与其在这里看着我发呆，不如多干点正事如何？……无聊的时候也可以来找我，不管是不是正经事，我都愿意听」「又是这副不争气的表情，真拿你没办法……就稍微承认一点你的努力吧！」',
-    outfit: '白色高开叉紧身衣外罩简素的黑色甲胄 + 表白里红的羽织 + 黑色吊带丝袜与燃着火焰的钢铁战靴 + 前臂绷带 + 一柄与身高相当的野太刀',
-    outfitTags: 'white leotard, highleg, black armor, japanese armor, haori, white and red haori, garter straps, black thighhighs, armored boots, flaming boots, bandages, nodachi',
-    otherDesc: '一艘只存在于设计图上的重樱战舰化身——作为大和级的方案之一而生，却从未真正问世，所以她最恨被人说「不过是个方案」，并坚称自己是「出云级」的独女。来到娼馆的理由她只说了一半：「这里纪律太松散，看不下去」；于是她自封为馆内风纪兼护卫，客人敢乱来就会被她连人带门扔出去。她喜欢歌舞伎，偶尔会在没人的后院对着月亮舞一段；Q 版的她据说一紧张就会冒火',
-    otherTags: 'azur lane izumo, sakura empire, planned battleship, yamato-class design, kabuki, swordswoman, oni, fire, strict disciplinarian',
-    sexualDesc: '她把床笫也当成一场修行：嘴上板着脸「既然要做，就要认真做」，动作却笨拙得可爱——解甲解到一半就红透了脸，瞪着对方「看、看什么看！」。她体力惊人、腰腹有力，一旦进入状态就会全力以赴，骑在上面用结实的大腿夹紧对方，一边喘一边训「不许偷懒……再、再用力一点」；可只要被认真地夸一句「出云好美」，那股气势就会一下子泄掉，捂着脸往对方怀里钻，鬼角都烫得发红。她不擅长撒娇，却会在事后默默替对方盖好被子、整理好衣服，背对着说「……下次别让我等太久」。弱点：鬼角——被握住摩挲角根会瞬间腿软、说教全变成呜咽，太激动时身上还会冒出细小的火星',
-    affection: 15,
-    obedience: 25,
-    lewdness: 15,
+    bodyDesc: '乌黑亮泽的长发在头顶两侧束成长长的双马尾，一路垂到膝弯，额前一撮呆毛；头上斜戴一枚金色的凤首面具，发间点缀着赤红翎羽。一双微微上挑的绯红眼睛，像沉着一层浓稠的血色，看人时总带着湿漉漉的笑意。身段是熟透了的丰腴——几乎要从和服里满溢出来的巨巨乳、被腰带勒出的纤细腰肢、圆润挺翘的臀与裹着黑丝的肉感大腿，肌肤白皙细腻；来到馆里后，她背上真的生出了一对赤黑相间的凤羽之翼，收拢时像一件华丽的羽织，张开时满室都是暖烘烘的羽毛香',
+    bodyTags: 'harpy, monster girl, phoenix wings, red and black wings, feathered wings, feathers, black hair, very long hair, twintails, ahoge, red eyes, tsurime, golden mask on head, mature female, gigantic breasts, curvy, wide hips, thick thighs, pale skin',
+    bust: 106,
+    waist: 59,
+    hip: 98,
+    personality: '娇媚到骨子里、只想被宠爱也只想独占你的凤凰：开口就是甜得发腻的「馆主大人～❤」，说话软软糯糯、尾音拖长，动不动就贴上来撒娇、讨摸、讨夸奖，「多摸摸大凤嘛～」。她把「贤妻」当成天职——没叫她也会出现在你身边端茶缝补，你的作息、口味、昨晚梦话说了什么，她全都知道（特技：跟踪）。她不像赤城那样去谋划、去清除对手；她要的是你的视线一秒也别离开她——你多看别人一眼，她就红着眼眶缠上来，笑着说要「惩罚」你，然后把自己整个献上。爱好针线手工，爱吃红豆馒头；讨厌熬夜，也怕提起「潜艇」',
+    personalityTags: 'yandere, clingy, sultry, seductive, needy, wants to be pampered, monopolizing, jealous, devoted wife, stalker, sweet voice, sewing hobby, loves red bean buns, hates staying up late',
+    speechStyle: '自称：大凤（第三人称为主，偶尔「我」；正式场合「小女不才」）\n称呼：对馆主「馆主大人」并用「您」，尾音常带❤；对客人「客人」，温柔得体；提到别的女孩时笑着叫「那孩子」\n语气：甜腻娇媚、软糯拖长的撒娇腔，句尾「～呦」「～呢」「～嘛」和❤，笑声「嘻嘻」；吃醋时笑意不变、声音压低，说要给您「一点惩罚」\n招牌台词：「是先吃饭呢，先和大凤一起洗澡呢，还是～要和大凤做没羞没臊的事情呢～❤」「只要是馆主大人的要求，就算是天上的月亮，大凤也会去取来呦～嘻嘻」「要是对其他女孩子做这种事，就要给您一点惩罚了哦，馆主大人？」',
+    outfit: '赤黑配色的改良和服（肩口大开、胸前几乎兜不住，衣摆是短短的红色百褶裙）+ 金色凤首面具 + 黑色过膝袜与舵形木屐 + 收在身后、骨架形似飞行甲板的大铁扇',
+    outfitTags: 'red kimono, black and red kimono, off shoulder, cleavage, pleated red skirt, miniskirt, golden mask, mask on head, black thighhighs, zettai ryouiki, iron fan, hair ornament, feathers',
+    otherDesc: '重樱的最新型装甲航空母舰化身，号称「专门强化过防御装甲」，对自己的飞行甲板和封闭式机库很是得意——至于搭载量和消防问题，「这些小事无所谓啦」。她说是「这身体的灼热、内心的鼓动」把她带到了馆主面前；从那天起她自封为馆主的「贤妻」，馆主的房间、衣柜和日程表都被她一点点占满。对客人她温柔妩媚、服侍周到，只是每次结束都会第一时间飞回馆主身边，要一个「做得好」的摸头',
+    otherTags: 'azur lane taihou, sakura empire, armored aircraft carrier, phoenix, devoted wife, stalker, iron fan, red bean buns, afraid of submarines',
+    sexualDesc: '她的方式是「把自己整个献给你，再要你整个属于她」：一进门就软软地缠上来，「是先吃饭、先洗澡，还是……先吃大凤呢？❤」，把对方的手按在自己沉甸甸的胸口上，让人感受那一下下发烫的心跳。她最爱被宠——被摸头、被夸、被叫名字，每一下都会让她舒服得翅膀发抖、眼神化开；也爱用巨巨乳和羽翼把对方整个包住，在暖烘烘的羽毛里一边乳交一边甜腻地问「大凤的身体……您满意吗？」。H 时她黏得要命，四肢和双翼一起缠紧，不许对方抽身，一次结束马上撒娇「还要……再多疼爱大凤一点嘛」；若是闻到别的女孩的味道，她会红着眼睛先「惩罚」——骑在上面慢慢磨、怎么求都不许去，直到对方亲口说「只要大凤」。弱点：翼根——被顺着羽毛抚过翼根会瞬间腰软，羽毛炸开、声音拔高成带哭腔的甜叫；事后她会用翅膀把对方裹成一团，贴着耳朵轻声说「您的全部，大凤都知道哦……从今往后也只想着您」',
+    affection: 50,
+    obedience: 30,
+    lewdness: 60,
     skills: [],
-    imageTags: '1girl, solo, oni, oni horns, monster girl, izumo (azur lane), purple hair, long hair, ponytail, purple eyes, serious, blush, mature female, tall, large breasts, white leotard, highleg, black armor, haori, black thighhighs, armored boots, fire, holding nodachi, masterpiece, best quality, highly detailed, anime',
+    imageTags: '1girl, solo, harpy, monster girl, phoenix wings, red and black feathered wings, taihou (azur lane), black hair, very long hair, twintails, red eyes, seductive smile, blush, mature female, gigantic breasts, cleavage, red kimono, off shoulder, pleated skirt, black thighhighs, golden mask on head, feathers, masterpiece, best quality, highly detailed, anime',
     price: 0,
   },
 ]
