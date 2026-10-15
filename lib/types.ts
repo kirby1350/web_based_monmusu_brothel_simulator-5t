@@ -167,6 +167,11 @@ export interface Player {
   storeTheme?: string | null
   /** 上次改主题的天数（冷却） */
   storeThemeDay?: number
+  /** 店名（开店设定） */
+  storeName?: string
+  /** 开局类型 / 难度 id（见 archetypes.ts） */
+  archetype?: string
+  difficulty?: string
   traits: string[]
   customTraits: string
   fetishes: string[]

@@ -111,7 +111,7 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
       {/* 顶栏：天数 / 金币 / 剩余行动 */}
       <header className="border-b border-border px-4 py-2.5 flex items-center justify-between shrink-0">
         <span className="flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="day">
-          <Calendar className="w-3.5 h-3.5" />第 {save.currentDay} 天
+          <Calendar className="w-3.5 h-3.5" />{player.storeName ? <span className="text-foreground/80 max-w-[7em] truncate" data-testid="store-name-hub">{player.storeName}</span> : null}第 {save.currentDay} 天
         </span>
         <span className="flex items-center gap-1.5" data-testid="gold">
           <Coins className="w-3.5 h-3.5 text-amber-400" />

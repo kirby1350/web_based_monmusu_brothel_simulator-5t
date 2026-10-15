@@ -7,6 +7,7 @@ import { OUTFIT_PREFS } from './catalog'
 import { getMainService, traitMatched } from './resolve-service'
 import { proficiencyFromLegacy } from './proficiency'
 import { getTheme } from './store-theme'
+import { getDifficulty } from './archetypes'
 
 type Main = '口侍' | '胸侍' | '身侍'
 export interface GuestBias {
@@ -84,6 +85,8 @@ export interface PoolOpts {
   girls: MonstGirl[]
   bias?: GuestBias
   theme?: string | null
+  /** 难度：新客人额外挑剔度 */
+  demand?: number
 }
 /** 新客人成形：主题加权 → 定向偏向 → 主题排除（主题店不会出现与主题冲突的客人，定向也绕不过） */
 export function shapeGuest(g: Guest, opts: PoolOpts, rng: () => number): Guest {
@@ -93,6 +96,7 @@ export function shapeGuest(g: Guest, opts: PoolOpts, rng: () => number): Guest {
   if (th) out = th.boost(out, rng)
   if (opts.bias && !biasEmpty(opts.bias)) out = biasGuest(out, opts.bias, rng)
   if (th) out = { ...th.exclude(out, rng), themeTag: th.id }
+  if (opts.demand) out = { ...out, demand: (out.demand ?? 0) + opts.demand }
   return out
 }
 export function rollDailyGuests(count: number, reputation: number, regulars: Guest[], opts: PoolOpts, rng: () => number = Math.random): Guest[] {
@@ -123,7 +127,7 @@ export function refreshGuests(save: GameSave, bias: GuestBias | null, rng: () =>
   const keep = (save.dailyGuests ?? []).filter((g) => (g.visits ?? 0) > 0)
   const n = (save.dailyGuests ?? []).length - keep.length
   if (n <= 0) return { error: '没有可以换的新客人' }
-  const opts: PoolOpts = { day: save.currentDay, girls: save.girls, bias: bias ?? undefined, theme: save.player.storeTheme ?? null }
+  const opts: PoolOpts = { day: save.currentDay, girls: save.girls, bias: bias ?? undefined, theme: save.player.storeTheme ?? null, demand: getDifficulty(save.player.difficulty).demand }
   const fresh = Array.from({ length: n }, () => shapeGuest(createRandomGuest(save.player.reputation ?? 0), opts, rng))
   const dailyGuests = ensureEarlyMatches([...keep, ...fresh], save.girls, save.currentDay, rng)
   return {
@@ -139,5 +143,5 @@ export function refreshGuests(save: GameSave, bias: GuestBias | null, rng: () =>
 }
 /** 开局 / 结束今天用的新一天客人池 */
 export function nextDayGuests(save: GameSave, day: number, girls: MonstGirl[] = save.girls, rng: () => number = Math.random): Guest[] {
-  return rollDailyGuests(getGuestCapacity(save.player.level), save.player.reputation ?? 0, save.regulars ?? [], { day, girls, theme: save.player.storeTheme ?? null }, rng)
+  return rollDailyGuests(getGuestCapacity(save.player.level), save.player.reputation ?? 0, save.regulars ?? [], { day, girls, theme: save.player.storeTheme ?? null, demand: getDifficulty(save.player.difficulty).demand }, rng)
 }

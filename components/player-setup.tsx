@@ -8,13 +8,17 @@ import { Badge } from '@/components/ui/badge'
 import { Player } from '@/lib/types'
 import { PLAYER_TRAITS, PLAYER_FETISHES } from '@/lib/game-data'
 import { cn } from '@/lib/utils'
+import { ARCHETYPES, DIFFICULTIES, getArchetype, getDifficulty } from '@/lib/archetypes'
 
 interface PlayerSetupProps {
-  onComplete: (player: Player) => void
+  onComplete: (player: Player, archetypeId: string, difficultyId: string) => void
 }
 
 export function PlayerSetup({ onComplete }: PlayerSetupProps) {
   const [name, setName] = useState('')
+  const [storeName, setStoreName] = useState('')
+  const [archetype, setArchetype] = useState('balanced')
+  const [difficulty, setDifficulty] = useState('normal')
   const [traits, setTraits] = useState<string[]>([])
   const [customTraits, setCustomTraits] = useState('')
   const [fetishes, setFetishes] = useState<string[]>([])
@@ -31,6 +35,7 @@ export function PlayerSetup({ onComplete }: PlayerSetupProps) {
     if (!canContinue) return
     onComplete({
       name: name.trim(),
+      storeName: storeName.trim() || '魔物娘娼馆',
       traits,
       customTraits: customTraits.trim(),
       fetishes,
@@ -38,14 +43,22 @@ export function PlayerSetup({ onComplete }: PlayerSetupProps) {
       day: 1,
       guestPreference: '',
       marketPreference: '',
-    })
+    }, archetype, difficulty)
   }
+  const a = getArchetype(archetype), d = getDifficulty(difficulty)
 
   return (
     <div className="space-y-6">
+      {/* 店名 */}
+      <div className="space-y-2">
+        <Label htmlFor="store-name" className="text-sm text-foreground/80">店名</Label>
+        <Input id="store-name" data-testid="store-name" value={storeName} onChange={(e) => setStoreName(e.target.value)}
+          placeholder="魔物娘娼馆" className="bg-input border-border text-base h-11" maxLength={16} />
+      </div>
+
       {/* 馆主名称 */}
       <div className="space-y-2">
-        <Label htmlFor="player-name" className="text-sm text-foreground/80">馆主名称</Label>
+        <Label htmlFor="player-name" className="text-sm text-foreground/80">老板名</Label>
         <Input
           id="player-name"
           value={name}
@@ -54,6 +67,34 @@ export function PlayerSetup({ onComplete }: PlayerSetupProps) {
           className="bg-input border-border text-base h-11"
           maxLength={20}
         />
+      </div>
+
+      {/* 开局类型 */}
+      <div className="space-y-2" data-testid="archetype-block">
+        <Label className="text-sm text-foreground/80">开局类型</Label>
+        <div className="grid grid-cols-2 gap-2">
+          {ARCHETYPES.map((x) => (
+            <button key={x.id} data-testid={`archetype-${x.id}`} onClick={() => setArchetype(x.id)}
+              className={cn('text-left rounded-lg border px-2.5 py-2 space-y-0.5 transition-colors', archetype === x.id ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/40')}>
+              <p className={cn('text-xs font-semibold', archetype === x.id ? 'text-primary' : 'text-foreground/90')}>{x.label}</p>
+              <p className="text-[10px] gold-text">{Math.round(x.gold * d.goldMult)}G{x.theme ? ` · 主题 ${x.theme}` : ''}</p>
+              <p className="text-[10px] text-muted-foreground leading-snug">{x.girls.length ? `姑娘：${x.girls.join('、')}` : '姑娘：自己创建 + 三选一'}</p>
+            </button>
+          ))}
+        </div>
+        <p className="text-[11px] text-muted-foreground leading-relaxed" data-testid="archetype-desc">{a.desc}</p>
+      </div>
+
+      {/* 难度 */}
+      <div className="space-y-2" data-testid="difficulty-block">
+        <Label className="text-sm text-foreground/80">难度</Label>
+        <div className="flex gap-2">
+          {DIFFICULTIES.map((x) => (
+            <button key={x.id} data-testid={`difficulty-${x.id}`} onClick={() => setDifficulty(x.id)}
+              className={cn('flex-1 rounded-lg border px-2 py-1.5 text-xs transition-colors', difficulty === x.id ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground')}>{x.label}</button>
+          ))}
+        </div>
+        <p className="text-[11px] text-muted-foreground">{d.desc}</p>
       </div>
 
       {/* 特性 */}
@@ -140,7 +181,7 @@ export function PlayerSetup({ onComplete }: PlayerSetupProps) {
       )}
 
       <Button className="w-full h-11 glow-btn" disabled={!canContinue} onClick={handleSubmit}>
-        确认信息，选择魔物娘
+        {a.girls.length ? '确认，看看开局阵容' : '确认，创建第一位魔物娘'}
       </Button>
     </div>
   )

@@ -10,12 +10,16 @@ import { GirlCreator } from '@/components/girl-creator'
 import { Player, MonstGirl } from '@/lib/types'
 import { getSettings, saveGameSave } from '@/lib/storage'
 import { cn } from '@/lib/utils'
+import { applyArchetype, archetypeGirls, getArchetype, getDifficulty } from '@/lib/archetypes'
+import { PortraitImg } from '@/components/portrait-img'
+import { Button } from '@/components/ui/button'
+import { RACE_TRAITS } from '@/lib/catalog'
 
-type SetupStep = 'player' | 'girl' | 'partner'
+type SetupStep = 'player' | 'roster' | 'girl' | 'partner'
 
 const STEPS: { key: SetupStep; label: string }[] = [
-  { key: 'player', label: '馆主信息' },
-  { key: 'girl', label: '初始魔物娘' },
+  { key: 'player', label: '开店' },
+  { key: 'girl', label: '开局姑娘' },
   { key: 'partner', label: '第二位' },
 ]
 
@@ -27,9 +31,17 @@ export default function SetupPage() {
   const [first, setFirst] = useState<MonstGirl | null>(null)
   const [options, setOptions] = useState<PartnerOption[]>([])
 
-  const handlePlayerComplete = (p: Player) => {
-    setPlayer(p)
-    setStep('girl')
+  const [preset, setPreset] = useState<MonstGirl[]>([])
+  const handlePlayerComplete = (p: Player, archetypeId: string, difficultyId: string) => {
+    const a = getArchetype(archetypeId)
+    setPlayer(applyArchetype(p, a, getDifficulty(difficultyId)))
+    if (a.girls.length) { setPreset(archetypeGirls(a, nanoid)); setStep('roster') }
+    else setStep('girl')
+  }
+  const handleRoster = () => {
+    if (!player || preset.length < 2) return
+    saveGameSave(buildStartingSave(player, preset[0], preset[1], nanoid))
+    router.push('/game')
   }
 
   const handleGirlComplete = (girl: MonstGirl) => {
@@ -60,7 +72,7 @@ export default function SetupPage() {
                 <div className="flex items-center gap-1.5">
                   <div className={cn(
                     'w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold border transition-colors',
-                    step === s.key
+                    step === s.key || (step === 'roster' && s.key === 'girl')
                       ? 'bg-primary border-primary text-primary-foreground'
                       : i < STEPS.findIndex(x => x.key === step)
                       ? 'bg-primary/20 border-primary/40 text-primary'
@@ -85,11 +97,37 @@ export default function SetupPage() {
           {step === 'player' && (
             <>
               <div className="mb-6">
-                <h2 className="text-base font-bold text-foreground">馆主信息</h2>
-                <p className="text-xs text-muted-foreground mt-1">设定你的名字和个人特性，这将影响 AI 生成的故事内容</p>
+                <h2 className="text-base font-bold text-foreground">开店</h2>
+                <p className="text-xs text-muted-foreground mt-1">店名、老板名、开局类型与难度；特性和癖好会影响 AI 写的故事</p>
               </div>
               <PlayerSetup onComplete={handlePlayerComplete} />
             </>
+          )}
+          {step === 'roster' && player && (
+            <div className="space-y-3" data-testid="roster-step">
+              <div>
+                <h2 className="text-base font-bold text-foreground">{player.storeName}的开局阵容</h2>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {getArchetype(player.archetype).label} · {getDifficulty(player.difficulty).label} · {player.gold}G
+                  {player.storeTheme ? ` · 主题 ${player.storeTheme}（开业当天就能改）` : ''}
+                </p>
+              </div>
+              {preset.map((g) => (
+                <div key={g.id} className="rounded-xl border border-border bg-card p-2.5 flex gap-3" data-testid={`roster-${g.name}`}>
+                  <div className="w-[72px] h-24 shrink-0 rounded-lg overflow-hidden border border-border bg-muted/30">
+                    {g.imageUrl && <PortraitImg url={g.imageUrl} size="sm" sizes="72px" alt={g.name} className="w-full h-full object-cover object-top" />}
+                  </div>
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <p className="text-sm font-semibold gold-text">{g.name} <span className="text-[10px] text-muted-foreground">{g.race}{RACE_TRAITS[g.race] ? ` · ${RACE_TRAITS[g.race]}` : ''}</span></p>
+                    <p className="text-[10px] text-muted-foreground line-clamp-3">{g.personality}</p>
+                  </div>
+                </div>
+              ))}
+              <div className="flex gap-2">
+                <Button variant="outline" className="h-10 text-xs" onClick={() => setStep('player')}>上一步</Button>
+                <Button className="flex-1 h-10 glow-btn" onClick={handleRoster} data-testid="roster-start">开业</Button>
+              </div>
+            </div>
           )}
           {step === 'girl' && (
             <>
