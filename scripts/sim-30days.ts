@@ -36,7 +36,8 @@ const newGirl = (): MonstGirl => withInitialProficiency({ ...(GIRL_TEMPLATES[tpl
 
 let save: GameSave = migrateSave({
   player: { name: '馆主', traits: [], customTraits: '', fetishes: [], gold: 500, day: 1, guestPreference: '', marketPreference: '', level: 1, reputation: 0 },
-  girls: [newGirl()], currentDay: 1, phase: 'morning', actionsUsedToday: 0,
+  // 开局 2 人（UX 1）：SIM_START=1 可退回旧的 1 人开局
+  girls: Array.from({ length: Number(process.env.SIM_START ?? 2) }, () => newGirl()), currentDay: 1, phase: 'morning', actionsUsedToday: 0,
   dailyGuests: generateDailyGuests(getGuestCapacity(1), 0, []), regulars: [],
 })
 

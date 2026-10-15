@@ -1,20 +1,22 @@
 'use client'
 
 import { useState } from 'react'
-import { withInitialProficiency } from '@/lib/proficiency'
+import { nanoid } from 'nanoid'
+import { partnerOptions, buildStartingSave, type PartnerOption } from '@/lib/starting-roster'
+import { PartnerPick } from '@/components/partner-pick'
 import { useRouter } from 'next/navigation'
 import { PlayerSetup } from '@/components/player-setup'
 import { GirlCreator } from '@/components/girl-creator'
 import { Player, MonstGirl } from '@/lib/types'
 import { getSettings, saveGameSave } from '@/lib/storage'
-import { generateDailyGuests, getGuestCapacity } from '@/lib/game-engine'
 import { cn } from '@/lib/utils'
 
-type SetupStep = 'player' | 'girl'
+type SetupStep = 'player' | 'girl' | 'partner'
 
 const STEPS: { key: SetupStep; label: string }[] = [
   { key: 'player', label: '馆主信息' },
   { key: 'girl', label: '初始魔物娘' },
+  { key: 'partner', label: '第二位' },
 ]
 
 export default function SetupPage() {
@@ -22,6 +24,8 @@ export default function SetupPage() {
   const settings = getSettings()
   const [step, setStep] = useState<SetupStep>('player')
   const [player, setPlayer] = useState<Player | null>(null)
+  const [first, setFirst] = useState<MonstGirl | null>(null)
+  const [options, setOptions] = useState<PartnerOption[]>([])
 
   const handlePlayerComplete = (p: Player) => {
     setPlayer(p)
@@ -29,17 +33,14 @@ export default function SetupPage() {
   }
 
   const handleGirlComplete = (girl: MonstGirl) => {
-    if (!player) return
-    const startPlayer: Player = { ...player, level: 1, reputation: 0 }
-    saveGameSave({
-      player: startPlayer,
-      girls: [withInitialProficiency(girl)],
-      currentDay: 1,
-      phase: 'morning',
-      actionsUsedToday: 0,
-      dailyGuests: generateDailyGuests(getGuestCapacity(1), 0, []),
-      regulars: [],
-    })
+    setFirst(girl)
+    setOptions(partnerOptions(girl.name))
+    setStep('partner')
+  }
+
+  const handlePartner = (partner: MonstGirl) => {
+    if (!player || !first) return
+    saveGameSave(buildStartingSave(player, first, partner, nanoid))
     router.push('/game')
   }
 
@@ -97,6 +98,15 @@ export default function SetupPage() {
                 <p className="text-xs text-muted-foreground mt-1">选择你的第一位魔物娘并自定义她的设定</p>
               </div>
               <GirlCreator settings={settings} onComplete={handleGirlComplete} />
+            </>
+          )}
+          {step === 'partner' && first && (
+            <>
+              <div className="mb-4">
+                <h2 className="text-base font-bold text-foreground">第二位魔物娘</h2>
+                <p className="text-xs text-muted-foreground mt-1">三选一，开局金币仍是 500 G</p>
+              </div>
+              <PartnerPick first={first} options={options} onDone={handlePartner} />
             </>
           )}
         </main>
