@@ -44,3 +44,49 @@ test('1. 内置流程细节只在这一步没改过时给；play 的步骤归属
   assert.equal(playStepOf('x', undefined, { x: 2 }), 2)
   assert.equal(playStepOf('x', undefined, undefined), 3)
 })
+
+import { buildServiceSystemPrompt } from './prompt-builder'
+import { createServiceSession } from './game-engine'
+import { fxPlayer, fxGuest } from './prompt-fixtures'
+import { buildStepContext, STEP_INTENSITY } from './live-steps'
+import { heatPromptBlock, climaxGateLine, initHeat } from './arousal'
+import { climaxSlipNote } from './prompt-context'
+
+const svc = (o: Parameters<typeof buildServiceSystemPrompt>[4] = {}, girls = [makeGirl()], guest = fxGuest()) =>
+  buildServiceSystemPrompt(fxPlayer, createServiceSession('service', girls, { guest }), 'standard', undefined, o)
+
+test('2. 反应锚点与客人规则不再用快感数字触发高潮；写作规则 2 不再每回合要求喷射/灌满', () => {
+  const p = svc({ heatLocal: true })
+  assert.doesNotMatch(p, /快感≥\d+|快感\d+\+|快感<\d+|80\+ ?→|肉棒快感80/)
+  assert.match(p, /只属于「高潮」档/)
+  assert.match(p, /客人到临界档/)
+  assert.doesNotMatch(p, /精液灌满视觉冲击|淫液四溅喷射/)
+  assert.match(p, /强度上限/)
+})
+
+test('2. 高潮闸门：只有被标为高潮的人能写高潮，其余最多濒临', () => {
+  const g = makeGirl()
+  const h0 = initHeat(fxGuest(), [g])
+  assert.match(climaxGateLine(h0, '王老板', [g]), /没有人到达高潮/)
+  const h1 = { ...h0, justClimaxed: ['guest'] }
+  assert.match(climaxGateLine(h1, '王老板', [g]), /只有王老板可以写高潮（客人射精）/)
+  assert.match(heatPromptBlock(h1, '王老板', [g]), /高潮闸门：本回合只有王老板/)
+})
+
+test('2. 每一步的强度上限进提示词：迎客/挑逗/前戏不插入，清洗不再开激烈玩法', () => {
+  assert.equal(STEP_INTENSITY.length, 5)
+  const c0 = buildStepContext({ stepLabel: '迎客', standardAction: 'x', outfitName: '常服', plays: [], stepIndex: 0 })
+  assert.match(c0, /强度上限.*不插入/)
+  const c2 = buildStepContext({ stepLabel: '前戏', standardAction: 'x', outfitName: '常服', plays: [], stepIndex: 2 })
+  assert.match(c2, /不插入小穴或后庭/)
+  assert.match(buildStepContext({ stepLabel: '清洗', standardAction: 'x', outfitName: '常服', plays: [], stepIndex: 4 }), /不再开新的激烈玩法/)
+  assert.doesNotMatch(buildStepContext({ stepLabel: '迎客', standardAction: 'x', outfitName: '常服', plays: [] }), /强度上限/)
+})
+
+test('2. 本地回看：未到高潮档却写了射精/潮吹 → 下一回合校正；到档或只是濒临不校正', () => {
+  assert.match(climaxSlipNote('他低吼一声，滚烫地射进她的深处。', []), /校正.*射精/)
+  assert.match(climaxSlipNote('她浑身痉挛，潮吹了一地。', ['guest']), /她的高潮/)
+  assert.equal(climaxSlipNote('他低吼一声，射进她的深处。', ['guest']), '')
+  assert.equal(climaxSlipNote('「要去了……还不行……」她咬着唇忍住，他也在射精的边缘死死忍着。', []), '')
+  assert.equal(climaxSlipNote('正文<!--STATS:{"内射":1}-->', []), '')
+})

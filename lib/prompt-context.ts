@@ -220,3 +220,15 @@ export function transitionFallback(t: TransitionInput): string {
   const who = t.girls.join('和')
   return `——${who}${t.from === '迎客' ? '把' + t.guest + '引到床边' : '没有停下'}，顺势${t.action.replace(/[。！!]$/, '')}。「${t.to}」开始了。`
 }
+
+// ─── 本地回看上一条回复：越过高潮闸门时，下一回合附一句校正（不自动重写、不自动续写） ───
+const GUEST_CLIMAX_RE = /(射精了|射了出来|射了进去|射进|射在|射满|射出[了来]|内射|灌满|精液(?:喷|涌|灌|溢|射))/
+const GIRL_CLIMAX_RE = /(潮吹|高潮了|达到了?高潮|绝顶|(?<![要快就])去了[❤♡！!～~]|一起去了|痉挛着高潮)/
+/** 上一条回复写了不该写的高潮：返回下一回合要附的校正句；没越界返回空串 */
+export function climaxSlipNote(reply: string, justClimaxed: string[], hasGuest = true): string {
+  const text = reply.replace(/<!--[\s\S]*?-->/g, '')
+  const guestSlip = hasGuest && !justClimaxed.includes('guest') && GUEST_CLIMAX_RE.test(text)
+  const girlSlip = !justClimaxed.some((id) => id !== 'guest') && GIRL_CLIMAX_RE.test(text)
+  if (!guestSlip && !girlSlip) return ''
+  return `\n（校正：上一段在没有到「高潮」档时写了${guestSlip ? '射精' : ''}${guestSlip && girlSlip ? '与' : ''}${girlSlip ? '她的高潮' : ''}。这一段请顺势圆回来——是差一点、被忍住或被拉回，不要再写；严格按【此刻的兴奋与快感】里的高潮闸门。）`
+}

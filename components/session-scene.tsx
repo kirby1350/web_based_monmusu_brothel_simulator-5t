@@ -18,7 +18,7 @@ import {
 } from '@/lib/game-engine'
 import { parseLooseJson, cn } from '@/lib/utils'
 import { OUTFITS, STOCKINGS, STEP_MAX, getSensitivityLevel, playIconPath, ALL_PLAYS } from '@/lib/catalog'
-import { buildStepRecap, provokeSection, lengthReminder, transitionTurn, transitionFallback } from '@/lib/prompt-context'
+import { buildStepRecap, provokeSection, lengthReminder, transitionTurn, transitionFallback, climaxSlipNote } from '@/lib/prompt-context'
 import { ItemIcon } from '@/components/item-icon'
 import { SERVICE_STEPS } from '@/lib/resolve-service'
 import {
@@ -55,6 +55,10 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
   const cast = [girl, ...(plan.partners ?? [])]
   const [live, setLive] = useState<LiveState>(() => initLiveState(plan))
   const [panel, setPanel] = useState<'none' | 'outfit' | 'play'>('none')
+  // 下一回合附在玩家消息后的本地校正（高潮越界 / 篇幅过短）
+  const [nextNote, setNextNote] = useState('')
+  const liveRef = useRef(live)
+  useEffect(() => { liveRef.current = live }, [live])
   // 现场插入的 play 记在插入时的那一步（写作素材只在那一步给）
   const [insertedAt, setInsertedAt] = useState<Record<string, number>>({})
   const [phase, setPhase] = useState<'opening' | 'active'>('opening')
@@ -110,6 +114,8 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
   // ─── 回复解析：STATS 只驱动会话内快感/推荐行动，最终满意度以结算函数为准 ───
   const handleRawReply = useCallback((raw: string) => {
     const wasTransition = transitionRef.current
+    // 本地回看：越过高潮闸门就在下一回合附一句校正
+    setNextNote(climaxSlipNote(raw, liveRef.current.heat?.justClimaxed ?? []))
     transitionRef.current = false
     const actions = parseActionsFromReply(raw)
     if (actions) setSuggestions(actions)
@@ -162,6 +168,7 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
   const outfitName = `${OUTFITS.find((o) => o.id === live.outfit)?.name ?? '常服'}${live.stockings !== 'none' ? ' + ' + STOCKINGS.find((x) => x.id === live.stockings)?.name : ''}`
   const stepContext = buildStepContext({
     stepLabel: stepDef.label,
+    stepIndex: live.stepIndex,
     standardAction: promptActions[live.stepIndex],
     outfitName,
     zoneLabel: currentStep.zone,
@@ -317,7 +324,7 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
       {/* 对话区 */}
       <div className="flex-1 flex flex-col min-h-0">
         <ChatEngine ref={chatRef} systemPrompt={systemPrompt} recap={recap} messages={messages} onMessagesChange={setMessages} onRememberUser={onRemember}
-          settings={settings} turnSuffix={lengthReminder('service')} onRawStreamComplete={handleRawReply} showInput={false} className="flex-1 min-h-0" />
+          settings={settings} turnSuffix={lengthReminder('service') + nextNote} onRawStreamComplete={handleRawReply} showInput={false} className="flex-1 min-h-0" />
         <SuggestionBar suggestions={shownSuggestions} onSelect={(t) => setInputValue(t)} />
         <div className="border-t border-border px-3 pb-3 pt-2 flex gap-2 items-end">
           <textarea value={inputValue} onChange={(e) => setInputValue(e.target.value)} data-testid="scene-input"

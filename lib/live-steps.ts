@@ -209,13 +209,25 @@ export function topicHit(text: string, c: TopicContext): boolean {
 }
 
 /** 写进提示词的当前步骤说明：步骤、服装、敏感档、已插入 play；要求只写这一步 */
+/** 每一步的强度上限（按五步的实际结构）：前三步不插入，清洗不再开新的激烈玩法 */
+export const STEP_INTENSITY: string[] = [
+  '迎客：只到寒暄、挽手、贴近、轻吻手背或脸颊，可以有视线与暗示；不脱衣、不碰性器、不插入',
+  '挑逗：耳语、接吻、隔着衣物的抚摸与磨蹭、衣物半褪；不直接碰性器，不插入',
+  '前戏：手、唇舌、胸、腿的直接爱抚与侍奉都可以（手、口、乳的侍奉在这一步）；不插入小穴或后庭',
+  '正戏：按客人的主需求与插入的 play 尽情展开，插入、体位、节奏不设上限；高潮仍只按档位',
+  '清洗：不再开新的激烈玩法；清理、拥抱、轻吻与余韵为主，节奏放慢',
+]
+
 export function buildStepContext(opts: {
   stepLabel: string; standardAction: string; outfitName: string; zoneLabel?: string; zoneLevel?: string; plays: string[]
+  /** 给出时附上这一步的强度上限 */
+  stepIndex?: number
 }): string {
   return [
     '【本场标准流程】迎客 → 挑逗 → 前戏 → 正戏 → 清洗',
     `【当前步骤】${opts.stepLabel}。这一段只写「${opts.stepLabel}」这一步，不要提前写到后面的步骤；但要把这一步写足写细（放慢节奏，写动作、对白、反应的来回），篇幅照常。`,
     `【这一步的标准做法】${opts.standardAction}`,
+    opts.stepIndex !== undefined && STEP_INTENSITY[opts.stepIndex] ? `【这一步的强度上限（必须遵守，挂在这一步的 play 也按这个上限的方式来做）】${STEP_INTENSITY[opts.stepIndex]}` : '',
     `【当前服装】${opts.outfitName}`,
     opts.zoneLabel ? `【这一步碰到的敏感带】${opts.zoneLabel}：${opts.zoneLevel}` : '',
     opts.plays.length ? `【已插入的追加 play】${opts.plays.join('、')}` : '',

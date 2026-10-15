@@ -147,6 +147,14 @@ const GUEST_BAND: Record<SpeechBand, string> = {
   高潮: '本回合要写出他射精的过程（具体细节），之后是短暂的脱力',
 }
 
+/** 谁这回合可以写高潮：只有被标为「高潮」的人；没人时全员最多写到濒临 */
+export function climaxGateLine(state: HeatState, guestName: string, girls: Pick<MonstGirl, 'id' | 'name'>[]): string {
+  const who = [state.justClimaxed.includes('guest') ? guestName : '', ...girls.filter((g) => state.justClimaxed.includes(g.id)).map((g) => g.name)].filter(Boolean)
+  return who.length
+    ? `本回合只有${who.join('、')}可以写高潮${state.justClimaxed.includes('guest') ? '（客人射精）' : ''}；其余人最多写到「濒临」——忍住、被拉回、差一点`
+    : '本回合没有人到达高潮：任何人都不许写射精、内射、潮吹、绝顶；最多写到「濒临」——忍住、被拉回、差一点'
+}
+
 export function heatPromptBlock(state: HeatState, guestName: string, girls: Pick<MonstGirl, 'id' | 'name'>[]): string {
   const line = (name: string, h: Heat, band: SpeechBand, desc: string) =>
     `- ${name}：兴奋 ${Math.round(h.arousal)}/100，快感 ${Math.round(h.pleasure)}/100${h.climaxes ? `，已高潮 ${h.climaxes} 次` : ''}｜${band}：${desc}`
@@ -157,7 +165,7 @@ export function heatPromptBlock(state: HeatState, guestName: string, girls: Pick
     const b = speechBand(h, state.justClimaxed.includes(g.id))
     return line(g.name, h, b, GIRL_BAND[b])
   })].filter(Boolean)
-  return `【此刻的兴奋与快感（本地计算，叙述与台词必须对得上）】\n${rows.join('\n')}\n说话方式随档位变化，但每个人的性格、自称与口癖保持不变——只改变说话的完整度和节奏。${state.together ? '\n（本场已经一起高潮过一次，可以在余韵里呼应。）' : ''}`
+  return `【此刻的兴奋与快感（本地计算，叙述与台词必须对得上）】\n${rows.join('\n')}\n说话方式随档位变化，但每个人的性格、自称与口癖保持不变——只改变说话的完整度和节奏。\n高潮闸门：${climaxGateLine(state, guestName, girls)}${state.together ? '\n（本场已经一起高潮过一次，可以在余韵里呼应。）' : ''}`
 }
 
 /** 喂给亲自上场满意度的部分：客人高潮过 +3，和她一起高潮过再 +2（合计封顶 5） */
