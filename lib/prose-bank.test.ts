@@ -40,6 +40,8 @@ test('重油：完整要求放在系统提示词最末尾，带密度要求与�
   assert.ok(dense.lastIndexOf('【★重油文风') > dense.indexOf('【这一步】ctx'))
   assert.ok(tail.includes('【本回合词库') && tail.includes(`${DENSE_MIN_WORDS} 个不同的词`) && tail.includes('3–4 个修饰'))
   assert.ok(!tail.includes('蜜穴'))
+  assert.ok(tail.includes('本回合没有人到高潮') && tail.includes('「挑逗」这一步') && tail.includes('最多 800 字'))
+  assert.ok(denseStyleBlock({ stepIndex: 3, climaxAllowed: true, seed: 1 }).includes('本回合有人到了高潮档'))
   assert.ok(!buildServiceSystemPrompt(fxPlayer, s, 'standard').includes('【★重油文风'))
   // 与去油禁令第 3 条不冲突
   assert.ok(dense.includes('词库词是描写素材'))
