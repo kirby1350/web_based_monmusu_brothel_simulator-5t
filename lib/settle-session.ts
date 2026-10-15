@@ -1,4 +1,5 @@
 import { logService, currentDayLog } from './day-summary'
+import { applyPartners } from './multi-service'
 import { serviceFailIncident } from './incidents'
 // 接客结算写档（纯函数）：把 resolveService 的结果落进存档
 import type { GameSave, Guest } from './types'
@@ -8,12 +9,13 @@ import { applyReputationDelta, calcServiceReward, MAX_ACTIONS_PER_DAY } from './
 import { LIVE_SERVICE_STAMINA_LONG, LIVE_SERVICE_STAMINA_SHORT, MAX_STAMINA } from './catalog'
 import { sceneRiskIncident } from './scenes'
 import { recordService, recordTraining } from './girl-memory'
-import { growProficiency, SERVICE_PROF_CAP, type ProfChange } from './proficiency'
+import { growProficiency, SERVICE_PROF_CAP, type ProfChange, type Proficiency } from './proficiency'
+import { PARTNER_PROF_MULT } from './multi-service'
 
 /** 预览：收入区间（亲自上场最差到最好的大致范围）与体力 */
-export function previewService(input: Omit<ServiceInput, 'skip'>) {
-  const skip = resolveService({ ...input, skip: true })
-  const live = resolveService({ ...input, skip: false })
+export function previewService(input: Omit<ServiceInput, 'skip'> & { partners?: import('./types').MonstGirl[] }) {
+  const skip = applyPartners(resolveService({ ...input, skip: true }), input)
+  const live = applyPartners(resolveService({ ...input, skip: false }), input)
   const rewards = [calcServiceReward({ ...input.guest, satisfaction: 0 }), skip.reward, live.reward]
   return {
     skip,
@@ -57,7 +59,23 @@ export function applyServiceToSave(
   const appeared = save.appearedToday ?? []
   const incident = serviceFailIncident(girl, guest, tier.key, save.currentDay, rng)
   const grown = growProficiency(girl, result.profGains ?? {}, SERVICE_PROF_CAP)
-  const logged = logService(save, { girl: girl.name, guest: guest.name, tier: tier.label, sat: result.satisfaction, pay: result.reward, regular: becameRegular, rep: applyReputationDelta(save.player.reputation, tier.reputationDelta) - (save.player.reputation ?? 0) })
+  const pNames = save.girls.filter((g) => (result.partnerStamina ?? {})[g.id] !== undefined).map((g) => g.name)
+  const logged = logService(save, { girl: [girl.name, ...pNames].join('+'), guest: guest.name, tier: tier.label, sat: result.satisfaction, pay: result.reward, regular: becameRegular, rep: applyReputationDelta(save.player.reputation, tier.reputationDelta) - (save.player.reputation ?? 0) })
+  // 多人服务：协同按各自体力扣、记一笔接客记忆、熟练度拿一半、好感同主位、记出场
+  const partnerIds = Object.keys(result.partnerStamina ?? {})
+  const halfGains = Object.fromEntries(Object.entries(result.profGains ?? {}).map(([k, v]) => [k, Math.round((v as number) * PARTNER_PROF_MULT)])) as Proficiency
+  const partnerAfter = (g: import('./types').MonstGirl) => {
+    const cost = result.partnerStamina![g.id]
+    const st = Math.max(0, (g.stamina ?? MAX_STAMINA) - cost)
+    const pg = growProficiency(g, halfGains, SERVICE_PROF_CAP)
+    return {
+      ...recordService(g, guest, { tier: tier.label, sat: result.satisfaction, reward: result.reward }, save.currentDay),
+      proficiency: pg.girl.proficiency, inclination: pg.girl.inclination,
+      stamina: st, exhausted: st === 0 ? true : g.exhausted,
+      affection: Math.min(100, g.affection + result.affectionDelta),
+    }
+  }
+  const appearedAll = [girlId, ...partnerIds].reduce((acc, id) => acc.includes(id) ? acc : [...acc, id], appeared)
   return {
     info: { profChanges: grown.changes, becameTwoSided: grown.becameTwoSided, incident: incident ?? undefined, reward: result.reward, tierLabel: tier.label, reputationDelta: tier.reputationDelta, becameRegular, staminaBefore: before, staminaAfter: after },
     save: {
@@ -68,7 +86,7 @@ export function applyServiceToSave(
         day: save.currentDay,
         reputation: applyReputationDelta(save.player.reputation, tier.reputationDelta),
       },
-      girls: save.girls.map((g) => g.id !== girlId ? g : {
+      girls: save.girls.map((g) => partnerIds.includes(g.id) ? partnerAfter(g) : g.id !== girlId ? g : {
         ...recordService(g, guest, { tier: tier.label, sat: result.satisfaction, reward: result.reward }, save.currentDay),
         proficiency: grown.girl.proficiency,
         inclination: grown.girl.inclination,
@@ -78,7 +96,7 @@ export function applyServiceToSave(
         ...(incident ? { incident } : {}),
       }),
       actionsUsedToday: Math.min(MAX_ACTIONS_PER_DAY, (save.actionsUsedToday ?? 0) + 1),
-      appearedToday: appeared.includes(girlId) ? appeared : [...appeared, girlId],
+      appearedToday: appearedAll,
       dailyGuests: (save.dailyGuests ?? []).filter((g) => g.id !== guest.id),
       regulars,
     },

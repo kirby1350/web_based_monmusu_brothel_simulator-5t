@@ -1,3 +1,4 @@
+import type { MonstGirl } from './types'
 // 亲自上场的步骤状态（纯函数）：迎客 → 挑逗 → 前戏 → 正戏 → 清洗
 import type { OutfitId, StockingId } from './types'
 import { serviceDetailLine,
@@ -38,7 +39,7 @@ export interface LiveState {
   finished: boolean              // 走完清洗后按下「下一步」
 }
 
-type Plan = Omit<ServiceInput, 'skip' | 'plays'> & { outfit: OutfitId; stockings: StockingId; plays?: string[] }
+type Plan = Omit<ServiceInput, 'skip' | 'plays'> & { outfit: OutfitId; stockings: StockingId; plays?: string[]; partners?: MonstGirl[] }
 
 /** 准备页选好的 play（含流程模板预选）在亲自上场同样算数：记为正戏前插入 */
 export function initLiveState(plan: Plan): LiveState {
@@ -47,7 +48,7 @@ export function initLiveState(plan: Plan): LiveState {
   return {
     stepIndex: 0, turns: [0, 0, 0, 0, 0], kinds: [[], [], [], [], []], model: [0, 0, 0, 0, 0],
     outfit: plan.outfit, stockings: plan.stockings, outfitChanged: false, plays: pre, finished: false,
-    heat: initHeat(plan.guest, [plan.girl], plan.outfit, plan.stockings),
+    heat: initHeat(plan.guest, [plan.girl, ...(plan.partners ?? [])], plan.outfit, plan.stockings),
   }
 }
 

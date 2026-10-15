@@ -67,6 +67,10 @@ export interface ServiceResult {
   raceNotes: string[]
   affectionDelta: number
   summary: string
+  /** 多人服务：默契加成（已算进 satisfaction）、明细、每位协同的体力消耗 */
+  synergy?: number
+  synergyParts?: string[]
+  partnerStamina?: Record<string, number>
 }
 
 // ─── 工具 ─────────────────────────────────────────────────────────────────────
