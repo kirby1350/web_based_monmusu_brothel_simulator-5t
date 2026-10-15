@@ -29,3 +29,8 @@ test('立绘尺寸：每张预设立绘都已登记且变体文件存在（新�
     for (const s of ['sm', 'md'] as const) assert.ok(existsSync(join(process.cwd(), 'public', portraitSrc(u, s))), `${u} ${s}`)
   }
 })
+
+test('全部 12 个预设都有立绘且都有 sm/md 变体', () => {
+  assert.equal(GIRL_TEMPLATE_IMAGES.filter(Boolean).length, GIRL_TEMPLATE_IMAGES.length)
+  for (const u of GIRL_TEMPLATE_IMAGES as string[]) assert.ok(PORTRAIT_VARIANT_SOURCES.includes(u), u)
+})

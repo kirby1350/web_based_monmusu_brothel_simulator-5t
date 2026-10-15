@@ -60,13 +60,13 @@ export const GIRL_TEMPLATE_IMAGES: (string | null)[] = [
   '/presets/lueira.jpg',     // 露埃拉
   '/presets/wenxiang.jpg',   // 文香
   '/presets/zhixi.jpg',      // 志希
-  null,                      // 柴郡（立绘待生成）
-  null,                      // 爱宕（立绘待生成）
-  null,                      // 赤城（立绘待生成）
-  null,                      // 大凤（立绘待生成）
-  null,                      // 金狮（立绘待生成）
-  null,                      // 筑摩（立绘待生成）
-  null,                      // 今泉影狼（立绘待生成）
+  '/presets/cheshire.jpg',   // 柴郡
+  '/presets/atago.jpg',      // 爱宕
+  '/presets/akagi.jpg',      // 赤城
+  '/presets/taihou.jpg',     // 大凤
+  '/presets/goudenleeuw.jpg',// 金狮
+  '/presets/chikuma.jpg',    // 筑摩
+  '/presets/kagerou.jpg',    // 今泉影狼
 ]
 
 // 选角卡片上的一句话简介（index 与 GIRL_TEMPLATES 对应；没有时退回种族简介）
