@@ -159,3 +159,25 @@ test('4. 女王调教室/王座间/摇篮寝殿带支配的声音', () => {
   assert.match(sceneContext({ girl: makeGirl(), scene: 'queen_room' }), /女王的声音/)
   assert.match(sceneContext({ girl: makeGirl(), scene: 'throne' }), /王座上的声音/)
 })
+
+import { divisionBlock, partnerRole, synergyInteractions } from './multi-prompts'
+
+test('5. 多人分工：主位做主类型，协同按最拿手的技能分工（避开主类型），默契来源写成互动', () => {
+  const lead = makeGirl({ id: 'a', name: '甲', race: '牛娘', affection: 70 })
+  const oral = makeGirl({ id: 'b', name: '乙', race: '牛娘', affection: 70, proficiency: { 待客: 10, 手技: 0, 口侍: 80, 胸侍: 50, 身侍: 0, M性: 0, S性: 0 } })
+  const none = makeGirl({ id: 'c', name: '丙', race: '猫娘', proficiency: { 待客: 0, 手技: 0, 口侍: 0, 胸侍: 0, 身侍: 0, M性: 0, S性: 0 } })
+  const guest = fxGuest({ desires: '想要乳交', desireService: '胸侍', prefRace: '牛娘' })
+  assert.equal(partnerRole(oral, '胸侍'), '口侍')
+  assert.equal(partnerRole(oral, '口侍'), '胸侍')
+  assert.equal(partnerRole(none, '胸侍'), '无')
+  const it = synergyInteractions(lead, oral, guest).join('\n')
+  assert.match(it, /同族的姐妹配合/)
+  assert.match(it, /默契十足/)
+  assert.match(it, /正合王老板的偏好/)
+  const b = divisionBlock(lead, [oral, none], guest, 3)
+  assert.match(b, /甲（主位）：负责主类型/)
+  assert.match(b, /乙（协同·口侍）/)
+  assert.match(b, /丙（协同·还没有拿手的技能）/)
+  assert.match(divisionBlock(lead, [oral], guest, 2), /仍不插入/)
+  assert.equal(divisionBlock(lead, [], guest, 3), '')
+})

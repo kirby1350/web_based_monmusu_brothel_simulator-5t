@@ -32,7 +32,8 @@ import { applyPartners } from '@/lib/multi-service'
 import { getMainService } from '@/lib/resolve-service'
 import type { ServicePlan } from '@/components/session-setup'
 import { speechLine } from '@/lib/speech-style'
-import { buildCraftBlock, presetFlowRace, playStepOf } from '@/lib/play-prompts'
+import { buildCraftBlock, presetFlowRace, playStepOf, skillCraftLine } from '@/lib/play-prompts'
+import { divisionBlock, partnerRole } from '@/lib/multi-prompts'
 
 export interface SceneOutcome {
   state: LiveState
@@ -177,9 +178,13 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
   })
   const stepPlayIds = preview.plays.map((p) => p.id).filter((id) => playStepOf(id, plan.flow?.playSteps, insertedAt) === live.stepIndex)
   const craft = buildCraftBlock({ stepIndex: live.stepIndex, girl, mainSkill: getMainService(guest), playIds: stepPlayIds, flowRace: presetFlowRace(plan.flow, live.stepIndex) })
+  // 多人：分工 + 正戏时协同那一份的写作素材
+  const partnersList = plan.partners ?? []
+  const division = divisionBlock(girl, partnersList, guest, live.stepIndex)
+  const partnerCraft = live.stepIndex === 3 ? partnersList.map((p) => { const r = partnerRole(p, getMainService(guest)); return r === '无' ? '' : skillCraftLine(p, r) }).filter(Boolean).join('\n') : ''
   const behaviour = cast.map((g) => buildBehaviourLines(g.name, stepBehaviour(g, live.stepIndex, currentStep.zone, currentStep.note, preview.plays.map((p) => p.id)))).filter(Boolean).join('\n')
   const heatBlock = live.heat ? heatPromptBlock(live.heat, guest.name, cast) : ''
-  const ctxAll = [stepContext, craft, behaviour, heatBlock].filter(Boolean).join('\n')
+  const ctxAll = [stepContext, craft, partnerCraft, division, behaviour, heatBlock].filter(Boolean).join('\n')
   // 提示词里的「满意度」用结算同一个数（不再有另算的射精满足度）
   const promptSession = { ...session, messages, guest: session.guest ? { ...session.guest, satisfaction: preview.satisfaction } : session.guest }
   const systemPrompt = buildServiceSystemPrompt(player, promptSession, settings.proseStyle, ctxAll, { outfit: live.outfit, stockings: live.stockings, heatLocal: !!live.heat })
