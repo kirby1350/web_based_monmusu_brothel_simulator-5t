@@ -14,7 +14,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { MAX_ACTIONS_PER_DAY, getGirlCapacity, getGuestCapacity, getUpgradeCost } from '@/lib/game-engine'
-import { endDay, restGirl, upgradeDorm, getDormInfo, pendingSkillPicks, pickArrivalLeader, arrivalFallbackText, arrivalPromptNote, setBestBed, bannerPath, shortfallText, upgradeChangeText, type FacilityKey } from '@/lib/hub-logic'
+import { endDay, restGirl, upgradeDorm, getDormInfo, pendingSkillPicks, pickArrivalLeader, arrivalFallbackText, arrivalPromptNote, setBestBed, setMachineNight, bannerPath, shortfallText, upgradeChangeText, type FacilityKey } from '@/lib/hub-logic'
+import { getScene, sceneUpkeep, ownsScene, MACHINE_NIGHT_OBEDIENCE } from '@/lib/scenes'
 import { SERVICE_ROOM_UPGRADE_COSTS, TRAINING_ROOM_UPGRADE_COSTS, getUpgradeCostFor, getPlaySlots, TRAINING_ROOM_MULT, TRAINING_ROOM_PROP_SLOTS, REST_STAMINA } from '@/lib/catalog'
 import { clearOpeningCache, getOpeningCache, saveOpeningCache } from '@/lib/storage'
 import { contextImageTags, hubOpeningPrompt } from '@/lib/prompt-context'
@@ -22,6 +23,7 @@ import { dismissDaySummary } from '@/lib/day-summary'
 import { TUTORIAL_STEPS, isTutorialVisible, advanceTutorial, dismissTutorial } from '@/lib/tutorial'
 import { cn } from '@/lib/utils'
 import type { GameTab } from '@/app/game/page'
+import { speechLine, speechRuleFor } from '@/lib/speech-style'
 
 interface DailyHubProps {
   save: GameSave
@@ -80,7 +82,7 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
     const fallback = arrivalFallbackText(leader, save.player.name, ng)
     setIntro({ girlId: ng.id, speaker, text: '', loading: true })
     const apiKey = settings.chatModel.startsWith('grok') ? settings.grokApiKey : settings.chatApiKey
-    const prompt = `${arrivalPromptNote(leader, save.player.name, ng)}\n新人：${ng.name}（${ng.race}，性格：${ng.personality}）。用中文写一段80~150字的入馆场景，含两三句对白。只输出正文，不要输出数据块。`
+    const prompt = `${arrivalPromptNote(leader, save.player.name, ng)}\n新人：${ng.name}（${ng.race}，性格：${ng.personality}${speechLine(ng, '；')}）。用中文写一段80~150字的入馆场景，含两三句对白。${speechRuleFor([ng, ...(leader.kind === 'girl' ? [leader.girl] : [])], '')}只输出正文，不要输出数据块。`
     fetch('/api/chat', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], model: settings.chatModel, apiKey, stream: false }),
@@ -126,6 +128,10 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
   }
   const handleBestBed = (id: string) => {
     const r = setBestBed(save, id || null)
+    if (r.ok) { onSaveChange(r.save); flash(r.message) } else flash(r.error)
+  }
+  const handleMachineNight = (id: string) => {
+    const r = setMachineNight(save, id || null)
     if (r.ok) { onSaveChange(r.save); flash(r.message) } else flash(r.error)
   }
   const handleRest = (girlId: string) => {
@@ -181,6 +187,8 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
               {d.regulars.length > 0 && <p>回头客：{d.regulars.map((r) => `${r.guest}${r.rolled ? '✔' : `（${r.sat}，差一点）`}`).join('、')}</p>}
               {d.incidents.length > 0 && <p className="text-rose-300">事件：{d.incidents.map((x) => `${x.status === '已处理' ? '✔已处理 ' : ''}${x.girl}${x.kind}·${x.text}`).join('；')}</p>}
               {!!d.unresolved && <p className="text-rose-300/70">仍有 {d.unresolved} 件旧事件未处理</p>}
+              {!!d.upkeep && <p className="text-muted-foreground" data-testid="day-upkeep">调教场景维护 −{d.upkeep} G</p>}
+              {d.night && <p className="text-muted-foreground" data-testid="day-night">{d.night}</p>}
               {d.stats.length > 0 && <p className="text-muted-foreground">{d.stats.map((x) => `${x.girl} ${[x.ob && `服${sign(x.ob)}`, x.lw && `淫${sign(x.lw)}`, x.aff && `好${sign(x.aff)}`].filter(Boolean).join(' ')}`).join('｜')}</p>}
               <div className="flex justify-end pt-1">
                 <button className="text-primary font-semibold" data-testid="day-summary-close" onClick={() => onSaveChange(dismissDaySummary(save))}>知道了</button>
@@ -228,7 +236,7 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
                 <div className="relative w-full aspect-square rounded-md overflow-hidden">
                   <ImageDisplay tags={contextImageTags(g, { exhausted: g.exhausted || (g.stamina ?? 100) < 30, incident: !!g.incident })} settings={settings} cachedUrl={g.imageUrl}
                     onUrlCached={(url) => onSaveChange({ ...save, girls: girls.map((x) => x.id === g.id ? { ...x, imageUrl: url } : x) })}
-                    alt={g.name} className="w-full h-full object-cover" />
+                    alt={g.name} size="sm" className="w-full h-full object-cover" />
                   {appeared.has(g.id) && <span className="absolute top-0 right-0 text-[8px] bg-black/70 text-amber-300 px-1 rounded-bl">已出场</span>}
                   {pendingSkillPicks(g) > 0 && <span className="absolute top-0.5 left-0.5 w-2 h-2 rounded-full bg-amber-400" />}
                   {g.incident && <span data-testid={`incident-mark-${g.name}`} title={`${g.incident.kind}：${g.incident.text}`} className="absolute bottom-0 left-0 text-[8px] bg-rose-600/85 text-white px-1 rounded-tr">{g.incident.kind === '闯祸' ? '闯祸' : '失败'}</span>}
@@ -310,6 +318,22 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
             <FacilityCard icon={Sword} title="调教室" level={trainLv} desc={`收益倍率 ×${TRAINING_ROOM_MULT[trainLv - 1]} · 道具槽 ${TRAINING_ROOM_PROP_SLOTS[trainLv - 1]}`}
               cost={trainCost} gold={player.gold} onUpgrade={() => handleRoom('training')} testId="upgrade-training"
               banner={bannerPath('training', trainLv)} flash={lit === 'training'} />
+            {(player.ownedScenes ?? []).length > 0 && (
+              <div className="col-span-2 rounded-lg border border-border bg-card px-3 py-2 space-y-1.5" data-testid="hub-scenes">
+                <div className="flex items-baseline justify-between">
+                  <p className="text-xs font-semibold gold-text">调教场景</p>
+                  <p className="text-[10px] text-muted-foreground">维护 {sceneUpkeep(player)} G/天（结束今天时扣）</p>
+                </div>
+                <p className="text-[11px] text-foreground/80">{(player.ownedScenes ?? []).map((id) => getScene(id)!.name).join('、')}</p>
+                {ownsScene(save, 'machine') && (
+                  <select data-testid="machine-night" value={save.machineNightGirlId ?? ''} onChange={(e) => handleMachineNight(e.target.value)}
+                    className="w-full rounded-md border border-border bg-background px-1.5 py-1 text-[10px]">
+                    <option value="">今晚机械挂机：无</option>
+                    {girls.filter((g) => !appeared.has(g.id)).map((g) => <option key={g.id} value={g.id}>今晚机械挂机：{g.name}（服从 +{MACHINE_NIGHT_OBEDIENCE}，体力恢复减半）</option>)}
+                  </select>
+                )}
+              </div>
+            )}
             <Button variant="outline" size="sm" className="col-span-2 h-8 text-xs" onClick={() => onNavigate('market')}>
               <ShoppingBag className="w-3.5 h-3.5 mr-1.5" />前往奴隶市场
             </Button>

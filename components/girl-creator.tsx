@@ -170,6 +170,12 @@ export function GirlCreator({ settings, onComplete }: GirlCreatorProps) {
           </div>
 
           <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">口癖（自称 / 称呼 / 语气 / 招牌台词，可留空）</Label>
+            <Textarea data-testid="draft-speech" value={draft.speechStyle ?? ''} onChange={(e) => updateDraft({ speechStyle: e.target.value || undefined })}
+              placeholder={'自称：…\n称呼：对馆主「…」；对客人「…」\n语气：…\n招牌台词：「…」「…」「…」'} className="bg-input text-xs resize-none" rows={4} />
+          </div>
+
+          <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">服装</Label>
             <Textarea value={draft.outfit} onChange={(e) => updateDraft({ outfit: e.target.value })} className="bg-input text-sm resize-none" rows={2} />
           </div>

@@ -2,6 +2,8 @@
 import type { GameSave, Guest, MonstGirl, Player } from './types'
 import { defaultSensitivities, getDesireProfile } from './catalog'
 import { normalizeDayLog, freshDayLog } from './day-summary'
+import { refreshPresetText } from './preset-refresh'
+import { backfillMemory } from './girl-memory'
 
 export function migratePlayer(p: Player): Player {
   return {
@@ -15,6 +17,7 @@ export function migratePlayer(p: Player): Player {
     inventory: p.inventory ?? {},
     ownedTrainingProps: p.ownedTrainingProps ?? [],
     customProps: p.customProps ?? [],
+    ownedScenes: p.ownedScenes ?? [],
   }
 }
 
@@ -23,7 +26,8 @@ export const RACE_RENAMES: Record<string, string> = { 阿拉克涅: '蜘蛛娘',
 
 export function migrateGirl(raw: MonstGirl): MonstGirl {
   const g = RACE_RENAMES[raw.race] ? { ...raw, race: RACE_RENAMES[raw.race] } : raw
-  return {
+  // 预设角色的旧文案（玩家没改过的字段）刷新为当前版本；数值与进度不动
+  return refreshPresetText({
     ...g,
     skills: g.skills ?? [],
     incident: g.incident ?? null,
@@ -35,7 +39,7 @@ export function migrateGirl(raw: MonstGirl): MonstGirl {
     skillProgress: g.skillProgress ?? {},
     sensitivities: { ...defaultSensitivities(g.race), ...(g.sensitivities ?? {}) },
     sculptCounts: g.sculptCounts ?? { bust: 0, waist: 0, hip: 0 },
-  }
+  })
 }
 
 export function migrateGuest(guest: Guest): Guest {
@@ -50,8 +54,8 @@ export function migrateGuest(guest: Guest): Guest {
   }
 }
 
-/** 当前存档格式版本。v1：带 saveVersion + tutorial 字段 */
-export const SAVE_VERSION = 1
+/** 当前存档格式版本。v1：带 saveVersion + tutorial 字段；v2：魔物娘记忆（memory）+ 调教场景 */
+export const SAVE_VERSION = 2
 
 export function migrateSave(save: GameSave): GameSave {
   const from = save.saveVersion ?? 0
@@ -61,7 +65,8 @@ export function migrateSave(save: GameSave): GameSave {
     // v0 → v1：已经过了第一天的老存档不再弹引导
     tutorial: save.tutorial ?? { step: 0, dismissed: (save.currentDay ?? save.player?.day ?? 1) > 1 },
     player: migratePlayer(save.player),
-    girls: (save.girls ?? []).map(migrateGirl),
+    // v1 → v2：没有记忆的魔物娘从回头客关系记忆 / 未处理事件回填（幂等：已有 memory 不动）
+    girls: (save.girls ?? []).map(migrateGirl).map((g) => backfillMemory(g, save.regulars ?? [], save.currentDay ?? 1)),
     actionsUsedToday: save.actionsUsedToday ?? 0,
     dailyGuests: save.dailyGuests?.map(migrateGuest),
     regulars: save.regulars?.map(migrateGuest),

@@ -7,6 +7,9 @@ import {
 } from './catalog'
 import { nightlyIncidents } from './incidents'
 import { MAX_ACTIONS_PER_DAY, generateDailyGuests, getGuestCapacity, getGirlCapacity } from './game-engine'
+import { speechLine } from './speech-style'
+import { compactMemory, giftAffection, recordGift, addEvent } from './girl-memory'
+import { accumulateScene, ownsScene, sceneUpkeep, MACHINE_NIGHT_OBEDIENCE } from './scenes'
 
 export type HubResult = { ok: true; save: GameSave; message: string } | { ok: false; error: string }
 
@@ -31,10 +34,11 @@ export function giveGift(save: GameSave, girlId: string, giftIndex: number): Hub
   if (!gift || !girl) return { ok: false, error: '无效的礼物或魔物娘' }
   if (!canGiveGiftToday(save)) return { ok: false, error: '今天已经送过礼了（全馆每天一次）' }
   if (save.player.gold < gift.cost) return { ok: false, error: '金币不足' }
-  const updated = { ...girl, affection: Math.min(100, girl.affection + gift.affectionBonus) }
+  const aff = giftAffection(girl, giftIndex, gift.affectionBonus, save.currentDay)
+  const updated = recordGift({ ...girl, affection: Math.min(100, girl.affection + aff.value) }, giftIndex, gift.name, save.currentDay)
   return {
     ok: true,
-    message: `送出了「${gift.name}」！${girl.name} 的好感度 +${gift.affectionBonus}`,
+    message: `送出了「${gift.name}」！${girl.name} 的好感度 +${aff.value}${aff.note ? `（${aff.note}）` : ''}`,
     save: {
       ...save,
       player: { ...save.player, gold: save.player.gold - gift.cost, giftGivenOnDay: save.currentDay },
@@ -94,25 +98,57 @@ export function nightlyRecovery(save: GameSave, girl: MonstGirl): number {
 
 export function endDay(save: GameSave, rng: () => number = Math.random): GameSave {
   const dorm = getDormInfo(save.player.dormLevel)
-  const rested = save.girls.map((g) => ({
-    ...g,
-    stamina: clampStamina((g.stamina ?? MAX_STAMINA) + nightlyRecovery(save, g)),
-    exhausted: dorm.clearsExhaustion ? false : g.exhausted,
-  }))
-  // 事件：过夜未处理扣服从；再按概率随机一人闯祸（记在新的一天）
-  const girls = nightlyIncidents(rested, save.currentDay + 1, rng)
-  const lastDaySummary = buildDaySummary(save, girls)
-  const next = { ...save, currentDay: save.currentDay + 1, girls }
+  // 机械调教室夜间挂机：今天没出场的那一人，服从 +3、当晚体力恢复减半、记一次场景使用
+  const nightId = machineNightTarget(save)
+  let nightNote: string | undefined
+  const rested = save.girls.map((g) => {
+    const rec = nightlyRecovery(save, g)
+    const base = { ...g, exhausted: dorm.clearsExhaustion ? false : g.exhausted }
+    if (g.id !== nightId) return { ...base, stamina: clampStamina((g.stamina ?? MAX_STAMINA) + rec) }
+    const hooked = { ...base, stamina: clampStamina((g.stamina ?? MAX_STAMINA) + Math.floor(rec / 2)), obedience: Math.min(100, g.obedience + MACHINE_NIGHT_OBEDIENCE) }
+    const acc = accumulateScene(hooked, 'machine', save.currentDay)
+    nightNote = `${g.name}在机械调教室挂了一夜：服从 +${MACHINE_NIGHT_OBEDIENCE}${acc.awakenedNow ? '，觉醒了器具癖' : ''}`
+    let after = g.memory ? addEvent(acc.girl, { day: save.currentDay, kind: 'training', text: '在机械调教室里被挂了一整夜', w: 1, scene: 'machine' }) : acc.girl
+    if (acc.awakenedNow && after.memory) after = addEvent(after, { day: save.currentDay, kind: 'awaken', text: `第${save.currentDay}天夜里在机械调教室觉醒了器具癖`, w: 3, scene: 'machine' })
+    return after
+  })
+  // 事件：过夜未处理扣服从；再按概率随机一人闯祸（记在新的一天）。阴影不产生夜间事件（只在调教里起作用）
+  const girls = nightlyIncidents(rested.map((g) => compactMemory(g, save.currentDay)), save.currentDay + 1, rng)
+  // 调教场景维护费（扣到 0 为止）
+  const upkeep = sceneUpkeep(save.player)
+  const paid = Math.min(upkeep, Math.max(0, save.player.gold))
+  const charged: GameSave = paid ? { ...save, player: { ...save.player, gold: save.player.gold - paid } } : save
+  const lastDaySummary = { ...buildDaySummary(charged, girls), ...(upkeep ? { upkeep: paid } : {}), ...(nightNote ? { night: nightNote } : {}) }
+  const next = { ...charged, currentDay: save.currentDay + 1, girls }
   return {
-    ...save,
+    ...charged,
     lastDaySummary,
     dayLog: freshDayLog(next),
     currentDay: save.currentDay + 1,
     actionsUsedToday: 0,
     appearedToday: [],
+    machineNightGirlId: undefined,
     girls,
     dailyGuests: generateDailyGuests(getGuestCapacity(save.player.level), save.player.reputation ?? 0, save.regulars ?? []),
   }
+}
+
+/** 今晚真正会挂机的人：已购机械调教室、人还在、今天没出场 */
+export function machineNightTarget(save: GameSave): string | undefined {
+  const id = save.machineNightGirlId
+  if (!id || !ownsScene(save, 'machine')) return undefined
+  if (!save.girls.some((g) => g.id === id) || (save.appearedToday ?? []).includes(id)) return undefined
+  return id
+}
+
+/** 指定 / 取消今晚挂机的人（不占行动；今天已出场的不行） */
+export function setMachineNight(save: GameSave, girlId: string | null): HubResult {
+  if (!girlId) return { ok: true, message: '今晚不挂机', save: { ...save, machineNightGirlId: undefined } }
+  if (!ownsScene(save, 'machine')) return { ok: false, error: '还没有机械调教室' }
+  const girl = save.girls.find((g) => g.id === girlId)
+  if (!girl) return { ok: false, error: '找不到这名魔物娘' }
+  if ((save.appearedToday ?? []).includes(girlId)) return { ok: false, error: `${girl.name}今天已经出场过，不能再挂机` }
+  return { ok: true, message: `今晚让${girl.name}在机械调教室过夜（服从 +${MACHINE_NIGHT_OBEDIENCE}，体力恢复减半）`, save: { ...save, machineNightGirlId: girlId } }
 }
 
 // ─── 技能选择：服从 30 / 淫乱 40 / 好感 50 各一次，最多 3 个，M/S 互斥 ───────
@@ -168,7 +204,7 @@ export function arrivalFallbackText(leader: ArrivalLeader, playerName: string, n
 
 export function arrivalPromptNote(leader: ArrivalLeader, playerName: string, newGirl: MonstGirl): string {
   return leader.kind === 'girl'
-    ? `【入馆安排】由馆里好感最高的魔物娘${leader.girl.name}（${leader.girl.race}，性格：${leader.girl.personality}）出面迎接新人${newGirl.name}，带她熟悉娼馆、交代规矩。以${leader.girl.name}为主导写这段入馆对话。`
+    ? `【入馆安排】由馆里好感最高的魔物娘${leader.girl.name}（${leader.girl.race}，性格：${leader.girl.personality}${speechLine(leader.girl, '；')}）出面迎接新人${newGirl.name}，带她熟悉娼馆、交代规矩。以${leader.girl.name}为主导写这段入馆对话。`
     : `【入馆安排】由馆主${playerName}亲自迎接新人${newGirl.name}，带她熟悉娼馆。以馆主为主导写这段入馆对话。`
 }
 

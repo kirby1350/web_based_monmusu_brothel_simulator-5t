@@ -36,6 +36,8 @@ interface ChatEngineProps {
   placeholder?: string
   className?: string
   showInput?: boolean
+  /** 在玩家消息上显示「让她记住」；点了把这句原话交给调用方 */
+  onRememberUser?: (text: string) => void
 }
 
 export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
@@ -53,6 +55,7 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
       placeholder = '输入你的行动…',
       className,
       showInput = true,
+      onRememberUser,
     },
     ref
   ) {
@@ -196,7 +199,13 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
                 )}
               >
                 {msg.role === 'user' && (
-                  <p className="text-[10px] text-muted-foreground mb-1">你</p>
+                  <p className="text-[10px] text-muted-foreground mb-1 flex items-center justify-between gap-2">
+                    <span>你</span>
+                    {onRememberUser && (
+                      <button type="button" data-testid="remember-btn" className="text-[10px] text-emerald-300/80 hover:text-emerald-300"
+                        onClick={() => onRememberUser(msg.content)}>让她记住</button>
+                    )}
+                  </p>
                 )}
                 <p className="whitespace-pre-wrap text-foreground/90">
                   {msg.role === 'assistant' ? stripStatsBlock(msg.content) : msg.content}

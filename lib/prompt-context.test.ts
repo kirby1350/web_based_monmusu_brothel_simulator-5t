@@ -9,9 +9,17 @@ import { fxGirl, fxGuest, fxPlayer } from './prompt-fixtures'
 
 test('1. 状态卡：技能档、倾向进度、种族被动、敏感带、事件、天数', () => {
   const card = girlStateCard(fxGirl({ incident: { kind: '闯祸', text: '偷吃了点心', day: 5 } }), 6)
-  for (const s of ['待客 熟练', '口侍 初学', 'M3/S0', '魅惑', '耳朵 弱点', '事件：闯祸·偷吃了点心', '第6天', '招牌：低语诱惑']) assert.ok(card.includes(s), s)
+  for (const s of ['待客 熟练', '口侍 初学', 'M3/S0', '魅惑', '耳朵 弱点', '事件：闯祸·偷吃了点心', '第6天']) assert.ok(card.includes(s), s)
   assert.ok(card.length < 160, `card ${card.length}`)
   assert.ok(girlStateCard(fxGirl({ skillRanks: {} })).includes('技能：尚未学会'))
+})
+
+test('1. 旧版招牌技能（girl.skills）不再进入状态卡与服务提示词', () => {
+  const g = fxGirl({ skills: ['低语诱惑', '按摩'] })
+  assert.ok(!girlStateCard(g).includes('招牌'))
+  const session = createServiceSession('service', [g], { guest: fxGuest() })
+  const p = buildServiceSystemPrompt(fxPlayer, session, 'standard', undefined, { day: 6 })
+  assert.ok(!p.includes('技能运用锚点') && !p.includes('低语诱惑'))
 })
 
 test('1. 服务系统提示词用状态卡替代旧技能行', () => {
@@ -23,7 +31,7 @@ test('1. 服务系统提示词用状态卡替代旧技能行', () => {
 
 test('3. 客人偏好命中：种族/特征/服装（含丝袜）', () => {
   const line = guestPrefLine(fxGuest(), fxGirl(), 'regular', 'black')
-  assert.ok(line.includes('种族：狐娘 ✔') && line.includes('特征：巨乳 ✔') && line.includes('服装：黑丝 ✔（已换上黑丝）'))
+  assert.ok(line.includes('种族：狐娘 ✔') && line.includes('特征：巨乳 ✔') && line.includes('服装：黑丝 ✔（已换上黑色薄丝裤袜）'))
   const miss = guestPrefLine(fxGuest({ prefRace: '龙娘', prefTrait: '贫乳', prefOutfit: '制服' }), fxGirl())
   assert.equal((miss.match(/✘/g) ?? []).length, 3)
   assert.equal(guestPrefLine(fxGuest({ prefRace: undefined, prefTrait: undefined, prefOutfit: null }), fxGirl()), '')

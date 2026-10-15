@@ -18,7 +18,7 @@ test('送礼扣钱、加好感，同一天第二次（任何人）被拒，次�
   assert.ok(r.ok)
   if (!r.ok) return
   assert.equal(r.save.player.gold, 220)
-  assert.equal(r.save.girls[0].affection, 25)
+  assert.equal(r.save.girls[0].affection, 10 + 15 + 2) // 第一次送这档：她记得，再 +2
   const r2 = giveGift(r.save, 'b', 0)
   assert.equal(r2.ok, false)
   const next = endDay(r.save)

@@ -1,6 +1,7 @@
 'use client'
 
 // 结算卡：五步得分 / play / 服装 / 体力 / 成长，没有 play 时不画空段
+import { getScene } from '@/lib/scenes'
 import { useState } from 'react'
 import { Loader2, Star, PenLine, Brush, BookmarkPlus } from 'lucide-react'
 import { buildMemoryPrompt } from '@/lib/prompt-builder'
@@ -15,6 +16,7 @@ import type { TrainingResult } from '@/lib/resolve-training'
 import type { ServiceResult } from '@/lib/resolve-service'
 import type { SettleInfo } from '@/lib/settle-session'
 import { cn } from '@/lib/utils'
+import { speechLine } from '@/lib/speech-style'
 
 interface SessionResultProps {
   mode: 'skip' | 'live'
@@ -73,7 +75,7 @@ export function SessionResult({ mode, girl, guest, outfit, stockings, result, in
   const writeMore = async () => {
     setLoading(true)
     const apiKey = settings.chatModel.startsWith('grok') ? settings.grokApiKey : settings.chatApiKey
-    const prompt = `用中文写一段约200字的第三人称叙事，描写魔物娘${girl.name}（${girl.race}，性格：${girl.personality}）接待客人${guest.name}（${guest.race}，需求：${guest.desires}）的经过。` +
+    const prompt = `用中文写一段约200字的第三人称叙事，描写魔物娘${girl.name}（${girl.race}，性格：${girl.personality}${speechLine(girl, '；')}）接待客人${guest.name}（${guest.race}，需求：${guest.desires}）的经过。` +
       `流程依次是：${result.steps.map((s) => s.label).join('、')}${result.plays.length ? `，中间追加了${result.plays.map((p) => p.name).join('、')}` : ''}。` +
       `她穿着${OUTFITS.find((o) => o.id === outfit)?.name}。客人最终评价为「${result.tier.label}」。只输出正文，不要输出任何数据块。`
     try {
@@ -188,10 +190,12 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 // ─── 调教结算卡 ───────────────────────────────────────────────────────────────
 
-export function TrainingResultCard({ mode, before, result, onBack }: {
+export function TrainingResultCard({ mode, before, result, incident, onBack }: {
   mode: 'skip' | 'live'
   before: MonstGirl
   result: TrainingResult
+  /** 场景风险事件（结算时掷出） */
+  incident?: string
   onBack: () => void
 }) {
   const after = result.girl
@@ -208,6 +212,22 @@ export function TrainingResultCard({ mode, before, result, onBack }: {
         <h2 className="text-lg font-bold gold-text">{mode === 'skip' ? '跳过调教' : '调教结束'}</h2>
         <p className="text-xs text-muted-foreground">{result.summary}</p>
       </div>
+      {result.awakenedScene && (
+        <div className="rounded-xl border border-fuchsia-400/40 bg-fuchsia-500/10 px-3 py-2 text-xs text-fuchsia-200" data-testid="tr-awakened">
+          ✦ {before.name}觉醒了性癖「{getScene(result.awakenedScene)!.fetish}」——{getScene(result.awakenedScene)!.fetishDesc}
+        </div>
+      )}
+      {result.provokedScene && (
+        <div className="rounded-xl border border-slate-400/40 bg-slate-500/15 px-3 py-2 text-xs text-slate-200" data-testid="tr-provoke">
+          {mode === 'skip' ? '跳过的调教里' : '你的话'}触到了{before.name}在{getScene(result.provokedScene)!.name}的阴影：她发着抖顺从了（服从大涨、多耗体力，不扣好感）。阴影更深了，明天不会再被激发
+        </div>
+      )}
+      {result.shadowScene && (
+        <div className="rounded-xl border border-slate-400/30 bg-slate-500/10 px-3 py-2 text-xs text-slate-300" data-testid="tr-shadow">
+          {getScene(result.shadowScene)!.name}在{before.name}心里留下了阴影：再用这里会更伤好感；之后调教时可以「激发阴影」换取大量服从（只影响调教，不影响接客；温泉恩宠间可以慢慢抚平）
+        </div>
+      )}
+      {incident && <p className="text-[11px] text-rose-300 text-center" data-testid="tr-incident">⚠ {before.name}{incident}</p>}
       <div className="rounded-xl border border-border bg-card p-4 space-y-3 text-xs">
         <Section title="成长">
           {rows.filter(([, a, b]) => a !== b).map(([l, a, b]) => (

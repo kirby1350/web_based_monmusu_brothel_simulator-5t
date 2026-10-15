@@ -13,6 +13,8 @@ import {
   shelfRecoveryItems, sculptPrice, buyRecovery, buySculpt, buyWardrobe, buyTrainingProp, type ShopResult,
 } from '@/lib/shop'
 import { cn } from '@/lib/utils'
+import { TRAINING_SCENES, sceneUnlocked, sceneUpkeep, unlockText, DIRECTION_LABEL } from '@/lib/scenes'
+import { buyScene } from '@/lib/shop'
 
 interface ShopPanelProps {
   save: GameSave
@@ -49,7 +51,7 @@ export function ShopPanel({ save, onSaveChange, onOpenMarket }: ShopPanelProps) 
 
       <Section title="衣橱" hint="买一次全馆可穿；常服自带">
         {[...OUTFITS, ...STOCKINGS].filter((o) => o.price > 0).map((o) => (
-          <Item key={o.id} icon={itemIconPath(OUTFITS.some((x) => x.id === o.id) ? 'outfit' : 'stocking', o.id)} name={o.name} desc={`喜好「${o.pref}」`} price={o.price} gold={player.gold}
+          <Item key={o.id} icon={itemIconPath(OUTFITS.some((x) => x.id === o.id) ? 'outfit' : 'stocking', o.id)} name={o.name} desc={`喜好「${o.pref}」${'effect' in o && o.effect ? ` · ${o.effect}` : ''}`} flavor={o.desc} price={o.price} gold={player.gold}
             done={wardrobe.has(o.id)} onBuy={() => run(buyWardrobe(save, o.id))} testId={`buy-${o.id}`} />
         ))}
       </Section>
@@ -67,6 +69,20 @@ export function ShopPanel({ save, onSaveChange, onOpenMarket }: ShopPanelProps) 
           <Item key={p.id} icon={itemIconPath('prop', p.id)} name={p.name} desc={p.zone ? `敏感开发 · ${p.zone}` : '调教加成'} price={p.price} gold={player.gold}
             done={props.has(p.id)} onBuy={() => run(buyTrainingProp(save, p.id))} testId={`buy-${p.id}`} />
         ))}
+      </Section>
+
+      <Section title="调教场景" hint={`买一次永久可选；每天维护费（当前合计 ${sceneUpkeep(player)}G/天）`}>
+        {TRAINING_SCENES.map((sc) => {
+          const owned = (player.ownedScenes ?? []).includes(sc.id)
+          const unlocked = sceneUnlocked(save, sc.id)
+          return (
+            <Item key={sc.id} name={sc.name}
+              desc={`${sc.directions.map((d) => DIRECTION_LABEL[d]).join('/')} · 维护 ${sc.upkeep}G/天 · 可觉醒「${sc.fetish}」`}
+              flavor={`${sc.effect}${sc.affinity.length ? `｜亲和：${sc.affinity.join('、')}` : ''}${sc.aversion.length ? `｜抗拒：${sc.aversion.join('、')}` : ''}`}
+              price={sc.price} gold={player.gold} done={owned} locked={!owned && !unlocked ? `需${unlockText(sc.unlock)}` : undefined}
+              onBuy={() => run(buyScene(save, sc.id))} testId={`buy-scene-${sc.id}`} />
+          )
+        })}
       </Section>
 
       <CustomPropForm save={save} onResult={run} />
@@ -90,10 +106,10 @@ function Section({ title, hint, children }: { title: string; hint: string; child
   )
 }
 
-function Item({ icon, name, desc, price, gold, owned, done, onBuy, testId }: {
-  icon?: string; name: string; desc: string; price: number; gold: number; owned?: string; done?: boolean; onBuy: () => void; testId: string
+function Item({ icon, name, desc, flavor, price, gold, owned, done, locked, onBuy, testId }: {
+  icon?: string; name: string; desc: string; flavor?: string; price: number; gold: number; owned?: string; done?: boolean; locked?: string; onBuy: () => void; testId: string
 }) {
-  const can = !done && gold >= price
+  const can = !done && !locked && gold >= price
   return (
     <div className="rounded-lg border border-border bg-card px-2.5 py-2 flex flex-col gap-1">
       <div className="flex items-start gap-2 flex-1">
@@ -104,13 +120,14 @@ function Item({ icon, name, desc, price, gold, owned, done, onBuy, testId }: {
             {owned && <span className="text-[10px] text-emerald-300">{owned}</span>}
           </div>
           <p className="text-[10px] text-muted-foreground">{desc}</p>
+          {flavor && <p className="text-[10px] text-rose-200/60 leading-snug line-clamp-2" title={flavor}>{flavor}</p>}
         </div>
       </div>
       <button data-testid={testId} disabled={!can} onClick={onBuy}
         className={cn('text-[11px] rounded-md border px-2 py-0.5 transition-colors',
           done ? 'border-emerald-500/30 text-emerald-300/80 cursor-default'
             : can ? 'border-amber-400/40 text-amber-400 hover:bg-amber-400/10' : 'border-border text-muted-foreground/60 cursor-not-allowed')}>
-        {done ? '已拥有' : `${price} G`}
+        {done ? '已拥有' : locked ? `${price} G · ${locked}` : `${price} G`}
       </button>
     </div>
   )

@@ -22,6 +22,9 @@ export const GREET_HOSTING_SCORE: Record<SkillRank | '无', number> = { 无: 2, 
 /** 对口 play：初学 6 / 熟练 8 / 精通 10；不对口减半 */
 export const PLAY_SCORE: Record<SkillRank, number> = { 初学: 6, 熟练: 8, 精通: 10 }
 export const STEP_MAX = 14
+/** 服装或丝袜对上客人喜好：迎客 +6（v3 平衡：+4 → +6，让衣橱 30 天内大致回本）；穿错 −2 */
+export const OUTFIT_GREET_BONUS = 6
+export const OUTFIT_GREET_MISMATCH = -2
 /** 技能档对口加成（满意度，直接加，不受单步 14 上限）：迎客看待客、前戏看手技、正戏看主类型 */
 export const SKILL_RANK_BONUS: Record<SkillRank, number> = { 初学: 0, 熟练: 5, 精通: 9 }
 
@@ -68,8 +71,8 @@ export const RACE_PLAYS: Record<string, PlayDef[]> = {
   史莱姆: [rp('史莱姆', 'slime_wrap', '包覆', '熟练', '种族', { kinds: ['中性'], services: ['身侍'] }),
     rp('史莱姆', 'slime_inner', '体内按摩', '初学', '种族', { services: ['手技'], keywords: ['灌满'] })],
   拉米亚: [rp('拉米亚', 'lamia_coil', '缠绕', '熟练', '种族', { kinds: ['M'] }),
-    rp('拉米亚', 'lamia_gaze', '石化凝视', '熟练', '种族', { kinds: ['M'] }),
-    rp('拉米亚', 'lamia_hair', '蛇发缠绕', '初学', '种族', { kinds: ['中性'], keywords: ['尾巴'] })],
+    rp('拉米亚', 'lamia_gaze', '蛇瞳魅惑', '熟练', '种族', { kinds: ['M'] }),
+    rp('拉米亚', 'lamia_hair', '尾尖撩拨', '初学', '种族', { kinds: ['中性'], keywords: ['尾巴'] })],
   哈比: [rp('哈比', 'harpy_wing', '羽翼抚触', '熟练', '种族', { kinds: ['中性'], services: ['待客'] }),
     rp('哈比', 'harpy_air', '空中体位', '熟练', '小穴', { services: ['身侍'] })],
   蜘蛛娘: [rp('蜘蛛娘', 'spider_bind', '丝线束缚', '熟练', '种族', { kinds: ['M'] })],
@@ -101,22 +104,72 @@ export function getPlaySlots(roomLevel?: number): number {
 
 // ─── 衣橱 ─────────────────────────────────────────────────────────────────────
 
-export interface OutfitDef { id: OutfitId; name: string; price: number; pref: OutfitPref | null; tags?: string }
+/** effect：调教里的小加成说明（只用于展示；结算在 resolve-training.ts） */
+export interface OutfitDef { id: OutfitId; name: string; price: number; pref: OutfitPref | null; tags?: string; desc?: string; effect?: string }
 export const OUTFITS: OutfitDef[] = [
-  { id: 'regular', name: '常服', price: 0, pref: null },
-  { id: 'maid', name: '女仆装', price: 200, pref: '制服', tags: 'maid outfit, maid headdress, apron, frills' },
-  { id: 'kimono', name: '和服', price: 200, pref: '和服', tags: 'kimono, obi, japanese clothes' },
-  { id: 'crotchless', name: '开裆装', price: 180, pref: '暴露', tags: 'crotchless, revealing clothes, lingerie' },
-  { id: 'restraint', name: '拘束衣', price: 240, pref: '想施虐的客人', tags: 'straitjacket, bondage outfit, leather straps' },
-  { id: 'queen', name: '女王装', price: 240, pref: '想被榨的客人', tags: 'dominatrix, latex, thigh boots, corset' },
+  { id: 'regular', name: '她的常服', price: 0, pref: null, desc: '她平时就这么穿——你最熟悉、也最容易让她放松的样子。' },
+  { id: 'maid', name: '露肩迷你女仆装', price: 200, pref: '制服', tags: 'maid outfit, maid headdress, apron, frills, off-shoulder, miniskirt, garter straps',
+    desc: '荷叶边短裙堪堪盖住臀线，弯腰收拾时围裙下的风景一览无余：「主人，请慢用。」' },
+  { id: 'kimono', name: '松襟振袖', price: 200, pref: '和服', tags: 'kimono, obi, japanese clothes, loose kimono, off shoulder, untied obi',
+    desc: '衣襟松松地滑到肩头，腰带一扯就散，花纹艳得像要把人吸进去。' },
+  { id: 'crotchless', name: '开裆蕾丝情趣内衣', price: 180, pref: '暴露', tags: 'crotchless, revealing clothes, lingerie, black lace, crotchless panties, garter belt',
+    desc: '黑蕾丝勾勒出每一寸曲线，唯独最要紧的地方什么也没有。', effect: '敏感开发阴蒂/小穴/后庭 +2' },
+  { id: 'restraint', name: '皮带拘束衣', price: 240, pref: '想施虐的客人', tags: 'straitjacket, bondage outfit, leather straps',
+    desc: '双臂被交叉锁在身前，只剩眼神和喘息还能求饶。', effect: '驯服/惩罚 服从 +1' },
+  { id: 'queen', name: '漆皮女王装', price: 240, pref: '想被榨的客人', tags: 'dominatrix, latex, thigh boots, corset, shiny leather, riding crop',
+    desc: '漆皮束腰、过膝长靴与一根细鞭，她低头看你时，你就已经跪下了。', effect: '放权 淫乱 +1' },
+  { id: 'bunny', name: '兔女郎装', price: 220, pref: '兔女郎', tags: 'playboy bunny, black leotard, rabbit ears headband, bowtie, wrist cuffs, fishnet pantyhose, highleg',
+    desc: '高衩亮面连体衣勒出腰臀，领结、袖口与兔耳发箍一样不少，只有臀后那团绒尾在随步子轻颤。', effect: '敏感开发耳朵 +2（有耳羽时不叠加）' },
+  { id: 'qipao', name: '高开衩旗袍', price: 220, pref: '异域', tags: 'china dress, red qipao, high side slit, thighs, gold embroidery',
+    desc: '绛红缎面贴身到不留一丝余地，开衩一路开到腰骨，走一步就露出整截雪白的大腿根。' },
+  { id: 'dancer', name: '舞娘纱衣', price: 220, pref: '异域', tags: 'harem outfit, dancer, see-through veil, belly chain, gold jewelry, midriff',
+    desc: '薄纱只遮住该遮的那一点，腰链与金铃随扭胯叮当作响，一曲跳完，纱已贴在汗湿的肌肤上。', effect: '特训「待客」进度 +1（有练习镜时不叠加）' },
+  { id: 'babydoll', name: '透纱睡裙', price: 180, pref: '暴露', tags: 'babydoll, see-through nightgown, black lingerie, sheer fabric',
+    desc: '一层薄得像呼吸的黑纱，从胸口松松垂到大腿，灯一照，底下什么都没穿。', effect: '放权 淫乱 +1' },
+  { id: 'sling', name: '吊带泳衣', price: 180, pref: '暴露', tags: 'sling bikini, slingshot swimsuit, revealing swimsuit',
+    desc: '两根细带从肩头勒过乳尖再汇进腿间，与其说是泳衣，不如说是一道邀请。', effect: '敏感开发乳房 +2（有乳夹时不叠加）' },
+  { id: 'nurse', name: '护士装', price: 200, pref: '制服', tags: 'nurse, nurse cap, white nurse uniform, short dress, garter straps',
+    desc: '短到遮不住吊带的白色护士裙，胸前别着体温计，「请躺好，接下来要检查全身哦」。' },
+  { id: 'school', name: '学生制服', price: 200, pref: '制服', tags: 'school uniform, serafuku, pleated miniskirt, loose neckerchief',
+    desc: '水手领下松开的领结、短到大腿的百褶裙，一身规矩制服被她穿出了放学后的味道。' },
+  { id: 'miko', name: '巫女服', price: 200, pref: '和服', tags: 'miko, white kimono, red hakama, wide sleeves, sideboob',
+    desc: '白衣绯袴本是神前的装束，袖口与侧缝却开得太大，参拜时稍一弯腰便春光乍泄。' },
+  { id: 'nun', name: '修女服', price: 220, pref: '圣洁', tags: 'nun, black habit, veil, side slit, cross necklace',
+    desc: '漆黑修女袍一丝不苟地扣到喉咙，裙摆却开衩到大腿，十字架就悬在两团丰盈之间。', effect: '驯服 服从 +1' },
+  { id: 'bridal', name: '纯白婚纱内衣', price: 260, pref: '圣洁', tags: 'bridal lingerie, white lace, bridal veil, white corset, garter belt',
+    desc: '蕾丝头纱、白色束腰与吊带袜，像只为一个人准备的新婚夜，纯白得叫人想亲手弄脏。', effect: '任意调教 好感 +1' },
+  { id: 'latex', name: '乳胶紧身衣', price: 260, pref: '想被榨的客人', tags: 'latex bodysuit, black latex, shiny clothes, zipper, skin tight',
+    desc: '漆黑乳胶从脖颈一路包到脚尖，紧得能看清每一道曲线，拉链只要往下拉一寸就再也停不住。', effect: '放权 淫乱 +1' },
+  { id: 'harness', name: '皮革束带装', price: 240, pref: '想施虐的客人', tags: 'leather harness, body harness, o-ring, black straps, choker',
+    desc: '几道黑皮带交错勒过胸口、腰身与大腿，金属环正好留给牵绳，几乎什么也没遮。', effect: '惩罚 M 进度 +1' },
 ]
-export interface StockingDef { id: StockingId; name: string; price: number; pref: OutfitPref | null; tags?: string }
+export interface StockingDef { id: StockingId; name: string; price: number; pref: OutfitPref | null; tags?: string; desc?: string }
 export const STOCKINGS: StockingDef[] = [
   { id: 'none', name: '不加', price: 0, pref: null },
-  { id: 'black', name: '黑丝', price: 120, pref: '黑丝', tags: 'black pantyhose' },
-  { id: 'white', name: '白丝', price: 120, pref: '白丝', tags: 'white pantyhose' },
+  { id: 'black', name: '黑色薄丝裤袜', price: 120, pref: '黑丝', tags: 'black pantyhose, shiny pantyhose',
+    desc: '薄得透出肤色的黑丝，从脚尖一路裹到腰，指尖划过会沙沙作响。' },
+  { id: 'white', name: '白色薄丝裤袜', price: 120, pref: '白丝', tags: 'white pantyhose',
+    desc: '白得近乎透明，贴着腿弯泛着柔光，纯洁得让人想弄脏。' },
+  { id: 'garter', name: '黑色吊带丝袜', price: 140, pref: '黑丝', tags: 'black thighhighs, garter belt, lace trim',
+    desc: '蕾丝袜口被吊带紧紧咬住，在大腿上勒出一圈软肉。' },
+  { id: 'fishnet', name: '渔网袜', price: 140, pref: '暴露', tags: 'fishnet pantyhose',
+    desc: '粗网格把雪白的腿切成一格一格，越往上网眼越疏。' },
+  { id: 'lace_white', name: '白蕾丝过膝袜', price: 140, pref: '圣洁', tags: 'white thighhighs, lace-trimmed legwear',
+    desc: '纯白蕾丝停在膝上一掌，留出那一截最干净也最惹人的绝对领域。' },
 ]
-export const OUTFIT_PREFS: OutfitPref[] = ['制服', '和服', '黑丝', '白丝', '暴露', '想施虐的客人', '想被榨的客人']
+export const OUTFIT_PREFS: OutfitPref[] = ['制服', '和服', '黑丝', '白丝', '暴露', '想施虐的客人', '想被榨的客人', '兔女郎', '异域', '圣洁']
+/** 客人服装喜好的抽取权重：新喜好 0.7，最便宜的对口路线（黑丝/白丝/暴露）1.2，其余 1 */
+export const OUTFIT_PREF_WEIGHTS: Record<OutfitPref, number> = {
+  制服: 1, 和服: 1, 黑丝: 1.2, 白丝: 1.2, 暴露: 1.2, 想施虐的客人: 1, 想被榨的客人: 1, 兔女郎: 0.7, 异域: 0.7, 圣洁: 0.7,
+}
+/** 按权重抽一个服装喜好；rand 默认 Math.random（sim 会替换为带种子的随机） */
+export function pickOutfitPref(rand: () => number = Math.random): OutfitPref {
+  const total = OUTFIT_PREFS.reduce((a, p) => a + OUTFIT_PREF_WEIGHTS[p], 0)
+  let r = rand() * total
+  for (const p of OUTFIT_PREFS) { r -= OUTFIT_PREF_WEIGHTS[p]; if (r < 0) return p }
+  return OUTFIT_PREFS[OUTFIT_PREFS.length - 1]
+}
+export const outfitName = (id: OutfitId | undefined): string => OUTFITS.find((o) => o.id === id)?.name ?? '常服'
 
 // ─── 恢复药 / 塑形药 / 调教道具 ──────────────────────────────────────────────
 
@@ -276,7 +329,7 @@ export function getInclination(girl: MonstGirl): Inclination {
 
 // ─── 道具图标（静态文件 public/icons/<类别>/<id>.webp；缺图时组件退回文字徽章） ───
 
-export type IconCategory = 'outfit' | 'stocking' | 'recovery' | 'sculpt' | 'prop'
+export type IconCategory = 'outfit' | 'stocking' | 'recovery' | 'sculpt' | 'prop' | 'scene'
 
 export function itemIconPath(category: IconCategory, id: string): string | undefined {
   if (id === 'none') return undefined
