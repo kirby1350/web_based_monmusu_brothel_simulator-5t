@@ -84,9 +84,11 @@ test('2. 每一步的强度上限进提示词：迎客/挑逗/前戏不插入，
 })
 
 test('2. 本地回看：未到高潮档却写了射精/潮吹 → 下一回合校正；到档或只是濒临不校正', () => {
-  assert.match(climaxSlipNote('他低吼一声，滚烫地射进她的深处。', []), /校正.*射精/)
+  assert.match(climaxSlipNote('他低吼一声，一股股滚烫的精液射进了她的深处。', []), /校正.*射精/)
   assert.match(climaxSlipNote('她浑身痉挛，潮吹了一地。', ['guest']), /她的高潮/)
-  assert.equal(climaxSlipNote('他低吼一声，射进她的深处。', ['guest']), '')
+  assert.equal(climaxSlipNote('他低吼一声，射进了她的深处。', ['guest']), '')
+  // walk26 里的误报：邀请/濒临不算
+  assert.equal(climaxSlipNote('「啊、啊、要、要射了！」「客人，请射出来吧！全部、全部射在我身上哦♪」', []), '')
   assert.equal(climaxSlipNote('「要去了……还不行……」她咬着唇忍住，他也在射精的边缘死死忍着。', []), '')
   assert.equal(climaxSlipNote('正文<!--STATS:{"内射":1}-->', []), '')
 })
@@ -231,4 +233,15 @@ test('6. 调教的亲自上场也有档位：随回合从从容推进，高潮�
   assert.ok(climax)
   const tp = buildServiceSystemPrompt(fxPlayer, createServiceSession('training', [g], {}), 'standard', heatPromptBlock(initTrainingHeat(g), fxPlayer.name, [g]), { heatLocal: true })
   assert.match(tp, /【此刻的兴奋与快感/); assert.match(tp, /高潮闸门/)
+})
+
+test('walk26 跟进：新鲜感只写一次；摇篮不改口自称；调教档位节奏', () => {
+  const lead = makeGirl({ id: 'a', name: '甲' }); const b = makeGirl({ id: 'b', name: '乙' }); const c = makeGirl({ id: 'c', name: '丙' })
+  const blk = divisionBlock(lead, [b, c], fxGuest(), 3)
+  assert.equal(blk.split('新鲜感').length - 1, 1)
+  assert.match(sceneContext({ girl: canon('千雪'), scene: 'cradle' }), /不要让她因此改口自称「妈妈」/)
+  const g = makeGirl({ lewdness: 45, affection: 28 })
+  let h = initTrainingHeat(g)
+  for (let t = 1; t <= 6; t++) h = trainingHeatTurn(h, g, t, '')
+  assert.ok(['慌乱', '临界', '高潮'].includes(speechBand(h.girls[g.id])), speechBand(h.girls[g.id]))
 })

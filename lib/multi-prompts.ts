@@ -26,9 +26,9 @@ export function partnerRole(p: MonstGirl, main: string): ServingSkill | '无' {
 }
 
 /** 默契的来源 → 叙述里可写的互动 */
-export function synergyInteractions(lead: MonstGirl, p: MonstGirl, guest: Guest): string[] {
+export function synergyInteractions(lead: MonstGirl, p: MonstGirl, guest: Guest, first = true): string[] {
   const main = getMainService(guest)
-  const out: string[] = ['两人同时侍奉的新鲜感：写他被左右夹击、顾此失彼的享受']
+  const out: string[] = first ? ['几个人同时侍奉的新鲜感：写他被左右夹击、顾此失彼的享受'] : []
   if (getSkillRank(p, main as ServingSkill)) out.push(`她也会${main}：正戏里能和${lead.name}轮流接手，交接时不断档`)
   if ((guest.prefRace && guest.prefRace === p.race) || traitMatched(guest, p)) out.push(`她正合${guest.name}的偏好：他的目光会被她吸走，${lead.name}可以借此吃醋或顺势把她推到他面前`)
   if (p.race === lead.race) out.push(`与${lead.name}同族的姐妹配合：同样的耳朵/尾巴/身体一起动，动作像镜像`)
@@ -50,10 +50,10 @@ export function divisionBlock(lead: MonstGirl, partners: MonstGirl[], guest: Gue
   if (!partners.length) return ''
   const main = getMainService(guest)
   const lines = [`- ${lead.name}（主位）：负责主类型「${main}」，掌握整场的节奏`]
-  for (const p of partners) {
+  partners.forEach((p, i) => {
     const role = partnerRole(p, main)
     lines.push(`- ${p.name}（协同·${role === '无' ? '还没有拿手的技能' : role}）：${SUPPORT_ROLE[role]}`)
-    lines.push(...synergyInteractions(lead, p, guest).map((x) => `  · ${x}`))
-  }
+    lines.push(...synergyInteractions(lead, p, guest, i === 0).map((x) => `  · ${x}`))
+  })
   return `【多人分工（这一步：${STEP_SHARE[stepIndex] ?? ''}）】\n${lines.join('\n')}`
 }

@@ -224,8 +224,9 @@ export function transitionFallback(t: TransitionInput): string {
 }
 
 // ─── 本地回看上一条回复：越过高潮闸门时，下一回合附一句校正（不自动重写、不自动续写） ───
-const GUEST_CLIMAX_RE = /(射精了|射了出来|射了进去|射进|射在|射满|射出[了来]|内射|灌满|精液(?:喷|涌|灌|溢|射))/
-const GIRL_CLIMAX_RE = /(潮吹|高潮了|达到了?高潮|绝顶|(?<![要快就])去了[❤♡！!～~]|一起去了|痉挛着高潮)/
+// 只认「已经发生」的说法；「要射了」「射进来吧」这类濒临/邀请不算
+const GUEST_CLIMAX_RE = /(射了出来|射了进去|射进了|射在了|射满了|射了[一好满个]|内射了|灌满了|精液(?:喷涌|涌出|灌进|溢出|射出|喷射)|一股股[^。！？]{0,8}精液|射精的余韵)/
+const GIRL_CLIMAX_RE = /(潮吹(?:了|而出|不止|如注)|喷出了潮|高潮了|达到了?高潮|迎来了?高潮|绝顶了|(?<![要快就])去了[❤♡！!～~]|一起去了)/
 /** 上一条回复写了不该写的高潮：返回下一回合要附的校正句；没越界返回空串 */
 export function climaxSlipNote(reply: string, justClimaxed: string[], hasGuest = true): string {
   const text = reply.replace(/<!--[\s\S]*?-->/g, '')
@@ -239,9 +240,10 @@ export function climaxSlipNote(reply: string, justClimaxed: string[], hasGuest =
 export function outfitDescLine(girl: Pick<MonstGirl, 'outfit'>, outfit: OutfitId | undefined, stockings: StockingId | undefined): string {
   const o = outfit && outfit !== 'regular' ? OUTFITS.find((x) => x.id === outfit) : undefined
   const s = stockings && stockings !== 'none' ? STOCKINGS.find((x) => x.id === stockings) : undefined
-  const legs = s ? `；腿上：${s.name}——${s.desc ?? ''}` : ''
+  const trim = (t?: string) => (t ?? '').replace(/[。．.]$/, '')
+  const legs = s ? `；腿上：${s.name}——${trim(s.desc)}` : ''
   if (!o) return `${girl.outfit}${legs}`
-  return `今晚换上的「${o.name}」——${o.desc}${legs}（这是她此刻身上的衣服，不要再写她的常服「${girl.outfit}」）`
+  return `今晚换上的「${o.name}」——${trim(o.desc)}${legs}（这是她此刻身上的衣服，不要再写她的常服「${girl.outfit}」）`
 }
 
 /** 客人对服装的反应提示：喜好命中 → 点名评论这身衣服；有喜好但没命中 → 轻微挑剔；无喜好 → 空 */

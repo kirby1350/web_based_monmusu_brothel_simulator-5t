@@ -181,7 +181,11 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
   const partnersList = plan.partners ?? []
   const division = divisionBlock(girl, partnersList, guest, live.stepIndex)
   const partnerCraft = live.stepIndex === 3 ? partnersList.map((p) => { const r = partnerRole(p, getMainService(guest)); return r === '无' ? '' : skillCraftLine(p, r) }).filter(Boolean).join('\n') : ''
-  const behaviour = cast.map((g) => buildBehaviourLines(g.name, stepBehaviour(g, live.stepIndex, currentStep.zone, currentStep.note, preview.plays.map((p) => p.id)))).filter(Boolean).join('\n')
+  // 协同在正戏里按自己的分工技能来写（不再全员都写主类型）；play 只算主位的
+  const behaviour = cast.map((g, i) => {
+    const role = i === 0 ? currentStep.note : partnerRole(g, getMainService(guest))
+    return buildBehaviourLines(g.name, stepBehaviour(g, live.stepIndex, currentStep.zone, role === '无' ? undefined : role, i === 0 ? preview.plays.map((p) => p.id) : []))
+  }).filter(Boolean).join('\n')
   const heatBlock = live.heat ? heatPromptBlock(live.heat, guest.name, cast) : ''
   const usedPlays = preview.plays.filter((p) => playStepOf(p.id, plan.flow?.playSteps, insertedAt) < live.stepIndex).map((p) => p.name)
   const recentLine = recentUseLine(recentMetaphors.slice(-8), usedPlays)

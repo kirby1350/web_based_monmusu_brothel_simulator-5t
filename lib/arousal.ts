@@ -182,8 +182,8 @@ export function heatBars(h: Heat) { return { arousal: Math.round(h.arousal), ple
 export { getGuestProfile }
 
 // ─── 调教的亲自上场：同样的档位，让她的说话随回合推进（不进调教结算） ───────────
-/** 调教回合的阶段：前 2 回合像挑逗、3–4 回合像前戏、之后像正戏 */
-export const TRAINING_PHASE = (turn: number) => (turn <= 2 ? 1 : turn <= 4 ? 2 : 3)
+/** 调教回合的阶段：第 1 回合像挑逗、2–3 回合像前戏、之后像正戏（一场调教通常 6–10 回合） */
+export const TRAINING_PHASE = (turn: number) => (turn <= 1 ? 1 : turn <= 3 ? 2 : 3)
 export const TRAINER_PLEASURE_MULT = 0.6
 
 export function initTrainingHeat(girl: MonstGirl): HeatState {
