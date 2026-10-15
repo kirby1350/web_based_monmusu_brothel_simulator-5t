@@ -19,13 +19,14 @@ import {
 import { parseLooseJson, cn } from '@/lib/utils'
 import { OUTFITS, STOCKINGS, STEP_MAX, getSensitivityLevel, playIconPath, ALL_PLAYS } from '@/lib/catalog'
 import { buildStepRecap, provokeSection, lengthReminder, transitionTurn, transitionFallback, climaxSlipNote, shortReplyNote, extractMetaphors, pushRecent, recentUseLine } from '@/lib/prompt-context'
+import { bankWordsUsed } from '@/lib/prose-bank'
 import { ItemIcon } from '@/components/item-icon'
 import { SERVICE_STEPS } from '@/lib/resolve-service'
 import {
   initLiveState, recordTurn, nextStep, canChangeOutfit, changeOutfit, insertablePlays, insertPlay,
   resolveLiveSteps, buildStepContext, recordModelStats, topicHit, type LiveState,
 } from '@/lib/live-steps'
-import { heatPromptBlock, speechBand, initTrainingHeat, trainingHeatTurn, type HeatState } from '@/lib/arousal'
+import { heatPromptBlock, speechBand, initTrainingHeat, trainingHeatTurn, TRAINING_PHASE, type HeatState } from '@/lib/arousal'
 import { HeatPanel } from '@/components/heat-panel'
 import { GuestPrefs } from '@/components/guest-prefs'
 import { applyPartners } from '@/lib/multi-service'
@@ -59,6 +60,7 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
   // 下一回合附在玩家消息后的本地校正（高潮越界 / 篇幅过短）
   const [nextNote, setNextNote] = useState('')
   const [recentMetaphors, setRecentMetaphors] = useState<string[]>([])
+  const [recentBank, setRecentBank] = useState<string[]>([])
   const liveRef = useRef(live)
   useEffect(() => { liveRef.current = live }, [live])
   // 现场插入的 play 记在插入时的那一步（写作素材只在那一步给）
@@ -117,8 +119,9 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
   const handleRawReply = useCallback((raw: string) => {
     const wasTransition = transitionRef.current
     // 本地回看：越过高潮闸门就在下一回合附一句校正
-    setNextNote(climaxSlipNote(raw, liveRef.current.heat?.justClimaxed ?? []) + shortReplyNote(raw))
+    setNextNote(climaxSlipNote(raw, liveRef.current.heat?.justClimaxed ?? []) + shortReplyNote(raw, settings.proseStyle))
     setRecentMetaphors((m) => pushRecent(m, extractMetaphors(raw)))
+    setRecentBank((m) => [...m.filter((w) => !bankWordsUsed(raw).includes(w)), ...bankWordsUsed(raw)].slice(-30))
     transitionRef.current = false
     const actions = parseActionsFromReply(raw)
     if (actions) setSuggestions(actions)
@@ -192,7 +195,8 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
   const ctxAll = [stepContext, craft, partnerCraft, division, behaviour, heatBlock, recentLine].filter(Boolean).join('\n')
   // 提示词里的「满意度」用结算同一个数（不再有另算的射精满足度）
   const promptSession = { ...session, messages, guest: session.guest ? { ...session.guest, satisfaction: preview.satisfaction } : session.guest }
-  const systemPrompt = buildServiceSystemPrompt(player, promptSession, settings.proseStyle, ctxAll, { outfit: live.outfit, stockings: live.stockings, heatLocal: !!live.heat })
+  const systemPrompt = buildServiceSystemPrompt(player, promptSession, settings.proseStyle, ctxAll, { outfit: live.outfit, stockings: live.stockings, heatLocal: !!live.heat,
+    dense: { stepIndex: live.stepIndex, climaxAllowed: (live.heat?.justClimaxed.length ?? 0) > 0 || (live.stepIndex === 4 && (live.heat?.guest.climaxes ?? 0) > 0), seed: messages.length, avoid: recentBank } })
   const recap = buildStepRecap(preview.steps.map((st, i) => ({
     label: SERVICE_STEPS[i].label, score: st.score, max: STEP_MAX, turns: live.turns[i],
     key: i === 3 && preview.plays.length ? `${st.note ?? ''}+${preview.plays.map((p) => p.name).join('、')}` : (st.zone ?? stepActions[i]?.slice(0, 8)),
@@ -338,7 +342,7 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
       {/* 对话区 */}
       <div className="flex-1 flex flex-col min-h-0">
         <ChatEngine ref={chatRef} systemPrompt={systemPrompt} recap={recap} messages={messages} onMessagesChange={setMessages} onRememberUser={onRemember}
-          settings={settings} turnSuffix={lengthReminder('service') + nextNote} onRawStreamComplete={handleRawReply} showInput={false} className="flex-1 min-h-0" />
+          settings={settings} turnSuffix={lengthReminder('service', settings.proseStyle) + nextNote} onRawStreamComplete={handleRawReply} showInput={false} className="flex-1 min-h-0" />
         <SuggestionBar suggestions={shownSuggestions} onSelect={(t) => setInputValue(t)} />
         <div className="border-t border-border px-3 pb-3 pt-2 flex gap-2 items-end">
           <textarea value={inputValue} onChange={(e) => setInputValue(e.target.value)} data-testid="scene-input"
@@ -409,9 +413,13 @@ export function TrainingScene({ player, girl, directionLabel, trainingInfo, extr
   useEffect(() => { heatRef.current = heat }, [heat])
   const [nextNote, setNextNote] = useState('')
   const [recentMetaphors, setRecentMetaphors] = useState<string[]>([])
+  const [recentBank, setRecentBank] = useState<string[]>([])
   const drillCraft = drillSkill ? `【特训技能的写法】\n${skillCraftLine(girl, drillSkill)}` : ''
   const trainCtx = [heatPromptBlock(heat, player.name, [girl]), drillCraft, recentUseLine(recentMetaphors.slice(-8), [])].filter(Boolean).join('\n')
-  const systemPrompt = buildServiceSystemPrompt(player, { ...session, messages }, settings.proseStyle, trainCtx, { scene, day, heatLocal: true }) + `\n\n${trainingInfo ?? `【本次调教方向】${directionLabel}`}` + (extraPrompt ? `\n${extraPrompt}` : '') + (provoked ? provokeSection(girl, provoked) : '')
+    + `\n\n${trainingInfo ?? `【本次调教方向】${directionLabel}`}` + (extraPrompt ? `\n${extraPrompt}` : '') + (provoked ? provokeSection(girl, provoked) : '')
+  // 重油段在最末尾：调教按回合阶段（1 挑逗 / 2 前戏 / 3 正戏）筛词
+  const systemPrompt = buildServiceSystemPrompt(player, { ...session, messages }, settings.proseStyle, trainCtx, { scene, day, heatLocal: true,
+    dense: { stepIndex: TRAINING_PHASE(turns + 1), climaxAllowed: heat.justClimaxed.length > 0, seed: messages.length, avoid: recentBank } })
 
   // 激发后要等提示词更新再发这句话
   useEffect(() => {
@@ -421,8 +429,9 @@ export function TrainingScene({ player, girl, directionLabel, trainingInfo, extr
   }, [pending, systemPrompt])
 
   const onRaw = useCallback((raw: string) => {
-    setNextNote(climaxSlipNote(raw, heatRef.current.justClimaxed) + shortReplyNote(raw))
+    setNextNote(climaxSlipNote(raw, heatRef.current.justClimaxed) + shortReplyNote(raw, settings.proseStyle))
     setRecentMetaphors((m) => pushRecent(m, extractMetaphors(raw)))
+    setRecentBank((m) => [...m.filter((w) => !bankWordsUsed(raw).includes(w)), ...bankWordsUsed(raw)].slice(-30))
     const a = parseActionsFromReply(raw)
     if (a) setSuggestions(a)
     const multi = parseStatsFromReply(raw)
@@ -478,7 +487,7 @@ export function TrainingScene({ player, girl, directionLabel, trainingInfo, extr
         </p>
       )}
       <ChatEngine ref={chatRef} systemPrompt={systemPrompt} messages={messages} onMessagesChange={setMessages} onRememberUser={onRemember}
-        settings={settings} turnSuffix={lengthReminder('training') + nextNote} onRawStreamComplete={onRaw} showInput={false} className="flex-1 min-h-0" />
+        settings={settings} turnSuffix={lengthReminder('training', settings.proseStyle) + nextNote} onRawStreamComplete={onRaw} showInput={false} className="flex-1 min-h-0" />
       <SuggestionBar suggestions={suggestions} onSelect={(t) => setInputValue(t)} />
       <div className="border-t border-border px-3 pb-3 pt-2 flex gap-2 items-end">
         <textarea value={inputValue} onChange={(e) => setInputValue(e.target.value)}
