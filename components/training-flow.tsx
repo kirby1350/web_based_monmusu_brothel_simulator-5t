@@ -2,7 +2,7 @@
 
 // 调教流程容器：准备向导 → （跳过 | 亲自上场）→ 结算卡
 import { useState } from 'react'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Settings } from 'lucide-react'
 import { AppSettings, GameSave, MonstGirl } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -21,8 +21,10 @@ type Phase =
   | { kind: 'scene'; plan: TrainingPlan }
   | { kind: 'result'; mode: 'skip' | 'live'; before: MonstGirl; result: TrainingResult; incident?: string }
 
-export function TrainingFlow({ save, settings, onSaveChange, onBack }: {
+export function TrainingFlow({ save, settings, onSaveChange, onBack, onOpenSettings }: {
   save: GameSave; settings: AppSettings; onSaveChange: (s: GameSave) => void; onBack: () => void
+  /** 设置抽屉是覆盖层：打开/关闭不卸载本页，进行中的调教状态不丢 */
+  onOpenSettings?: () => void
 }) {
   const [phase, setPhase] = useState<Phase>({ kind: 'setup' })
   const settle = (plan: TrainingPlan, mode: 'skip' | 'live', result: TrainingResult) => {
@@ -41,6 +43,12 @@ export function TrainingFlow({ save, settings, onSaveChange, onBack }: {
         </Button>
         <h1 className="text-sm font-bold gold-text">调教{phase.kind !== 'setup' && phase.kind === 'scene' && phase.plan.scene ? ` · ${getScene(phase.plan.scene)!.name}` : ''}</h1>
         <Badge variant="secondary" className="text-[10px] h-5 px-2">{label}</Badge>
+        <span className="flex-1" />
+        {onOpenSettings && (
+          <Button variant="ghost" size="icon" className="w-7 h-7" onClick={onOpenSettings} aria-label="设置" data-testid="btn-settings-inline">
+            <Settings className="w-4 h-4" />
+          </Button>
+        )}
       </header>
       {phase.kind === 'setup' && (
         <TrainingSetup save={save}

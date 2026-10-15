@@ -3,7 +3,7 @@
 // 接客流程容器：准备向导 → （跳过 | 亲自上场场景）→ 结算卡
 import { recordQuote } from '@/lib/girl-memory'
 import { useState } from 'react'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Settings } from 'lucide-react'
 import { AppSettings, GameSave, Guest } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -23,6 +23,8 @@ interface ServiceFlowProps {
   settings: AppSettings
   onSaveChange: (save: GameSave) => void
   onBack: () => void
+  /** 设置抽屉是覆盖层：打开/关闭不卸载本页，进行中的接客状态不丢 */
+  onOpenSettings?: () => void
 }
 
 type Phase =
@@ -30,7 +32,7 @@ type Phase =
   | { kind: 'scene'; plan: ServicePlan }
   | { kind: 'result'; plan: ServicePlan; mode: 'skip' | 'live'; result: ServiceResult; info: SettleInfo; transcript?: string }
 
-export function ServiceFlow({ save, settings, onSaveChange, onBack }: ServiceFlowProps) {
+export function ServiceFlow({ save, settings, onSaveChange, onBack, onOpenSettings }: ServiceFlowProps) {
   const [phase, setPhase] = useState<Phase>({ kind: 'setup' })
 
   const settle = (plan: ServicePlan, mode: 'skip' | 'live', result: ServiceResult, transcript?: string) => {
@@ -53,6 +55,12 @@ export function ServiceFlow({ save, settings, onSaveChange, onBack }: ServiceFlo
         </Button>
         <h1 className="text-sm font-bold gold-text">接客</h1>
         <Badge variant="secondary" className="text-[10px] h-5 px-2">{label}</Badge>
+        <span className="flex-1" />
+        {onOpenSettings && (
+          <Button variant="ghost" size="icon" className="w-7 h-7" onClick={onOpenSettings} aria-label="设置" data-testid="btn-settings-inline">
+            <Settings className="w-4 h-4" />
+          </Button>
+        )}
       </header>
 
       {phase.kind === 'setup' && (
