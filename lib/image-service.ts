@@ -62,6 +62,20 @@ async function generatePixAI(
 }
 
 /**
+ * 从 TensorArt 轮询结果里取第一张图的 URL。
+ * 现行格式：{ job: { status: "SUCCESS", successInfo: { images: [{ url }] } } }；
+ * 旧格式：{ job: { images: [{ url }] } }（兜底）。
+ */
+export function tensorArtImageUrl(job: unknown): string | undefined {
+  const j = job as { successInfo?: { images?: { url?: unknown }[] }; images?: { url?: unknown }[] } | null | undefined
+  for (const list of [j?.successInfo?.images, j?.images]) {
+    const url = Array.isArray(list) ? list.find((im) => typeof im?.url === 'string' && im.url)?.url : undefined
+    if (typeof url === 'string') return url
+  }
+  return undefined
+}
+
+/**
  * 通过 TensorArt API 生成图片并等待结果
  */
 async function generateTensorArt(
@@ -99,11 +113,11 @@ async function generateTensorArt(
     })
     if (!pollRes.ok) continue
     const data = await pollRes.json()
-    // TensorArt poll response: { job: { status: "SUCCESS", images: [{ url: "..." }] } }
     const job = data?.job
     const status = job?.status
-    if ((status === 'SUCCESS' || status === 'COMPLETED') && job?.images?.[0]?.url) {
-      return { url: job.images[0].url }
+    const url = tensorArtImageUrl(job)
+    if ((status === 'SUCCESS' || status === 'COMPLETED') && url) {
+      return { url }
     }
     if (status === 'FAILED' || status === 'ERROR') {
       return { url: '', error: 'Task failed' }
