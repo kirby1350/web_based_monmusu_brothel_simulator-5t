@@ -8,6 +8,7 @@ import { applyReputationDelta, calcServiceReward, MAX_ACTIONS_PER_DAY } from './
 import { LIVE_SERVICE_STAMINA_LONG, LIVE_SERVICE_STAMINA_SHORT, MAX_STAMINA } from './catalog'
 import { sceneRiskIncident } from './scenes'
 import { recordService, recordTraining } from './girl-memory'
+import { growProficiency, SERVICE_PROF_CAP, type ProfChange } from './proficiency'
 
 /** 预览：收入区间（亲自上场最差到最好的大致范围）与体力 */
 export function previewService(input: Omit<ServiceInput, 'skip'>) {
@@ -28,6 +29,9 @@ export interface SettleInfo {
   incident?: import('./types').Incident
   reward: number
   tierLabel: string
+  /** 熟练度实际变化 */
+  profChanges?: ProfChange[]
+  becameTwoSided?: boolean
   reputationDelta: number
   becameRegular: boolean
   staminaBefore: number
@@ -52,9 +56,10 @@ export function applyServiceToSave(
   }
   const appeared = save.appearedToday ?? []
   const incident = serviceFailIncident(girl, guest, tier.key, save.currentDay, rng)
+  const grown = growProficiency(girl, result.profGains ?? {}, SERVICE_PROF_CAP)
   const logged = logService(save, { girl: girl.name, guest: guest.name, tier: tier.label, sat: result.satisfaction, pay: result.reward, regular: becameRegular, rep: applyReputationDelta(save.player.reputation, tier.reputationDelta) - (save.player.reputation ?? 0) })
   return {
-    info: { incident: incident ?? undefined, reward: result.reward, tierLabel: tier.label, reputationDelta: tier.reputationDelta, becameRegular, staminaBefore: before, staminaAfter: after },
+    info: { profChanges: grown.changes, becameTwoSided: grown.becameTwoSided, incident: incident ?? undefined, reward: result.reward, tierLabel: tier.label, reputationDelta: tier.reputationDelta, becameRegular, staminaBefore: before, staminaAfter: after },
     save: {
       ...logged,
       player: {
@@ -65,6 +70,8 @@ export function applyServiceToSave(
       },
       girls: save.girls.map((g) => g.id !== girlId ? g : {
         ...recordService(g, guest, { tier: tier.label, sat: result.satisfaction, reward: result.reward }, save.currentDay),
+        proficiency: grown.girl.proficiency,
+        inclination: grown.girl.inclination,
         stamina: after,
         exhausted: after === 0 ? true : g.exhausted,
         affection: Math.min(100, g.affection + result.affectionDelta),

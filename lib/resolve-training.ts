@@ -10,24 +10,25 @@ import {
 // 基础值 × 调教室倍率；道具、服装是固定小数，不吃倍率；塑形厘米数不吃倍率。
 import type { MonstGirl, OutfitId, SensitivityZone, SkillKey, SkillRank, TrainingDirection } from './types'
 import {
-  SCULPT_POTIONS, SCULPT_BOUNDS, TRAINING_ROOM_MULT, TRAINING_ROOM_PROP_SLOTS, SKILL_PROGRESS_PER_RANK,
+  SCULPT_POTIONS, SCULPT_BOUNDS, TRAINING_ROOM_MULT, TRAINING_ROOM_PROP_SLOTS,
   SKIP_OBEDIENCE_MIN, TRAINING_PROPS, MAX_STAMINA, COMMON_ZONES, SENSITIVITY_DEFAULT, outfitName,
 } from './catalog'
+import {
+  growProficiency, DRILL_PROF_GAIN, DRILL_PROF_BONUS, MS_PROF_GAIN, MS_PROF_EXTRA, SENSITIZE_PROF_GAIN, ZONE_SKILL,
+  type ProfChange,
+} from './proficiency'
 
 export const TRAINING_DIRECTIONS: { key: TrainingDirection; label: string; hint: string }[] = [
-  { key: 'tame', label: '驯服', hint: '服从 +6，M 进度 +1' },
-  { key: 'release', label: '放权', hint: '淫乱 +6，S 进度 +1' },
+  { key: 'tame', label: '驯服', hint: '服从 +6，M性 +5' },
+  { key: 'release', label: '放权', hint: '淫乱 +6，S性 +5' },
   { key: 'sculpt', label: '塑形', hint: '用一瓶塑形药改三围，淫乱 +1' },
-  { key: 'drill', label: '特训', hint: '已选技能进度 +1' },
-  { key: 'sensitize', label: '敏感开发', hint: '一条敏感带 +10' },
-  { key: 'punish', label: '惩罚', hint: '驯服效果 + 服从 +3、M 进度 +1；处理掉事件' },
+  { key: 'drill', label: '特训', hint: '一项技能熟练度 +10' },
+  { key: 'sensitize', label: '敏感开发', hint: '一条敏感带 +10，对应技能 +2' },
+  { key: 'punish', label: '惩罚', hint: '驯服效果 + 服从 +3、M性 +3；处理掉事件' },
 ]
 
 /** 调教体力消耗：每场固定 20（道具、种族、调教室都不改体力） */
 export const TRAINING_STAMINA_COST = 20
-/** 「两面」：服从和淫乱都到 70，且已有 M 性或 S 性 */
-export const TWO_SIDED_MIN = 70
-export const TWO_SIDED_KEY = '两面'
 /** 精灵「敏感」：调教成长 ×1.25（体力不变） */
 export const ELF_GROWTH_MULT = 1.25
 
@@ -40,15 +41,17 @@ export interface TrainingInput {
   customProps?: CustomProp[]  // 馆主的定制道具（按模板映射成现成道具效果）
   outfit?: OutfitId
   potionId?: string           // 塑形
-  skill?: SkillKey | typeof TWO_SIDED_KEY  // 特训
+  skill?: SkillKey            // 特训（任何技能都能练）
   zone?: SensitivityZone      // 敏感开发
   scene?: SceneId             // 调教场景（须已拥有且对口方向，由调用方保证）
   day?: number                // 当前天数（场景递减、使用记录用；缺省 1）
   provoke?: SceneId           // 本场被激发的阴影（对话里触到 / 跳过时掷中；由调用方判定）
-  /** 内部用：亲自上场对特训进度的修正 */
-  progressAdjust?: number
 }
 
+/**
+ * m / s / skillProgress 是熟练度的基础增量（递减前）：m→M性、s→S性、skillProgress→profSkill（特训目标，或敏感开发对应的技能）。
+ * 实际涨了多少看 TrainingResult.profChanges。
+ */
 export interface TrainingDelta { obedience: number; lewdness: number; affection: number; m: number; s: number; sensitivity: number; skillProgress: number }
 
 export interface TrainingResult {
@@ -58,6 +61,10 @@ export interface TrainingResult {
   measurement?: { stat: 'bust' | 'waist' | 'hip'; from: number; to: number }
   newRank?: SkillRank
   becameTwoSided?: boolean
+  /** skillProgress 加到哪项技能 */
+  profSkill?: SkillKey
+  /** 熟练度实际变化（递减后） */
+  profChanges?: ProfChange[]
   staminaCost: number
   girl: MonstGirl   // 应用后的魔物娘
   notes: string[]   // 道具 / 服装 / 种族加成说明
@@ -74,7 +81,6 @@ export interface TrainingResult {
   reputationDelta?: number
 }
 
-const RANKS: SkillRank[] = ['初学', '熟练', '精通']
 const clamp100 = (n: number) => Math.max(0, Math.min(100, n))
 const PROP_NAME = (id: string) => TRAINING_PROPS.find((p) => p.id === id)?.name ?? id
 
@@ -85,12 +91,6 @@ export function getTrainingMult(roomLevel?: number): number {
 export function getPropSlots(roomLevel?: number): number {
   const lv = Math.max(1, Math.min(4, roomLevel ?? 1))
   return TRAINING_ROOM_PROP_SLOTS[lv - 1]
-}
-
-/** 「两面」可练：服从、淫乱都 ≥70，已有 M 性或 S 性，且还不是两面 */
-export function canDrillTwoSided(girl: MonstGirl): boolean {
-  const inc = girl.inclination ?? '无'
-  return (inc === 'M' || inc === 'S') && girl.obedience >= TWO_SIDED_MIN && girl.lewdness >= TWO_SIDED_MIN
 }
 
 export function resolveTraining(input: TrainingInput): TrainingResult {
@@ -110,8 +110,7 @@ export function resolveTraining(input: TrainingInput): TrainingResult {
   const notes: string[] = []
   const next: MonstGirl = { ...girl }
   let measurement: TrainingResult['measurement']
-  let newRank: SkillRank | undefined
-  let becameTwoSided = false
+  let profSkill: SkillKey | undefined
   let stamina = TRAINING_STAMINA_COST
   const sceneDef = getScene(input.scene)
   if (input.scene && !sceneDef) return { ok: false, error: '未知的调教场景', delta, staminaCost: 0, girl, notes, summary: '未知的调教场景' }
@@ -122,8 +121,8 @@ export function resolveTraining(input: TrainingInput): TrainingResult {
     const why = provokeBlock(girl, input.provoke, input.day ?? 1)
     if (why) return { ok: false, error: why, delta, staminaCost: 0, girl, notes, summary: why }
   }
-  // 催眠室特训：进度 +1（要在升档计算前加进去）
-  const sceneProg = input.scene === 'hypnosis' && direction === 'drill' ? 1 : 0
+  // 催眠室特训：熟练度 +4
+  const sceneProg = input.scene === 'hypnosis' && direction === 'drill' ? DRILL_PROF_BONUS : 0
   const fail = (error: string): TrainingResult => ({ ok: false, error, delta, staminaCost: 0, girl, notes, summary: error })
 
   switch (direction) {
@@ -131,9 +130,9 @@ export function resolveTraining(input: TrainingInput): TrainingResult {
       let ob = m(6)
       if (skip && girl.obedience < SKIP_OBEDIENCE_MIN) { ob = Math.round(ob * 0.8); notes.push('服从不足 25，跳过的驯服八折') }
       if (props.has('whip')) { ob += 3; notes.push('皮鞭：服从 +3') }
-      if (props.has('rack')) { delta.m += 1; notes.push('拘束架：M 进度 +1') }
+      if (props.has('rack')) { delta.m += MS_PROF_EXTRA; notes.push(`拘束架：M性 +${MS_PROF_EXTRA}`) }
       if (input.outfit === 'restraint' || input.outfit === 'nun') { ob += 1; notes.push(`${outfitName(input.outfit)}：服从 +1`) }
-      delta.obedience = ob; delta.m += m(1); delta.affection = m(1)
+      delta.obedience = ob; delta.m += m(MS_PROF_GAIN); delta.affection = m(1)
       break
     }
     case 'punish': {
@@ -141,13 +140,13 @@ export function resolveTraining(input: TrainingInput): TrainingResult {
       // 基础同驯服（乘倍率），额外加成不乘
       let ob = m(6)
       if (props.has('whip')) { ob += 3; notes.push('皮鞭：服从 +3') }
-      if (props.has('rack')) { delta.m += 1; notes.push('拘束架：M 进度 +1') }
+      if (props.has('rack')) { delta.m += MS_PROF_EXTRA; notes.push(`拘束架：M性 +${MS_PROF_EXTRA}`) }
       if (input.outfit === 'restraint') { ob += 1; notes.push(`${outfitName(input.outfit)}：服从 +1`) }
-      if (input.outfit === 'harness') { delta.m += 1; notes.push(`${outfitName(input.outfit)}：M 进度 +1`) }
-      delta.m += m(1); delta.affection = m(1)
+      if (input.outfit === 'harness') { delta.m += MS_PROF_EXTRA; notes.push(`${outfitName(input.outfit)}：M性 +${MS_PROF_EXTRA}`) }
+      delta.m += m(MS_PROF_GAIN); delta.affection = m(1)
       if (girl.incident) {
         ob += PUNISH_EXTRA_OBEDIENCE; delta.m += PUNISH_EXTRA_M
-        notes.push(`处理事件「${girl.incident.text}」：服从 +${PUNISH_EXTRA_OBEDIENCE}，M 进度 +${PUNISH_EXTRA_M}`)
+        notes.push(`处理事件「${girl.incident.text}」：服从 +${PUNISH_EXTRA_OBEDIENCE}，M性 +${PUNISH_EXTRA_M}`)
         next.incident = null
       } else {
         delta.affection += PUNISH_M_AFFECTION
@@ -161,7 +160,7 @@ export function resolveTraining(input: TrainingInput): TrainingResult {
       if (props.has('massage_table')) { lw += 3; notes.push('按摩台：淫乱 +3') }
       if (props.has('censer')) { lw += 2; notes.push('香炉：淫乱 +2') }
       if (input.outfit === 'queen' || input.outfit === 'babydoll' || input.outfit === 'latex') { lw += 1; notes.push(`${outfitName(input.outfit)}：淫乱 +1`) }
-      delta.lewdness = lw; delta.s = m(1); delta.affection = m(1)
+      delta.lewdness = lw; delta.s = m(MS_PROF_GAIN); delta.affection = m(1)
       break
     }
     case 'sculpt': {
@@ -185,29 +184,14 @@ export function resolveTraining(input: TrainingInput): TrainingResult {
     }
     case 'drill': {
       const skill = input.skill
-      if (skill === TWO_SIDED_KEY) {
-        if (!canDrillTwoSided(girl)) return fail('服从和淫乱都到 70、且已有 M 性或 S 性才能练「两面」')
-        next.inclination = '两面'
-        becameTwoSided = true
-        delta.skillProgress = 1
-        break
-      }
-      const rank = skill ? girl.skillRanks?.[skill] : undefined
-      if (!skill || !rank) return fail('只能特训已选的技能')
-      // 舞娘纱衣：特训「待客」+1，与练习镜不叠加
-      const dancerBonus = input.outfit === 'dancer' && skill === '待客' && !props.has('mirror') ? 1 : 0
-      delta.skillProgress = Math.max(0, m(1) + (props.has('mirror') ? 1 : 0) + dancerBonus + sceneProg + (input.progressAdjust ?? 0))
-      if (sceneProg) notes.push('催眠室：进度 +1')
-      if (props.has('mirror')) notes.push('练习镜：进度 +1')
-      if (dancerBonus) notes.push(`${outfitName(input.outfit)}：待客进度 +1`)
-      const prog = (girl.skillProgress?.[skill] ?? 0) + delta.skillProgress
-      let idx = RANKS.indexOf(rank)
-      let rest = prog
-      while (idx < RANKS.length - 1 && rest >= SKILL_PROGRESS_PER_RANK) { idx++; rest -= SKILL_PROGRESS_PER_RANK }
-      if (idx === RANKS.length - 1) rest = 0
-      next.skillRanks = { ...girl.skillRanks, [skill]: RANKS[idx] }
-      next.skillProgress = { ...girl.skillProgress, [skill]: rest }
-      if (RANKS[idx] !== rank) newRank = RANKS[idx]
+      if (!skill) return fail('需要指定一项技能')
+      profSkill = skill
+      // 舞娘纱衣：特训「待客」+4，与练习镜不叠加
+      const dancerBonus = input.outfit === 'dancer' && skill === '待客' && !props.has('mirror') ? DRILL_PROF_BONUS : 0
+      delta.skillProgress = m(DRILL_PROF_GAIN) + (props.has('mirror') ? DRILL_PROF_BONUS : 0) + dancerBonus + sceneProg
+      if (sceneProg) notes.push(`催眠室：熟练度 +${DRILL_PROF_BONUS}`)
+      if (props.has('mirror')) notes.push(`练习镜：熟练度 +${DRILL_PROF_BONUS}`)
+      if (dancerBonus) notes.push(`${outfitName(input.outfit)}：待客熟练度 +${DRILL_PROF_BONUS}`)
       break
     }
     case 'sensitize': {
@@ -221,6 +205,7 @@ export function resolveTraining(input: TrainingInput): TrainingResult {
       if (!zoneProp && ((input.outfit === 'bunny' && zone === '耳朵') || (input.outfit === 'sling' && zone === '乳房'))) { v += 2; notes.push(`${outfitName(input.outfit)}：+2`) }
       delta.sensitivity = v
       next.sensitivities = { ...girl.sensitivities, [zone]: clamp100((girl.sensitivities?.[zone] ?? 30) + v) }
+      if (ZONE_SKILL[zone]) { profSkill = ZONE_SKILL[zone]; delta.skillProgress = SENSITIZE_PROF_GAIN }
       break
     }
   }
@@ -245,7 +230,9 @@ export function resolveTraining(input: TrainingInput): TrainingResult {
 
   if (girl.race === '精灵') notes.push('敏感：成长 ×1.25')
 
-  applyDelta(girl, next, delta)
+  const grown = applyDelta(girl, next, delta, profSkill)
+  const newRank = grown.changes.find((c) => c.skill === profSkill && c.rankUp)?.rankUp
+  const becameTwoSided = grown.becameTwoSided
   next.stamina = Math.max(0, (girl.stamina ?? MAX_STAMINA) - stamina)
   if (next.stamina === 0) next.exhausted = true
   // 场景使用记录 / 性癖 / 阴影（用结算后的淫乱）
@@ -267,8 +254,8 @@ export function resolveTraining(input: TrainingInput): TrainingResult {
   const label = TRAINING_DIRECTIONS.find((d) => d.key === direction)!.label
   for (let i = 0; i < notes.length; i++) for (const [from, to] of customNames) if (notes[i].startsWith(`${from}：`)) notes[i] = to + notes[i].slice(from.length)
   return {
-    ok: true, direction, delta, measurement, newRank, becameTwoSided, staminaCost: stamina, girl: next, notes,
-    summary: trainingSummary(girl.name, sceneDef ? `${sceneDef.name}·${label}` : label, delta, measurement, newRank),
+    ok: true, direction, delta, measurement, newRank, becameTwoSided, profSkill, profChanges: grown.changes, staminaCost: stamina, girl: next, notes,
+    summary: trainingSummary(girl.name, sceneDef ? `${sceneDef.name}·${label}` : label, delta, measurement, newRank, grown.changes),
     ...(sceneDef ? { scene: sceneDef.id, reputationDelta: sceneOut.rep } : {}),
     ...(awakenedScene ? { awakenedScene } : {}), ...(shadowScene ? { shadowScene } : {}), ...(provokedScene ? { provokedScene } : {}),
   }
@@ -290,7 +277,7 @@ function applyScene(input: TrainingInput, id: SceneId, next: MonstGirl, delta: T
   const extraZones: Partial<Record<SensitivityZone, number>> = {}
   const tameLike = direction === 'tame' || direction === 'punish'
   switch (id) {
-    case 'dungeon': ob = k(4); m = 1; break
+    case 'dungeon': ob = k(4); m = MS_PROF_EXTRA; break
     case 'water': ob = k(5) + (direction === 'punish' && girl.incident ? 2 : 0); break
     case 'stage': if (direction === 'tame') { ob = k(4); lw = k(2) } else { lw = k(4); ob = k(2) } rep = 1; break
     case 'machine': if (direction === 'tame') ob = k(6); else sens = k(6); break
@@ -336,7 +323,7 @@ function applyScene(input: TrainingInput, id: SceneId, next: MonstGirl, delta: T
     next.sensitivities = { ...next.sensitivities, [zone]: clamp100((next.sensitivities?.[zone] ?? girl.sensitivities?.[zone] ?? SENSITIVITY_DEFAULT) + v) }
   }
 
-  const gains = [ob && `服从 +${ob}`, lw && `淫乱 +${lw}`, sens && `敏感 +${sens}`, m && `M 进度 +${m}`,
+  const gains = [ob && `服从 +${ob}`, lw && `淫乱 +${lw}`, sens && `敏感 +${sens}`, m && `M性 +${m}`,
     Object.keys(extraZones).length && `${Object.entries(extraZones).map(([z, v]) => `${z} +${v}`).join('、')}`, rep && `声望 +${rep}`].filter(Boolean)
   notes.push(`${def.name}：${gains.join('，') || '—'}${aff ? `，好感 ${aff > 0 ? '+' : '−'}${Math.abs(aff)}` : ''}${def.staminaExtra ? `，体力 ${def.staminaExtra > 0 ? '+' : '−'}${Math.abs(def.staminaExtra)}` : ''}`)
   if (decay < 1) notes.push(`本周第 ${countLabel(girl, id, day)} 次用${def.name}：加成 ×${decay}`)
@@ -350,14 +337,19 @@ function countLabel(girl: MonstGirl, id: SceneId, day: number): number {
   return (girl.sceneState?.[id]?.uses ?? []).filter((d) => d > day - 7 && d <= day).length + 1
 }
 
-function applyDelta(girl: MonstGirl, next: MonstGirl, delta: TrainingDelta) {
+/** 属性直接加；熟练度按递减加（next.proficiency 视为结算前的值），同步倾向 / 两面 */
+function applyDelta(girl: MonstGirl, next: MonstGirl, delta: TrainingDelta, profSkill?: SkillKey): { changes: ProfChange[]; becameTwoSided: boolean } {
   next.obedience = clamp100(girl.obedience + delta.obedience)
   next.lewdness = clamp100(girl.lewdness + delta.lewdness)
   next.affection = clamp100(girl.affection + delta.affection)
-  if (delta.m || delta.s) {
-    const p = girl.msProgress ?? { m: 0, s: 0 }
-    next.msProgress = { m: p.m + delta.m, s: p.s + delta.s }
-  }
+  const gains: Partial<Record<SkillKey, number>> = {}
+  if (delta.m > 0) gains['M性'] = delta.m
+  if (delta.s > 0) gains['S性'] = delta.s
+  if (profSkill && delta.skillProgress > 0) gains[profSkill] = (gains[profSkill] ?? 0) + delta.skillProgress
+  const r = growProficiency(next, gains)
+  next.proficiency = r.girl.proficiency
+  next.inclination = r.girl.inclination
+  return { changes: r.changes, becameTwoSided: r.becameTwoSided }
 }
 
 const MAIN_KEY: Record<TrainingDirection, keyof TrainingDelta> = {
@@ -382,26 +374,27 @@ export function resolveLiveTraining(input: Omit<TrainingInput, 'skip'>, turns: n
     notes.push('回合多、快感高，主项 +2')
   }
   if (delta === base.delta) return base
-  // 按调整后的 delta 重新应用（塑形三围、技能档位保持基础结算）
-  const next: MonstGirl = { ...base.girl }
-  applyDelta(input.girl, next, delta)
+  // 按调整后的 delta 重新应用（塑形三围保持基础结算；熟练度从结算前的值重算）
+  const next: MonstGirl = { ...base.girl, proficiency: input.girl.proficiency, inclination: input.girl.inclination }
+  const grown = applyDelta(input.girl, next, delta, base.profSkill)
   if (input.direction === 'sensitize' && input.zone) {
     next.sensitivities = { ...base.girl.sensitivities, [input.zone]: clamp100((input.girl.sensitivities?.[input.zone] ?? 30) + delta.sensitivity) }
   }
-  if (input.direction === 'drill' && input.skill !== TWO_SIDED_KEY) {
-    const r = resolveTraining({ ...input, skip: false, progressAdjust: delta.skillProgress - base.delta.skillProgress })
-    return { ...r, notes }
-  }
+  const newRank = grown.changes.find((c) => c.skill === base.profSkill && c.rankUp)?.rankUp
   const label = TRAINING_DIRECTIONS.find((d) => d.key === input.direction)!.label
-  return { ...base, delta, girl: next, notes, summary: trainingSummary(input.girl.name, label, delta, base.measurement, base.newRank) }
+  return {
+    ...base, delta, girl: next, notes, newRank, becameTwoSided: grown.becameTwoSided, profChanges: grown.changes,
+    summary: trainingSummary(input.girl.name, label, delta, base.measurement, newRank, grown.changes),
+  }
 }
 
 const STAT_LABEL: [keyof TrainingDelta, string][] = [
-  ['obedience', '服从'], ['lewdness', '淫乱'], ['affection', '好感'], ['sensitivity', '敏感度'], ['skillProgress', '技能进度'],
+  ['obedience', '服从'], ['lewdness', '淫乱'], ['affection', '好感'], ['sensitivity', '敏感度'],
 ]
 
-export function trainingSummary(name: string, label: string, delta: TrainingDelta, measurement?: TrainingResult['measurement'], newRank?: SkillRank): string {
+export function trainingSummary(name: string, label: string, delta: TrainingDelta, measurement?: TrainingResult['measurement'], newRank?: SkillRank, changes: ProfChange[] = []): string {
   const gains = STAT_LABEL.filter(([k]) => delta[k] > 0).map(([k, l]) => `${l} +${delta[k]}`)
+  for (const c of changes) gains.push(`${c.skill}熟练度 ${Math.floor(c.from)}→${Math.floor(c.to)}`)
   if (delta.affection < 0) gains.push(`好感 −${-delta.affection}`)
   const parts = [`${name}在调教室里接受了一轮${label}。`]
   if (measurement) parts.push(`${{ bust: '胸围', waist: '腰围', hip: '臀围' }[measurement.stat]}从 ${measurement.from} 变成了 ${measurement.to}。`)

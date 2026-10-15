@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
+import { withInitialProficiency } from '@/lib/proficiency'
 import { ArrowLeft, RefreshCw, Loader2, Coins, ShoppingCart, Filter, Send, Settings2, X, BookOpen, Star } from 'lucide-react'
 import { GameSave, MonstGirl, AppSettings } from '@/lib/types'
 import { Button } from '@/components/ui/button'
@@ -187,7 +188,7 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
 
     const updatedSave: GameSave = {
       ...save,
-      girls: [...girls, { ...girl, price: 0 }],
+      girls: [...girls, withInitialProficiency({ ...girl, price: 0 })],
       player: { ...player, gold: player.gold - price, marketPreference: preference },
     }
     onSaveChange(updatedSave)

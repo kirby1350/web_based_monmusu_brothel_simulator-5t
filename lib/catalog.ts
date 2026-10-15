@@ -3,17 +3,11 @@ import type {
   DesireKind, DesireService, Guest, Inclination, MonstGirl, OutfitId, OutfitPref,
   SensitivityLevel, SensitivityZone, ServingSkill, SkillKey, SkillRank, StockingId,
 } from './types'
+import { profRank, deriveInclination } from './proficiency'
 
 // ─── 服侍技能 / 档位 ────────────────────────────────────────────────────────────
 
 export const SERVING_SKILL_LIST: ServingSkill[] = ['口侍', '胸侍', '身侍', '手技', '待客']
-export const MAX_SERVING_SKILLS = 3
-/** 服从 30、淫乱 40、好感 50 各弹出一次技能选择 */
-export const SKILL_PICK_THRESHOLDS = [
-  { stat: 'obedience', value: 30 },
-  { stat: 'lewdness', value: 40 },
-  { stat: 'affection', value: 50 },
-] as const
 
 /** 除迎客外的步骤分：无 4 / 初学 8 / 熟练 11 / 精通 14 */
 export const STEP_SCORE: Record<SkillRank | '无', number> = { 无: 4, 初学: 8, 熟练: 11, 精通: 14 }
@@ -30,8 +24,6 @@ export const SKILL_RANK_BONUS: Record<SkillRank, number> = { 初学: 0, 熟练: 
 
 export const STANDARD_MAX = 70
 export const WRONG_SIDE_PLAY_PENALTY = -12
-/** 特训：每 2 点进度升一档 */
-export const SKILL_PROGRESS_PER_RANK = 2
 
 // ─── 额外 play ────────────────────────────────────────────────────────────────
 
@@ -123,7 +115,7 @@ export const OUTFITS: OutfitDef[] = [
   { id: 'qipao', name: '高开衩旗袍', price: 220, pref: '异域', tags: 'china dress, red qipao, high side slit, thighs, gold embroidery',
     desc: '绛红缎面贴身到不留一丝余地，开衩一路开到腰骨，走一步就露出整截雪白的大腿根。' },
   { id: 'dancer', name: '舞娘纱衣', price: 220, pref: '异域', tags: 'harem outfit, dancer, see-through veil, belly chain, gold jewelry, midriff',
-    desc: '薄纱只遮住该遮的那一点，腰链与金铃随扭胯叮当作响，一曲跳完，纱已贴在汗湿的肌肤上。', effect: '特训「待客」进度 +1（有练习镜时不叠加）' },
+    desc: '薄纱只遮住该遮的那一点，腰链与金铃随扭胯叮当作响，一曲跳完，纱已贴在汗湿的肌肤上。', effect: '特训「待客」熟练度 +4（有练习镜时不叠加）' },
   { id: 'babydoll', name: '透纱睡裙', price: 180, pref: '暴露', tags: 'babydoll, see-through nightgown, black lingerie, sheer fabric',
     desc: '一层薄得像呼吸的黑纱，从胸口松松垂到大腿，灯一照，底下什么都没穿。', effect: '放权 淫乱 +1' },
   { id: 'sling', name: '吊带泳衣', price: 180, pref: '暴露', tags: 'sling bikini, slingshot swimsuit, revealing swimsuit',
@@ -141,7 +133,7 @@ export const OUTFITS: OutfitDef[] = [
   { id: 'latex', name: '乳胶紧身衣', price: 260, pref: '想被榨的客人', tags: 'latex bodysuit, black latex, shiny clothes, zipper, skin tight',
     desc: '漆黑乳胶从脖颈一路包到脚尖，紧得能看清每一道曲线，拉链只要往下拉一寸就再也停不住。', effect: '放权 淫乱 +1' },
   { id: 'harness', name: '皮革束带装', price: 240, pref: '想施虐的客人', tags: 'leather harness, body harness, o-ring, black straps, choker',
-    desc: '几道黑皮带交错勒过胸口、腰身与大腿，金属环正好留给牵绳，几乎什么也没遮。', effect: '惩罚 M 进度 +1' },
+    desc: '几道黑皮带交错勒过胸口、腰身与大腿，金属环正好留给牵绳，几乎什么也没遮。', effect: '惩罚 M性 +3' },
 ]
 export interface StockingDef { id: StockingId; name: string; price: number; pref: OutfitPref | null; tags?: string; desc?: string }
 export const STOCKINGS: StockingDef[] = [
@@ -317,13 +309,15 @@ export function getGuestProfile(guest: Guest): DesireProfile {
   }
 }
 
-/** 档位工具 */
+/** 档位工具：有熟练度按 25/50/75 分档；没有熟练度的旧对象（迁移前）按旧档位 */
 export function getSkillRank(girl: MonstGirl, skill: SkillKey): SkillRank | undefined {
+  if (girl.proficiency) return profRank(girl.proficiency[skill])
   if (skill === '胸侍' && girl.race === '牛娘') return girl.skillRanks?.['胸侍'] ?? '初学'
   return girl.skillRanks?.[skill]
 }
 
 export function getInclination(girl: MonstGirl): Inclination {
+  if (girl.proficiency) return deriveInclination(girl)
   return girl.inclination ?? '无'
 }
 
@@ -341,11 +335,11 @@ export function itemIconPath(category: IconCategory, id: string): string | undef
 export interface CustomPropTemplate { id: string; label: string; baseProp: string; tier: 'tame' | 'release' | 'sculpt' | 'drill' | 'sensitize' }
 export const CUSTOM_PROP_TEMPLATES: CustomPropTemplate[] = [
   { id: 'tpl_obedience', label: '驯服：服从 +3（同皮鞭）', baseProp: 'whip', tier: 'tame' },
-  { id: 'tpl_m', label: '驯服：M 进度 +1（同拘束架）', baseProp: 'rack', tier: 'tame' },
+  { id: 'tpl_m', label: '驯服：M性 +3（同拘束架）', baseProp: 'rack', tier: 'tame' },
   { id: 'tpl_lewd3', label: '放权：淫乱 +3（同按摩台）', baseProp: 'massage_table', tier: 'release' },
   { id: 'tpl_lewd2', label: '放权/塑形：淫乱 +2（同香炉）', baseProp: 'censer', tier: 'release' },
   { id: 'tpl_cm', label: '塑形：胸围或臀围多 1 厘米（同塑形架）', baseProp: 'sculpt_frame', tier: 'sculpt' },
-  { id: 'tpl_progress', label: '特训：进度 +1（同练习镜）', baseProp: 'mirror', tier: 'drill' },
+  { id: 'tpl_progress', label: '特训：熟练度 +4（同练习镜）', baseProp: 'mirror', tier: 'drill' },
   ...TRAINING_PROPS.filter((p) => p.zone).map((p) => ({
     id: `tpl_zone_${p.zone}`, label: `敏感开发：${p.zone === '种族' ? '种族敏感带' : p.zone}对口 +4（同${p.name}）`, baseProp: p.id, tier: 'sensitize' as const,
   })),
@@ -381,7 +375,7 @@ export const AFFECTION_INCIDENT_TEMPLATES: { low: string[]; high: string[] } = {
 export const SERVICE_FAIL_INCIDENT_CHANCE = 0.5
 export const DAILY_MISCHIEF_CHANCE = 0.15
 export const PUNISH_EXTRA_OBEDIENCE = 3
-export const PUNISH_EXTRA_M = 1
+export const PUNISH_EXTRA_M = 3
 export const PUNISH_M_AFFECTION = 3
 export const INCIDENT_OVERNIGHT_OBEDIENCE = 3
 

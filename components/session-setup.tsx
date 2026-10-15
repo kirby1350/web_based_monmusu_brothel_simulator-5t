@@ -11,7 +11,8 @@ import { OUTFITS, STOCKINGS, getPlaySlots, getSkillRank, getSensitivityLevel, TR
 import { ItemIcon } from '@/components/item-icon'
 import { getTemplate } from '@/lib/custom-props'
 import { canPunish } from '@/lib/incidents'
-import { resolveTraining, getPropSlots, canDrillTwoSided, TRAINING_DIRECTIONS, TWO_SIDED_KEY, type TrainingResult } from '@/lib/resolve-training'
+import { resolveTraining, getPropSlots, TRAINING_DIRECTIONS, type TrainingResult } from '@/lib/resolve-training'
+import { PROF_SKILLS, proficiencyFromLegacy, profShow, profTierLabel } from '@/lib/proficiency'
 import { canSkipService, getAvailablePlays, getMainService, scorePlay } from '@/lib/resolve-service'
 import { previewService } from '@/lib/settle-session'
 import { cn } from '@/lib/utils'
@@ -264,7 +265,7 @@ export interface TrainingPlan {
   customProps?: CustomProp[]
   outfit: OutfitId
   potionId?: string
-  skill?: SkillKey | typeof TWO_SIDED_KEY
+  skill?: SkillKey
   zone?: SensitivityZone
   scene?: SceneId
   day?: number
@@ -284,7 +285,7 @@ export function TrainingSetup({ save, onSkip, onLive }: TrainingSetupProps) {
   const [props, setProps] = useState<string[]>([])
   const [outfit, setOutfit] = useState<OutfitId>('regular')
   const [potionId, setPotionId] = useState<string | undefined>()
-  const [skill, setSkill] = useState<SkillKey | typeof TWO_SIDED_KEY | undefined>()
+  const [skill, setSkill] = useState<SkillKey | undefined>()
   const [zone, setZone] = useState<SensitivityZone | undefined>()
   const [scene, setScene] = useState<SceneId | undefined>()
   const girl = girls.find((g) => g.id === girlId) ?? null
@@ -297,10 +298,8 @@ export function TrainingSetup({ save, onSkip, onLive }: TrainingSetupProps) {
   const potions = SCULPT_POTIONS.filter((p) => (inv[p.id] ?? 0) > 0)
   const wardrobe = new Set(player.wardrobe ?? [])
   const outfits = OUTFITS.filter((o) => o.id === 'regular' || wardrobe.has(o.id))
-  const skills: (SkillKey | typeof TWO_SIDED_KEY)[] = girl ? [
-    ...(Object.keys(girl.skillRanks ?? {}) as SkillKey[]),
-    ...(canDrillTwoSided(girl) ? [TWO_SIDED_KEY] as const : []),
-  ] : []
+  const skills: SkillKey[] = girl ? PROF_SKILLS : []
+  const prof = girl ? (girl.proficiency ?? proficiencyFromLegacy(girl)) : {}
   const zones: SensitivityZone[] = girl ? [...COMMON_ZONES, ...(RACE_ZONE_NAMES[girl.race] ? ['种族' as SensitivityZone] : [])] : []
 
   const plan: TrainingPlan | null = girl ? { girl, direction, roomLevel, props, customProps: player.customProps ?? [], outfit, potionId, skill, zone, scene: activeScene, day: save.currentDay } : null
@@ -372,15 +371,13 @@ export function TrainingSetup({ save, onSkip, onLive }: TrainingSetupProps) {
             )}
             {direction === 'drill' && (
               <section className="space-y-2">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-widest">特训技能</p>
-                {skills.length === 0 ? <p className="text-[11px] text-rose-400/80">她还没有选过技能（魔物娘页 · 技能）。</p> : (
-                  <div className="flex flex-wrap gap-1.5">
-                    {skills.map((k) => (
-                      <Chip key={k} active={skill === k} onClick={() => setSkill(k)}
-                        label={k === TWO_SIDED_KEY ? '两面' : `${k} ${girl.skillRanks?.[k as SkillKey] ?? ''} · 进度 ${girl.skillProgress?.[k as SkillKey] ?? 0}/2`} />
-                    ))}
-                  </div>
-                )}
+                <p className="text-[10px] text-muted-foreground uppercase tracking-widest">特训技能（任何技能都能练，未学的练到 25 就入门）</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {skills.map((k) => (
+                    <Chip key={k} active={skill === k} onClick={() => setSkill(k)}
+                      label={`${k} ${profTierLabel(prof[k])} ${profShow(prof[k])}`} />
+                  ))}
+                </div>
               </section>
             )}
             {direction === 'sensitize' && (
@@ -455,7 +452,8 @@ export function TrainingSetup({ save, onSkip, onLive }: TrainingSetupProps) {
                 {skipProvokeChance > 0 && <p className="text-[10px] text-slate-300" data-testid="skip-provoke-hint">她在这里有阴影：跳过时有 {Math.round(skipProvokeChance * 100)}% 会被激发（服从 +{provokeEffect(plan.girl, activeScene!, save.currentDay).obedience}、体力再 −{PROVOKE_STAMINA}、阴影加深）；亲自上场时，话里触到它也会激发</p>}
                 <Row label="成长" value={trainingGains(preview) || '—'} />
                 {preview.measurement && <Row label="三围" value={`${{ bust: '胸围', waist: '腰围', hip: '臀围' }[preview.measurement.stat]} ${preview.measurement.from} → ${preview.measurement.to}`} />}
-                {preview.newRank && <Row label="技能" value={`升到「${preview.newRank}」`} />}
+                {(preview.profChanges ?? []).length > 0 && <Row label="熟练度" value={profChangeText(preview.profChanges!)} />}
+                {preview.newRank && <Row label="技能" value={`${preview.profSkill}升到「${preview.newRank}」`} />}
                 {preview.becameTwoSided && <Row label="倾向" value="成为「两面」" />}
                 <Row label="体力" value={`−${preview.staminaCost}（当前 ${plan.girl.stamina ?? 100}）`} />
                 {preview.notes.length > 0 && <Row label="加成" value={preview.notes.join('；')} />}
@@ -499,6 +497,11 @@ export function trainingGains(r: TrainingResult): string {
   const d = r.delta
   return [
     d.obedience && `服从 +${d.obedience}`, d.lewdness && `淫乱 +${d.lewdness}`, d.affection && `好感 ${d.affection > 0 ? '+' : '−'}${Math.abs(d.affection)}`,
-    d.m && `M 进度 +${d.m}`, d.s && `S 进度 +${d.s}`, d.sensitivity && `敏感度 +${d.sensitivity}`, d.skillProgress && `技能进度 +${d.skillProgress}`,
+    d.sensitivity && `敏感度 +${d.sensitivity}`,
   ].filter(Boolean).join('，')
+}
+
+/** 熟练度变化：「胸侍 52→58、M性 30→35」 */
+export function profChangeText(changes: NonNullable<TrainingResult['profChanges']>): string {
+  return changes.map((c) => `${c.skill} ${profShow(c.from)}→${profShow(c.to)}${c.rankUp ? `（${c.rankUp}！）` : ''}`).join('、')
 }

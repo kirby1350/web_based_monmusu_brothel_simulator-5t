@@ -5,7 +5,8 @@ import { generateDailyGuests, getGuestCapacity, getGirlCapacity, getUpgradeCost,
 import { resolveService, canSkipService } from '../lib/resolve-service'
 import { resolveTraining } from '../lib/resolve-training'
 import { applyServiceToSave, applyTrainingToSave } from '../lib/settle-session'
-import { endDay, restGirl, upgradeDorm, getDormInfo, pendingSkillPicks, pickSkill, selectableSkills } from '../lib/hub-logic'
+import { endDay, restGirl, upgradeDorm, getDormInfo } from '../lib/hub-logic'
+import { withInitialProficiency, SERVING_PROF_SKILLS, PROF_TIERS } from '../lib/proficiency'
 import { buyRecovery, useRecovery, upgradeServiceRoom, upgradeTrainingRoom, buyWardrobe } from '../lib/shop'
 import { OUTFITS, STOCKINGS } from '../lib/catalog'
 import type { OutfitId, StockingId } from '../lib/types'
@@ -27,12 +28,11 @@ Math.random = rng // 游戏里的客人生成等都走 Math.random
 
 const GIRL_PRICE = 300            // 市场价是 AI 生成的（缺省 200），这里固定 300
 const RESERVE = 150               // 升级/买人后至少留的金币
-const SKILL_ORDER: SkillKey[] = ['身侍', '口侍', '待客', '手技', '胸侍', 'M性', 'S性']
 const log: string[] = []
 const out = (s: string) => { log.push(s); console.log(s) }
 
 let tplIdx = 0
-const newGirl = (): MonstGirl => ({ ...(GIRL_TEMPLATES[tplIdx % GIRL_TEMPLATES.length] as MonstGirl), id: `g${tplIdx++}`, stamina: 100 })
+const newGirl = (): MonstGirl => withInitialProficiency({ ...(GIRL_TEMPLATES[tplIdx % GIRL_TEMPLATES.length] as MonstGirl), id: `g${tplIdx++}`, stamina: 100 })
 
 let save: GameSave = migrateSave({
   player: { name: '馆主', traits: [], customTraits: '', fetishes: [], gold: 500, day: 1, guestPreference: '', marketPreference: '', level: 1, reputation: 0 },
@@ -46,12 +46,6 @@ const firstAffordable: Record<string, number | undefined> = {}
 const DAYS = Number(process.env.SIM_DAYS ?? 30)
 for (let day = 1; day <= DAYS; day++) {
   const goldStart = save.player.gold
-  // 1) 技能选择
-  save = { ...save, girls: save.girls.map((g) => {
-    let x = g
-    while (pendingSkillPicks(x) > 0) { const k = SKILL_ORDER.find((s) => selectableSkills(x).includes(s)); const n = k && pickSkill(x, k); if (!n) break; x = n }
-    return x
-  }) }
   // 2) 升级 / 买人（每天最多一次，按优先级）
   const tryUp = (label: string, cost: number | null, f: () => void) => {
     if (cost === null) return false
@@ -90,8 +84,9 @@ for (let day = 1; day <= DAYS; day++) {
     }
     if (TRAINS && a === 0) {
       const t = [...save.girls].filter((g) => (g.stamina ?? 100) >= 60).sort((x, y) => x.obedience + x.lewdness - y.obedience - y.lewdness)[0]
-      // 有未到精通的服侍技能就特训它，否则驯服/放权
-      const sk = t && (['身侍', '口侍', '待客', '手技', '胸侍'] as SkillKey[]).find((k) => t.skillRanks?.[k] && t.skillRanks[k] !== '精通')
+      // 已入门、未到精通的服侍技能里挑最高的特训，否则驯服/放权
+      const pv = (k: SkillKey) => t?.proficiency?.[k] ?? 0
+      const sk = t && [...SERVING_PROF_SKILLS].filter((k) => pv(k) >= PROF_TIERS.初学 && pv(k) < PROF_TIERS.精通).sort((a, b) => pv(b) - pv(a))[0]
       if (t) {
         const dir: TrainingDirection = sk ? 'drill' : t.obedience <= t.lewdness ? 'tame' : 'release'
         const scene = pickScene(t, dir)
@@ -161,7 +156,7 @@ function pickScene(g: MonstGirl, dir: TrainingDirection): SceneId | undefined {
   let best: { id: SceneId; v: number } | undefined
   for (const sc of ok) {
     const r = resolveTraining({ girl: g, direction: dir, skip: true, roomLevel: save.player.trainingRoomLevel, scene: sc.id, day: save.currentDay })
-    const v = r.ok ? r.delta.obedience + r.delta.lewdness + r.delta.skillProgress * 5 + r.delta.sensitivity : -1
+    const v = r.ok ? r.delta.obedience + r.delta.lewdness + r.delta.skillProgress / 2 + r.delta.sensitivity : -1
     if (!best || v > best.v) best = { id: sc.id, v }
   }
   return best?.id
@@ -196,6 +191,7 @@ out(`回头客 ${(save.regulars ?? []).length}，最终声望 ${save.player.repu
 out(`升级记录 ${stats.upgrades.join('，') || '无'}`)
 out(`首次买得起 ${JSON.stringify(firstAffordable)}`)
 out(`场景维护费合计 ${stats.upkeep}｜场景使用 ${JSON.stringify(stats.sceneUses)}｜觉醒 ${stats.awakenings.join('，') || '无'}｜阴影 ${save.girls.filter((g) => shadowScenes(g).length).map((g) => g.name).join('、') || '无'}`)
+out(`最终技能 ${save.girls.map((g) => `${g.name}[${Object.entries(g.proficiency ?? {}).map(([k, v]) => `${k}${Math.floor(v as number)}`).join(' ')} ${g.inclination}]`).join(' ')}`)
 out(`最终服从 ${save.girls.map((g) => `${g.name}${g.obedience}`).join(' ')}｜平均好感 ${Math.round(save.girls.reduce((a, g) => a + g.affection, 0) / save.girls.length)}`)
 const inc = stats.incomeByDay
 out(`日净收入：前 10 天均 ${Math.round(inc.slice(0, 10).reduce((a, b) => a + b, 0) / 10)}，后 10 天均 ${Math.round(inc.slice(-10).reduce((a, b) => a + b, 0) / 10)}`)

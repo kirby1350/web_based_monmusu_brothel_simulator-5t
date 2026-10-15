@@ -1,11 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { GameSave, Guest, MonstGirl } from './types'
-import { resolveTraining, resolveLiveTraining, canDrillTwoSided } from './resolve-training'
+import { resolveTraining, resolveLiveTraining } from './resolve-training'
 import { resolveService, getAvailablePlays, scorePlay } from './resolve-service'
 import { applyTrainingToSave } from './settle-session'
 import { sculptPrice } from './shop'
-import { PLAYS, RACE_PLAYS } from './catalog'
+import { PLAYS, RACE_PLAYS, getSkillRank } from './catalog'
 
 const girl = (o: Partial<MonstGirl> = {}): MonstGirl => ({
   id: 'a', name: 'A', race: '人类', age: '', bodyDesc: '', bodyTags: '', bust: 85, waist: 62, hip: 88,
@@ -29,12 +29,16 @@ test('跳过驯服：服从增加、金币不变、行动 +1', () => {
   assert.equal(s.girls[0].stamina, 80)
 })
 
-test('练习镜：特训进度比空房多 1', () => {
-  const g = girl({ skillRanks: { 手技: '初学' } })
+test('练习镜：特训熟练度比空房多 4，跨 50 升熟练', () => {
+  const g = girl({ proficiency: { 手技: 40 } })
   const empty = resolveTraining({ girl: g, direction: 'drill', skill: '手技', skip: true })
   const mirror = resolveTraining({ girl: g, direction: 'drill', skill: '手技', skip: true, props: ['mirror'] })
-  assert.equal(mirror.delta.skillProgress, empty.delta.skillProgress + 1)
-  assert.equal(mirror.girl.skillRanks!['手技'], '熟练')
+  assert.equal(empty.delta.skillProgress, 10)
+  assert.equal(mirror.delta.skillProgress, empty.delta.skillProgress + 4)
+  assert.equal(empty.girl.proficiency!['手技'], 50)
+  assert.equal(mirror.girl.proficiency!['手技'], 54)
+  assert.equal(mirror.newRank, '熟练')
+  assert.equal(getSkillRank(mirror.girl, '手技'), '熟练')
 })
 
 test('丰乳香膏：胸围 +5、药出背包、下一瓶更贵；魔女 ×1.5，塑形架 +1', () => {
@@ -69,7 +73,7 @@ test('道具与服装只加成对口方向，不吃倍率', () => {
   assert.equal(resolveTraining({ girl: girl({ race: '精灵' }), direction: 'tame', skip: true, roomLevel: 4, props: ['whip'] }).staminaCost, 20)
   assert.equal(resolveTraining({ girl: g, direction: 'release', skip: true, props: ['whip'] }).delta.lewdness, 6)
   assert.equal(resolveTraining({ girl: g, direction: 'sensitize', zone: '小穴', skip: true, outfit: 'crotchless' }).delta.sensitivity, 12)
-  assert.equal(resolveTraining({ girl: g, direction: 'tame', skip: true, props: ['rack'] }).delta.m, 2)
+  assert.equal(resolveTraining({ girl: g, direction: 'tame', skip: true, props: ['rack'] }).delta.m, 8)
 })
 
 test('亲自上场调教：一两句减半；回合多快感高主项 +2', () => {
@@ -77,14 +81,19 @@ test('亲自上场调教：一两句减半；回合多快感高主项 +2', () =>
   assert.equal(resolveLiveTraining({ girl: g, direction: 'tame' }, 1, 0).delta.obedience, 3)
   assert.equal(resolveLiveTraining({ girl: g, direction: 'tame' }, 4, 0).delta.obedience, 6)
   assert.equal(resolveLiveTraining({ girl: g, direction: 'tame' }, 7, 80).delta.obedience, 8)
-  const d = resolveLiveTraining({ girl: girl({ skillRanks: { 手技: '初学' } }), direction: 'drill', skill: '手技' }, 7, 80)
-  assert.equal(d.delta.skillProgress, 3)
+  const d = resolveLiveTraining({ girl: girl({ proficiency: { 手技: 30 } }), direction: 'drill', skill: '手技' }, 7, 80)
+  assert.equal(d.delta.skillProgress, 12)
+  assert.equal(d.girl.proficiency!['手技'], 42, '亲自上场按调整后的增量从结算前的值重算，不叠加')
+  const half = resolveLiveTraining({ girl: girl({ proficiency: { 手技: 30 } }), direction: 'drill', skill: '手技' }, 1, 0)
+  assert.equal(half.girl.proficiency!['手技'], 35)
 })
 
-test('两面：服从淫乱都 70 且有 M/S 才能练；两边 play 都能选、对口按熟练', () => {
-  const g = girl({ obedience: 70, lewdness: 70, inclination: 'M', skillRanks: { 'M性': '精通' } })
-  assert.equal(canDrillTwoSided(girl({ obedience: 70, lewdness: 69, inclination: 'M' })), false)
-  const r = resolveTraining({ girl: g, direction: 'drill', skill: '两面', skip: true })
+test('两面：M性、S性都 ≥50 且服从淫乱都 ≥70 自动成为两面；两边 play 都能选、对口按熟练', () => {
+  const g = girl({ obedience: 70, lewdness: 70, proficiency: { 'M性': 80, 'S性': 46 } })
+  assert.equal(resolveTraining({ girl: { ...g, lewdness: 63 }, direction: 'tame', skip: true }).girl.inclination, 'M')
+  const r = resolveTraining({ girl: g, direction: 'release', skip: true })
+  assert.equal(r.girl.proficiency!['S性'], 51)
+  assert.ok(r.becameTwoSided)
   assert.equal(r.girl.inclination, '两面')
   const ids = getAvailablePlays(r.girl, guest()).map((p) => p.id)
   assert.ok(ids.includes('endure') && ids.includes('drain'))

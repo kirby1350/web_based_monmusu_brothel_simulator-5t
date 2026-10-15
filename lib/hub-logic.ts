@@ -1,9 +1,9 @@
 import { buildDaySummary, freshDayLog } from './day-summary'
-// 大厅经营动作（纯函数）：送礼、休息、宿舍升级、结束今天、技能选择
+// 大厅经营动作（纯函数）：送礼、休息、宿舍升级、结束今天
 import type { GameSave, Guest, MonstGirl, SkillKey } from './types'
 import {
-  DORM_LEVELS, DORM_UPGRADE_COSTS, MAX_STAMINA, REST_STAMINA, MAX_SERVING_SKILLS,
-  SKILL_PICK_THRESHOLDS, getUpgradeCostFor, getPlaySlots, TRAINING_ROOM_MULT, TRAINING_ROOM_PROP_SLOTS,
+  DORM_LEVELS, DORM_UPGRADE_COSTS, MAX_STAMINA, REST_STAMINA,
+  getUpgradeCostFor, getPlaySlots, TRAINING_ROOM_MULT, TRAINING_ROOM_PROP_SLOTS,
 } from './catalog'
 import { nightlyIncidents } from './incidents'
 import { MAX_ACTIONS_PER_DAY, generateDailyGuests, getGuestCapacity, getGirlCapacity } from './game-engine'
@@ -149,34 +149,6 @@ export function setMachineNight(save: GameSave, girlId: string | null): HubResul
   if (!girl) return { ok: false, error: '找不到这名魔物娘' }
   if ((save.appearedToday ?? []).includes(girlId)) return { ok: false, error: `${girl.name}今天已经出场过，不能再挂机` }
   return { ok: true, message: `今晚让${girl.name}在机械调教室过夜（服从 +${MACHINE_NIGHT_OBEDIENCE}，体力恢复减半）`, save: { ...save, machineNightGirlId: girlId } }
-}
-
-// ─── 技能选择：服从 30 / 淫乱 40 / 好感 50 各一次，最多 3 个，M/S 互斥 ───────
-
-export const PICKABLE_SKILLS: SkillKey[] = ['口侍', '胸侍', '身侍', '手技', '待客', 'M性', 'S性']
-
-export function ownedSkillCount(girl: MonstGirl): number {
-  return Object.keys(girl.skillRanks ?? {}).length
-}
-
-/** 已到达但还没用掉的技能选择次数 */
-export function pendingSkillPicks(girl: MonstGirl): number {
-  const reached = SKILL_PICK_THRESHOLDS.filter((t) => girl[t.stat] >= t.value).length
-  return Math.max(0, Math.min(MAX_SERVING_SKILLS, reached) - ownedSkillCount(girl))
-}
-
-export function selectableSkills(girl: MonstGirl): SkillKey[] {
-  const owned = girl.skillRanks ?? {}
-  const hasMS = !!owned['M性'] || !!owned['S性']
-  return PICKABLE_SKILLS.filter((s) => !owned[s] && !((s === 'M性' || s === 'S性') && hasMS))
-}
-
-export function pickSkill(girl: MonstGirl, skill: SkillKey): MonstGirl | null {
-  if (pendingSkillPicks(girl) <= 0 || !selectableSkills(girl).includes(skill)) return null
-  const next: MonstGirl = { ...girl, skillRanks: { ...girl.skillRanks, [skill]: '初学' } }
-  if (skill === 'M性') next.inclination = 'M'
-  if (skill === 'S性') next.inclination = 'S'
-  return next
 }
 
 // ─── 新魔物娘入馆：领头人与本地模板 ───────────────────────────────────────────

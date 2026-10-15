@@ -216,7 +216,9 @@ export interface MonstGirl {
   exhausted?: boolean                           // 疲惫
   stepActions?: string[]             // 五步「标准做法」按魔物娘覆盖（优先于馆主）
   incident?: Incident | null         // 未处理事件（每人最多一条）
-  skillRanks?: Partial<Record<SkillKey, SkillRank>> // 服侍技能 / M性 / S性 → 档位
+  /** 技能熟练度 0–100（UX 8）：有它时档位、倾向都由它推出；旧字段 skillRanks / msProgress / skillProgress 只在迁移时读 */
+  proficiency?: Partial<Record<SkillKey, number>>
+  skillRanks?: Partial<Record<SkillKey, SkillRank>> // 旧版：服侍技能 / M性 / S性 → 档位
   inclination?: Inclination                     // 无 / M / S / 两面
   msProgress?: { m: number; s: number }         // 驯服积累 M、放权积累 S
   skillProgress?: Partial<Record<SkillKey, number>> // 特训进度

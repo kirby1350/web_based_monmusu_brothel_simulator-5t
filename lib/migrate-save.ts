@@ -4,6 +4,7 @@ import { defaultSensitivities, getDesireProfile } from './catalog'
 import { normalizeDayLog, freshDayLog } from './day-summary'
 import { refreshPresetText } from './preset-refresh'
 import { backfillMemory } from './girl-memory'
+import { proficiencyFromLegacy, deriveInclination } from './proficiency'
 
 export function migratePlayer(p: Player): Player {
   return {
@@ -25,7 +26,10 @@ export function migratePlayer(p: Player): Player {
 export const RACE_RENAMES: Record<string, string> = { 阿拉克涅: '蜘蛛娘', 美杜莎: '拉米亚' }
 
 export function migrateGirl(raw: MonstGirl): MonstGirl {
-  const g = RACE_RENAMES[raw.race] ? { ...raw, race: RACE_RENAMES[raw.race] } : raw
+  const g0 = RACE_RENAMES[raw.race] ? { ...raw, race: RACE_RENAMES[raw.race] } : raw
+  // v2 → v3：技能档位 → 熟练度（幂等：已有 proficiency 不动；迁移前后接客得分不变）
+  const proficiency = g0.proficiency ?? proficiencyFromLegacy(g0)
+  const g = { ...g0, proficiency, inclination: deriveInclination({ proficiency, inclination: g0.inclination }) }
   // 预设角色的旧文案（玩家没改过的字段）刷新为当前版本；数值与进度不动
   return refreshPresetText({
     ...g,
@@ -54,8 +58,8 @@ export function migrateGuest(guest: Guest): Guest {
   }
 }
 
-/** 当前存档格式版本。v1：带 saveVersion + tutorial 字段；v2：魔物娘记忆（memory）+ 调教场景 */
-export const SAVE_VERSION = 2
+/** 当前存档格式版本。v1：带 saveVersion + tutorial 字段；v2：魔物娘记忆（memory）+ 调教场景；v3：技能熟练度（proficiency） */
+export const SAVE_VERSION = 3
 
 export function migrateSave(save: GameSave): GameSave {
   const from = save.saveVersion ?? 0

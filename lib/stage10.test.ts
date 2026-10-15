@@ -61,13 +61,13 @@ test('没有事件且不是 M 性熟练：不能惩罚', () => {
   assert.equal(resolveTraining({ girl: girl(), direction: 'punish', skip: true }).ok, false)
 })
 
-test('惩罚数值：驯服基础 × 倍率 + 服从 +3、M +1（不乘），清除事件，体力 20', () => {
+test('惩罚数值：驯服基础 × 倍率 + 服从 +3、M性 +3（不乘），清除事件，体力 20', () => {
   const g = girl({ incident: inc })
   const tame = resolveTraining({ girl: g, direction: 'tame', skip: true, roomLevel: 4 })
   const p = resolveTraining({ girl: g, direction: 'punish', skip: true, roomLevel: 4 })
   assert.ok(p.ok)
   assert.equal(p.delta.obedience, tame.delta.obedience + 3)
-  assert.equal(p.delta.m, tame.delta.m + 1)
+  assert.equal(p.delta.m, tame.delta.m + 3)
   assert.equal(p.delta.affection, tame.delta.affection)
   assert.equal(p.girl.incident, null)
   assert.equal(p.staminaCost, 20)

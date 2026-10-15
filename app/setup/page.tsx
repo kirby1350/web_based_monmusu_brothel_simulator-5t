@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { withInitialProficiency } from '@/lib/proficiency'
 import { useRouter } from 'next/navigation'
 import { PlayerSetup } from '@/components/player-setup'
 import { GirlCreator } from '@/components/girl-creator'
@@ -32,7 +33,7 @@ export default function SetupPage() {
     const startPlayer: Player = { ...player, level: 1, reputation: 0 }
     saveGameSave({
       player: startPlayer,
-      girls: [girl],
+      girls: [withInitialProficiency(girl)],
       currentDay: 1,
       phase: 'morning',
       actionsUsedToday: 0,

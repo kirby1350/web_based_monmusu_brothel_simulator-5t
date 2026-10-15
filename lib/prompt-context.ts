@@ -1,10 +1,11 @@
 // 提示词的游戏状态片段：纯函数，只产出文本/标签，不改任何请求格式
 import type { ChatMessage, GameSave, Guest, MonstGirl, OutfitId, ServingSkill, SkillKey, StockingId } from './types'
 import {
-  OUTFITS, STOCKINGS, RACE_TRAITS, RACE_PLAYS, RACE_ZONE_NAMES, TRAINING_PROPS, TRAINING_ROOM_MULT, SCULPT_POTIONS, SKILL_PROGRESS_PER_RANK,
+  OUTFITS, STOCKINGS, RACE_TRAITS, RACE_PLAYS, RACE_ZONE_NAMES, TRAINING_PROPS, TRAINING_ROOM_MULT, SCULPT_POTIONS,
   getSkillRank, getSensitivityLevel, getInclination,
 } from './catalog'
 import { traitMatched } from './resolve-service'
+import { proficiencyFromLegacy, profShow, profTierLabel, nextTier, DRILL_PROF_GAIN } from './proficiency'
 import { resolveTraining, TRAINING_DIRECTIONS, type TrainingInput } from './resolve-training'
 import { stripStatsBlock } from './game-engine'
 import { awakenedFetishes, getScene, sceneReaction, shadowScenes, shadowLevel, SHADOW_LEVEL_LABEL, REACTION_LABEL } from './scenes'
@@ -22,10 +23,11 @@ const SERVING: ServingSkill[] = ['待客', '手技', '口侍', '胸侍', '身侍
 /** 1. 每位魔物娘的状态卡（替代旧「技能」行） */
 /** private：调教 / 私下场合才带阴影；接客不带 */
 export function girlStateCard(girl: MonstGirl, day?: number, opts: { private?: boolean } = {}): string {
-  const skills = SERVING.map((k) => { const r = getSkillRank(girl, k); return r ? `${k} ${r}` : '' }).filter(Boolean)
+  const prof = girl.proficiency ?? proficiencyFromLegacy(girl)
+  const skills = SERVING.map((k) => { const r = getSkillRank(girl, k); return r ? `${k} ${r}(${profShow(prof[k])})` : '' }).filter(Boolean)
   const incl = getInclination(girl)
-  const ms = girl.msProgress
-  const inclText = incl === '无' ? (ms && (ms.m || ms.s) ? `无（M${ms.m}/S${ms.s}）` : '无') : incl
+  const m = profShow(prof['M性']), sv = profShow(prof['S性'])
+  const inclText = m || sv ? `${incl}（M ${m}/S ${sv}）` : incl
   const trait = RACE_TRAITS[girl.race]
   const zones = Object.entries(girl.sensitivities ?? {})
     .map(([z, v]) => ({ z, lv: getSensitivityLevel(v as number), v: v as number }))
@@ -51,8 +53,9 @@ export function trainingContext(input: TrainingInput): string {
   const preview = resolveTraining({ ...input, skip: true })
   let target = ''
   if (input.direction === 'drill' && input.skill) {
-    const rank = getSkillRank(input.girl, input.skill as SkillKey) ?? '未学'
-    target = `｜目标：${input.skill}（${rank} ${input.girl.skillProgress?.[input.skill as SkillKey] ?? 0}/${SKILL_PROGRESS_PER_RANK}）`
+    const v = (input.girl.proficiency ?? proficiencyFromLegacy(input.girl))[input.skill as SkillKey] ?? 0
+    const nt = nextTier(v)
+    target = `｜目标：${input.skill}（${profTierLabel(v)} 熟练度 ${profShow(v)}${nt ? `，${nt.at} 升${nt.rank}` : ''}；每场约 +${DRILL_PROF_GAIN}）`
   } else if (input.direction === 'sculpt' && input.potionId) {
     const p = SCULPT_POTIONS.find((x) => x.id === input.potionId)
     if (p) target = `｜药：${p.name}（${p.stat} ${p.delta > 0 ? '+' : ''}${p.delta}）`

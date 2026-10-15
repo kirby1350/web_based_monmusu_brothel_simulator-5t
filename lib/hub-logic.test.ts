@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { GameSave, MonstGirl } from './types'
-import { giveGift, restGirl, endDay, upgradeDorm, pendingSkillPicks, pickSkill, selectableSkills } from './hub-logic'
+import { giveGift, restGirl, endDay, upgradeDorm } from './hub-logic'
 
 const girl = (o: Partial<MonstGirl> = {}): MonstGirl => ({
   id: 'a', name: 'A', race: '猫娘', age: '', bodyDesc: '', bodyTags: '', bust: 85, waist: 60, hip: 88,
@@ -71,16 +71,3 @@ test('宿舍升级 400/900/1600，与娼馆等级分开', () => {
   assert.equal(upgradeDorm(r.save).ok, false)
 })
 
-test('技能选择：阈值弹出、最多 3 个、M/S 互斥', () => {
-  let g = girl({ obedience: 30 })
-  assert.equal(pendingSkillPicks(g), 1)
-  g = pickSkill(g, 'M性')!
-  assert.equal(g.inclination, 'M')
-  assert.equal(pendingSkillPicks(g), 0)
-  assert.equal(pickSkill(g, '口侍'), null)
-  g = { ...g, lewdness: 40, affection: 50 }
-  assert.equal(pendingSkillPicks(g), 2)
-  assert.ok(!selectableSkills(g).includes('S性'))
-  g = pickSkill(g, '口侍')!; g = pickSkill(g, '手技')!
-  assert.equal(pendingSkillPicks({ ...g, obedience: 100, lewdness: 100, affection: 100 }), 0)
-})

@@ -7,14 +7,13 @@ import { ImageDisplay } from '@/components/image-display'
 import { GirlSheet } from '@/components/girl-sheet'
 import { StepActionsEditor } from '@/components/step-actions-editor'
 import { getStepActions } from '@/lib/custom-props'
-import { SkillPicker } from '@/components/skill-picker'
 import { ShopPanel } from '@/components/shop-panel'
 import { upgradeServiceRoom, upgradeTrainingRoom } from '@/lib/shop'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { MAX_ACTIONS_PER_DAY, getGirlCapacity, getGuestCapacity, getUpgradeCost } from '@/lib/game-engine'
-import { endDay, restGirl, upgradeDorm, getDormInfo, pendingSkillPicks, pickArrivalLeader, arrivalFallbackText, arrivalPromptNote, setBestBed, setMachineNight, bannerPath, shortfallText, upgradeChangeText, type FacilityKey } from '@/lib/hub-logic'
+import { endDay, restGirl, upgradeDorm, getDormInfo, pickArrivalLeader, arrivalFallbackText, arrivalPromptNote, setBestBed, setMachineNight, bannerPath, shortfallText, upgradeChangeText, type FacilityKey } from '@/lib/hub-logic'
 import { getScene, sceneUpkeep, ownsScene, MACHINE_NIGHT_OBEDIENCE } from '@/lib/scenes'
 import { SERVICE_ROOM_UPGRADE_COSTS, TRAINING_ROOM_UPGRADE_COSTS, getUpgradeCostFor, getPlaySlots, TRAINING_ROOM_MULT, TRAINING_ROOM_PROP_SLOTS, REST_STAMINA } from '@/lib/catalog'
 import { clearOpeningCache, getOpeningCache, saveOpeningCache } from '@/lib/storage'
@@ -42,7 +41,6 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
   const [openGirlId, setOpenGirlId] = useState<string | null>(null)
   const [restPicking, setRestPicking] = useState(false)
   const [notice, setNotice] = useState('')
-  const [dismissedPicks, setDismissedPicks] = useState<string[]>([])
 
   const [intro, setIntro] = useState<{ girlId: string; speaker: string; text: string; loading: boolean } | null>(null)
 
@@ -103,7 +101,6 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
   const guests = save.dailyGuests ?? []
   const appeared = new Set(save.appearedToday ?? [])
   const openGirl = girls.find((g) => g.id === openGirlId) ?? null
-  const pickGirl = girls.find((g) => pendingSkillPicks(g) > 0 && !dismissedPicks.includes(g.id) && g.id !== openGirlId)
 
   const [lit, setLit] = useState<FacilityKey | null>(null)
   const celebrate = (k: FacilityKey, from: number, to: number) => {
@@ -238,7 +235,6 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
                     onUrlCached={(url) => onSaveChange({ ...save, girls: girls.map((x) => x.id === g.id ? { ...x, imageUrl: url } : x) })}
                     alt={g.name} size="sm" className="w-full h-full object-cover" />
                   {appeared.has(g.id) && <span className="absolute top-0 right-0 text-[8px] bg-black/70 text-amber-300 px-1 rounded-bl">已出场</span>}
-                  {pendingSkillPicks(g) > 0 && <span className="absolute top-0.5 left-0.5 w-2 h-2 rounded-full bg-amber-400" />}
                   {g.incident && <span data-testid={`incident-mark-${g.name}`} title={`${g.incident.kind}：${g.incident.text}`} className="absolute bottom-0 left-0 text-[8px] bg-rose-600/85 text-white px-1 rounded-tr">{g.incident.kind === '闯祸' ? '闯祸' : '失败'}</span>}
                 </div>
                 <p className="text-[10px] truncate mt-0.5 gold-text">{g.name}</p>
@@ -257,13 +253,6 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
       </div>
 
       {notice && <div className="mx-4 mt-2 bg-primary/10 border border-primary/30 rounded-lg px-3 py-1.5 text-xs text-primary" data-testid="notice">{notice}</div>}
-
-      {pickGirl && (
-        <div className="mx-4 mt-2">
-          <SkillPicker girl={pickGirl} onPicked={(g) => onSaveChange({ ...save, girls: girls.map((x) => x.id === g.id ? g : x) })} />
-          <button className="text-[10px] text-muted-foreground underline mt-1" onClick={() => setDismissedPicks((d) => [...d, pickGirl.id])}>稍后再选</button>
-        </div>
-      )}
 
       {/* 三页：今日客人 / 设施 / 商店 */}
       <Tabs defaultValue="guests" className="flex-1 min-h-0 flex flex-col">

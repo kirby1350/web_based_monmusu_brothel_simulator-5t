@@ -1,4 +1,5 @@
 import { test } from 'node:test'
+import { getSkillRank } from './catalog'
 import assert from 'node:assert/strict'
 import type { Guest, MonstGirl, GameSave } from './types'
 import { resolveService, canSkipService, getAvailablePlays } from './resolve-service'
@@ -96,21 +97,24 @@ test('新客人带需求标签', () => {
 test('调教基础值与倍率', () => {
   const girl = baseGirl({ obedience: 40, skillRanks: { 手技: '初学' } })
   const t1 = resolveTraining({ girl, direction: 'tame', roomLevel: 1, skip: true })
-  assert.equal(t1.delta.obedience, 6); assert.equal(t1.delta.m, 1); assert.equal(t1.delta.affection, 1)
+  assert.equal(t1.delta.obedience, 6); assert.equal(t1.delta.m, 5); assert.equal(t1.delta.affection, 1)
   assert.equal(resolveTraining({ girl, direction: 'tame', roomLevel: 4, skip: true }).delta.obedience, 12)
   const low = resolveTraining({ girl: baseGirl({ obedience: 20 }), direction: 'tame', skip: true })
   assert.equal(low.delta.obedience, 5) // 6 × 0.8 四舍五入
   const rel = resolveTraining({ girl, direction: 'release', skip: true })
-  assert.equal(rel.delta.lewdness, 6); assert.equal(rel.delta.s, 1)
+  assert.equal(rel.delta.lewdness, 6); assert.equal(rel.delta.s, 5)
   const sc = resolveTraining({ girl, direction: 'sculpt', roomLevel: 4, potionId: 'bust_up', skip: true })
   assert.equal(sc.girl.bust, 93); assert.equal(sc.delta.lewdness, 2); assert.equal(sc.girl.sculptCounts!.bust, 1)
   const sen = resolveTraining({ girl: { ...girl, sensitivities: { 耳朵: 30 } }, direction: 'sensitize', zone: '耳朵', skip: true })
   assert.equal(sen.girl.sensitivities!['耳朵'], 40)
   let g = girl
+  // 旧「初学」= 熟练度 30；特训每场 +10（50 以上 ×0.6）
   for (let i = 0; i < 2; i++) g = resolveTraining({ girl: g, direction: 'drill', skill: '手技', skip: true }).girl
-  assert.equal(g.skillRanks!['手技'], '熟练')
-  for (let i = 0; i < 2; i++) g = resolveTraining({ girl: g, direction: 'drill', skill: '手技', skip: true }).girl
-  assert.equal(g.skillRanks!['手技'], '精通')
+  assert.equal(g.proficiency!['手技'], 50); assert.equal(getSkillRank(g, '手技'), '熟练')
+  for (let i = 0; i < 4; i++) g = resolveTraining({ girl: g, direction: 'drill', skill: '手技', skip: true }).girl
+  assert.equal(getSkillRank(g, '手技'), '熟练')
+  g = resolveTraining({ girl: g, direction: 'drill', skill: '手技', skip: true }).girl
+  assert.equal(g.proficiency!['手技'], 80); assert.equal(getSkillRank(g, '手技'), '精通')
 })
 
 test('旧档迁移：补默认值、保留旧技能、幂等', () => {
