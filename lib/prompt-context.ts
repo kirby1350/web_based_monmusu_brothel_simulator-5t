@@ -232,3 +232,22 @@ export function climaxSlipNote(reply: string, justClimaxed: string[], hasGuest =
   if (!guestSlip && !girlSlip) return ''
   return `\n（校正：上一段在没有到「高潮」档时写了${guestSlip ? '射精' : ''}${guestSlip && girlSlip ? '与' : ''}${girlSlip ? '她的高潮' : ''}。这一段请顺势圆回来——是差一点、被忍住或被拉回，不要再写；严格按【此刻的兴奋与快感】里的高潮闸门。）`
 }
+
+/** 服装行：换了店里的服装 → 用目录里的描写取代她的常服；只加丝袜 → 常服 + 丝袜描写；什么都没换 → 她的常服 */
+export function outfitDescLine(girl: Pick<MonstGirl, 'outfit'>, outfit: OutfitId | undefined, stockings: StockingId | undefined): string {
+  const o = outfit && outfit !== 'regular' ? OUTFITS.find((x) => x.id === outfit) : undefined
+  const s = stockings && stockings !== 'none' ? STOCKINGS.find((x) => x.id === stockings) : undefined
+  const legs = s ? `；腿上：${s.name}——${s.desc ?? ''}` : ''
+  if (!o) return `${girl.outfit}${legs}`
+  return `今晚换上的「${o.name}」——${o.desc}${legs}（这是她此刻身上的衣服，不要再写她的常服「${girl.outfit}」）`
+}
+
+/** 客人对服装的反应提示：喜好命中 → 点名评论这身衣服；有喜好但没命中 → 轻微挑剔；无喜好 → 空 */
+export function outfitCommentLine(guest: Guest, outfit: OutfitId | undefined, stockings: StockingId | undefined): string {
+  if (!guest.prefOutfit) return ''
+  const o = OUTFITS.find((x) => x.id === (outfit ?? 'regular')); const s = STOCKINGS.find((x) => x.id === (stockings ?? 'none'))
+  const hit = o?.pref === guest.prefOutfit ? o : s?.pref === guest.prefOutfit ? s : undefined
+  return hit
+    ? `【服装反应】${guest.name}偏爱「${guest.prefOutfit}」，她正穿着「${hit.name}」：让他具体地评论这身——布料、开衩、哪一处最合他心意，并在动作里用上它（拉开、撩起、隔着它抚摸）`
+    : `【服装反应】${guest.name}偏爱「${guest.prefOutfit}」，她没穿：他可以提一句、略带遗憾或挑剔，但不要喧宾夺主`
+}

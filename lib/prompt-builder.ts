@@ -3,7 +3,7 @@ import { ALL_PLAYS as PLAYS, getSensitivityLevel, getSkillRank } from '@/lib/cat
 import type { OutfitId, StockingId, SceneId } from '@/lib/types'
 import { fetishPromptLine, getScene } from '@/lib/scenes'
 import { girlMemoryBlock, memOf } from '@/lib/girl-memory'
-import { girlStateCard, guestPrefLine, VALID_RACES, REPLY_LENGTH } from '@/lib/prompt-context'
+import { girlStateCard, guestPrefLine, VALID_RACES, REPLY_LENGTH, outfitDescLine, outfitCommentLine } from '@/lib/prompt-context'
 import { speechLine, speechRuleFor } from '@/lib/speech-style'
 
 /** 系统提示词的可选游戏状态：天数、当前服装（客人偏好命中用） */
@@ -141,7 +141,7 @@ function buildServiceSystemPromptBase(
     .map(
       (g, i) => {
         const bwh = girlBWH(g)
-        return `魔物娘${i + 1}：${g.name}（${g.race}）\n  外貌：${g.bodyDesc}${bwh ? `，三围 ${bwh}` : ''}\n  性格：${g.personality}${speechLine(g, '\n  ')}\n  服装：${g.outfit}\n  服从度：${g.obedience}/100，淫乱度：${g.lewdness}/100，好感度：${g.affection}/100\n  状态：${girlStateCard(g, state.day, { private: session.type === 'training' })}${g.sexualDesc ? `\n  色色设定：${g.sexualDesc}` : ''}${fetishPromptLine(g) ? `\n  ${fetishPromptLine(g)}` : ''}${memLine(g, { type: session.type === 'training' ? 'training' : 'service', guestId: session.guest?.id, scene: state.scene }, '  ')}`
+        return `魔物娘${i + 1}：${g.name}（${g.race}）\n  外貌：${g.bodyDesc}${bwh ? `，三围 ${bwh}` : ''}\n  性格：${g.personality}${speechLine(g, '\n  ')}\n  服装：${session.type === 'service' && i === 0 ? outfitDescLine(g, state.outfit, state.stockings) : g.outfit}\n  服从度：${g.obedience}/100，淫乱度：${g.lewdness}/100，好感度：${g.affection}/100\n  状态：${girlStateCard(g, state.day, { private: session.type === 'training' })}${g.sexualDesc ? `\n  色色设定：${g.sexualDesc}` : ''}${fetishPromptLine(g) ? `\n  ${fetishPromptLine(g)}` : ''}${memLine(g, { type: session.type === 'training' ? 'training' : 'service', guestId: session.guest?.id, scene: state.scene }, '  ')}`
       }
     )
     .join('\n')
@@ -184,7 +184,7 @@ ${girlDescriptions}
 【客人信息】
 姓名：${g.name}　种族：${g.race}　性格：${g.personality}
 特性：${g.traits.join('、') || '无'}
-需求：${g.desires}${g.desireDetail ? `（${g.desireDetail}）` : ''}${session.girls.map((x) => guestPrefLine(g, x, state.outfit, state.stockings)).filter(Boolean).map((l) => '\n' + l).join('')}${(g.visits ?? 0) > 0 ? `\n来访：第 ${(g.visits ?? 0) + 1} 次` : ''}
+需求：${g.desires}${g.desireDetail ? `（${g.desireDetail}）` : ''}${session.girls.map((x) => guestPrefLine(g, x, state.outfit, state.stockings)).filter(Boolean).map((l) => '\n' + l).join('')}${(g.visits ?? 0) > 0 ? `\n来访：第 ${(g.visits ?? 0) + 1} 次` : ''}${outfitCommentLine(g, state.outfit, state.stockings) ? `\n${outfitCommentLine(g, state.outfit, state.stockings)}` : ''}
 当前状态 — ${state.heatLocal ? '兴奋与快感见下方【此刻的兴奋与快感】' : `肉棒快感 ${stats?.pleasure ?? 0}/100，体力 ${stats?.stamina ?? 100}/100${stats?.isExhausted ? '（射精过度、阴茎抽搐）' : ''}`}，满意度 ${g.satisfaction}/100
 ${g.memories && Object.keys(g.memories).length > 0 ? `
 【关系记忆（老客人档案，必须自然融入叙述语气）】
@@ -480,7 +480,7 @@ export function buildOpeningDialoguePrompt(
   scene: 'game-start' | 'service' | 'training' | 'market' | 'interaction' | 'purchase',
   player: Player,
   girls: MonstGirl[],
-  extra?: { guest?: Guest; girl?: MonstGirl; currentDay?: number; house?: string }
+  extra?: { guest?: Guest; girl?: MonstGirl; currentDay?: number; house?: string; outfit?: OutfitId; stockings?: StockingId }
 ): string {
   const girlNames = girls.map((g) => `${g.name}（${g.race}）`).join('、')
   const mainGirl = extra?.girl ?? girls[0]
@@ -552,7 +552,7 @@ ${presentMems.map((x) => `- ${x.name} 与他相熟（已服务 ${x.mem!.visitCou
 【场景】${player.name}的娼馆私密包间，灯光昏暗柔和，空气中弥漫着淡淡香薰与花香
 【参与魔物娘】${girlNames}
 ${isMulti ? `本次共有 ${serviceGirls.length} 位魔物娘一同侍奉同一位客人，全部都要在开场白中登场亮相：\n${girlBriefs}` : `主要角色：\n${girlBriefs}`}
-${extra?.guest ? `【客人】${extra.guest.name}（${extra.guest.race}），${extra.guest.personality}，需求：${extra.guest.desires}${(extra.guest.prefRace || extra.guest.prefTrait) ? `\n客人偏好：${[extra.guest.prefRace, extra.guest.prefTrait].filter(Boolean).join('、')}——若在场魔物娘命中其偏好（种族相符 / 巨乳·贫乳·丰臀·兽耳等特征相符），开场需明确写出客人一眼相中、眼前一亮、跃跃欲试的神情与反应；若完全不符，则写出他略带挑剔或将就的微妙态度` : ''}` : ''}${regularNote}
+${extra?.outfit && extra.outfit !== 'regular' || (extra?.stockings && extra.stockings !== 'none') ? `【${mainGirl.name}今晚的服装】${outfitDescLine(mainGirl, extra?.outfit, extra?.stockings)}——开场要写到这身打扮${extra?.guest ? `，${outfitCommentLine(extra.guest, extra.outfit, extra.stockings).replace(/^【服装反应】/, '') || '客人第一眼的反应也要有'}` : ''}\n` : ''}${extra?.guest ? `【客人】${extra.guest.name}（${extra.guest.race}），${extra.guest.personality}，需求：${extra.guest.desires}${(extra.guest.prefRace || extra.guest.prefTrait) ? `\n客人偏好：${[extra.guest.prefRace, extra.guest.prefTrait].filter(Boolean).join('、')}——若在场魔物娘命中其偏好（种族相符 / 巨乳·贫乳·丰臀·兽耳等特征相符），开场需明确写出客人一眼相中、眼前一亮、跃跃欲试的神情与反应；若完全不符，则写出他略带挑剔或将就的微妙态度` : ''}` : ''}${regularNote}
 
 要求：
 - ${isMulti ? '200-320' : '150-250'}字，第三人称叙述，含一两句她（们）的开口招呼

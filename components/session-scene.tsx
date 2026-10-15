@@ -79,7 +79,7 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
     const fallback = '客人踏入了包间……'
     const scene = (async () => {
       try {
-        const prompt = buildOpeningDialoguePrompt('service', player, cast, { guest })
+        const prompt = buildOpeningDialoguePrompt('service', player, cast, { guest, outfit: plan.outfit, stockings: plan.stockings })
         const res = await fetch('/api/chat', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], model: settings.chatModel, apiKey, stream: false }),

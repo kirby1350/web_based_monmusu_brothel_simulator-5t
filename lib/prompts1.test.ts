@@ -90,3 +90,26 @@ test('2. 本地回看：未到高潮档却写了射精/潮吹 → 下一回合�
   assert.equal(climaxSlipNote('「要去了……还不行……」她咬着唇忍住，他也在射精的边缘死死忍着。', []), '')
   assert.equal(climaxSlipNote('正文<!--STATS:{"内射":1}-->', []), '')
 })
+
+import { outfitDescLine, outfitCommentLine } from './prompt-context'
+import { buildOpeningDialoguePrompt } from './prompt-builder'
+
+test('3. 换了服装：提示词用目录描写取代常服；没换时仍是常服；协同保持自己的衣服', () => {
+  const p = svc({ outfit: 'qipao', stockings: 'black', heatLocal: true })
+  assert.match(p, /服装：今晚换上的「高开衩旗袍」——绛红缎面/)
+  assert.match(p, /黑色薄丝裤袜——薄得透出肤色/)
+  assert.doesNotMatch(p, /服装：白色巫女服\n/)
+  assert.match(svc({ outfit: 'regular' }), /服装：白色巫女服\n/)
+  const two = svc({ outfit: 'maid' }, [makeGirl(), makeGirl({ id: 'b', name: '小二', outfit: '红色斗篷' })])
+  assert.match(two, /服装：红色斗篷\n/)
+  assert.equal(outfitDescLine(makeGirl(), 'regular', 'none'), '白色巫女服')
+})
+
+test('3. 客人服装喜好命中 → 点名评论这身；没命中 → 一句遗憾；无喜好 → 不写', () => {
+  assert.match(outfitCommentLine(fxGuest({ prefOutfit: '黑丝' }), 'regular', 'black'), /正穿着「黑色薄丝裤袜」.*具体地评论/)
+  assert.match(outfitCommentLine(fxGuest({ prefOutfit: '和服' }), 'maid', 'none'), /没穿/)
+  assert.equal(outfitCommentLine(fxGuest({ prefOutfit: null }), 'maid', 'none'), '')
+  assert.match(svc({ outfit: 'regular', stockings: 'black' }), /【服装反应】王老板偏爱「黑丝」/)
+  const op = buildOpeningDialoguePrompt('service', fxPlayer, [makeGirl()], { guest: fxGuest(), outfit: 'kimono', stockings: 'none' })
+  assert.match(op, /今晚的服装】今晚换上的「松襟振袖」/)
+})
