@@ -17,9 +17,10 @@ import { setMachineNight } from '../lib/hub-logic'
 import type { SceneId, TrainingDirection } from '../lib/types'
 
 const seed = Number(process.argv[2] ?? 42)
-/** 策略：base 只跳过；wardrobe 另买对口衣服并换装；train 每天先调教再接客；scenes = train + 买调教场景并使用、机械挂机 */
-const STRAT = (process.argv[3] ?? 'base') as 'base' | 'wardrobe' | 'train' | 'scenes'
-const TRAINS = STRAT === 'train' || STRAT === 'scenes'
+/** 策略：base 只跳过；wardrobe 另买对口衣服并换装；train 每天先调教再接客；scenes = train + 买调教场景并使用、机械挂机；sscenes = train + 只买放权场景（女王调教室 / 王座间），服从够了就放权 */
+const STRAT = (process.argv[3] ?? 'base') as 'base' | 'wardrobe' | 'train' | 'scenes' | 'sscenes'
+const TRAINS = STRAT === 'train' || STRAT === 'scenes' || STRAT === 'sscenes'
+const S_SCENES: SceneId[] = ['queen_room', 'throne']
 function mulberry32(a: number) {
   return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296 }
 }
@@ -35,7 +36,7 @@ let tplIdx = 0
 const newGirl = (): MonstGirl => withInitialProficiency({ ...(GIRL_TEMPLATES[tplIdx % GIRL_TEMPLATES.length] as MonstGirl), id: `g${tplIdx++}`, stamina: 100 })
 
 let save: GameSave = migrateSave({
-  player: { name: '馆主', traits: [], customTraits: '', fetishes: [], gold: 500, day: 1, guestPreference: '', marketPreference: '', level: 1, reputation: 0 },
+  player: { name: '馆主', traits: [], customTraits: '', fetishes: [], gold: Number(process.env.SIM_GOLD ?? 500), day: 1, guestPreference: '', marketPreference: '', level: 1, reputation: 0 },
   // 开局 2 人（UX 1）：SIM_START=1 可退回旧的 1 人开局
   girls: Array.from({ length: Number(process.env.SIM_START ?? 2) }, () => newGirl()), currentDay: 1, phase: 'morning', actionsUsedToday: 0,
   dailyGuests: generateDailyGuests(getGuestCapacity(1), 0, []), regulars: [],
@@ -47,6 +48,12 @@ const firstAffordable: Record<string, number | undefined> = {}
 const DAYS = Number(process.env.SIM_DAYS ?? 30)
 for (let day = 1; day <= DAYS; day++) {
   const goldStart = save.player.gold
+  // sscenes：放权场景优先于设施（先补调教室到 Lv2 解锁女王调教室）
+  if (STRAT === 'sscenes' && day >= 2) {
+    if ((save.player.trainingRoomLevel ?? 1) < 2) { const r = upgradeTrainingRoom(save); if (r.ok && r.save.player.gold >= RESERVE) { save = r.save; stats.upgrades.push(`D${day} 调教室`) } }
+    const sw = TRAINING_SCENES.filter((sc) => S_SCENES.includes(sc.id) && !(save.player.ownedScenes ?? []).includes(sc.id) && sceneUnlocked(save, sc.id) && save.player.gold - sc.price >= RESERVE)[0]
+    if (sw) { const r = buyScene(save, sw.id); if (r.ok) { save = r.save; stats.upgrades.push(`D${day} 场景:${sw.name}`) } }
+  }
   // 2) 升级 / 买人（每天最多一次，按优先级）
   const tryUp = (label: string, cost: number | null, f: () => void) => {
     if (cost === null) return false
@@ -63,8 +70,8 @@ for (let day = 1; day <= DAYS; day++) {
     || (save.girls.length >= getGirlCapacity(lv) && tryUp('娼馆', getUpgradeCost(lv), () => { save = { ...save, player: { ...save.player, gold: save.player.gold - getUpgradeCost(lv), level: lv + 1 } } }))
     || tryUp('调教室', peekCost(() => upgradeTrainingRoom(save)), () => { const r = upgradeTrainingRoom(save); if (r.ok) save = r.save })
   // 2a) 调教场景：先把常规升级做完（上面没花钱时），再按价格从低到高买已解锁的
-  if (STRAT === 'scenes' && day >= 3) {
-    const want = [...TRAINING_SCENES].sort((a, b) => a.price - b.price)
+  if ((STRAT === 'scenes' || STRAT === 'sscenes') && day >= 3) {
+    const want = [...TRAINING_SCENES].filter((sc) => STRAT !== 'sscenes' || S_SCENES.includes(sc.id)).sort((a, b) => a.price - b.price)
       .find((sc) => !(save.player.ownedScenes ?? []).includes(sc.id) && sceneUnlocked(save, sc.id) && save.player.gold - sc.price >= RESERVE * 2)
     if (want) { const r = buyScene(save, want.id); if (r.ok) { save = r.save; stats.upgrades.push(`D${day} 场景:${want.name}`) } }
   }
@@ -89,7 +96,8 @@ for (let day = 1; day <= DAYS; day++) {
       const pv = (k: SkillKey) => t?.proficiency?.[k] ?? 0
       const sk = t && [...SERVING_PROF_SKILLS].filter((k) => pv(k) >= PROF_TIERS.初学 && pv(k) < PROF_TIERS.精通).sort((a, b) => pv(b) - pv(a))[0]
       if (t) {
-        const dir: TrainingDirection = sk ? 'drill' : t.obedience <= t.lewdness ? 'tame' : 'release'
+        const sOwned = STRAT === 'sscenes' && (save.player.ownedScenes ?? []).some((id) => S_SCENES.includes(id))
+        const dir: TrainingDirection = sOwned && t.obedience >= 40 ? 'release' : sk ? 'drill' : t.obedience <= t.lewdness ? 'tame' : 'release'
         const scene = pickScene(t, dir)
         const r = resolveTraining({ girl: t, direction: dir, skill: sk || undefined, skip: true, roomLevel: save.player.trainingRoomLevel, scene, day: save.currentDay })
         if (r.ok) { save = applyTrainingToSave(save, r, undefined, rng); stats.trainings++; noteScene(r, scene); continue }
@@ -149,7 +157,7 @@ for (let day = 1; day <= DAYS; day++) {
 
 /** 场景策略：好感 <35 有温泉就温泉；否则选对口、非抗拒、服从/淫乱加成最大的 */
 function pickScene(g: MonstGirl, dir: TrainingDirection): SceneId | undefined {
-  if (STRAT !== 'scenes') return undefined
+  if (STRAT !== 'scenes' && STRAT !== 'sscenes') return undefined
   const owned = TRAINING_SCENES.filter((sc) => (save.player.ownedScenes ?? []).includes(sc.id) && sc.directions.includes(dir))
   if (!owned.length) return undefined
   if (g.affection < 35 && owned.some((sc) => sc.id === 'onsen')) return 'onsen'
@@ -157,7 +165,7 @@ function pickScene(g: MonstGirl, dir: TrainingDirection): SceneId | undefined {
   let best: { id: SceneId; v: number } | undefined
   for (const sc of ok) {
     const r = resolveTraining({ girl: g, direction: dir, skip: true, roomLevel: save.player.trainingRoomLevel, scene: sc.id, day: save.currentDay })
-    const v = r.ok ? r.delta.obedience + r.delta.lewdness + r.delta.skillProgress / 2 + r.delta.sensitivity : -1
+    const v = r.ok ? r.delta.obedience + r.delta.lewdness + r.delta.skillProgress / 2 + r.delta.sensitivity + (STRAT === 'sscenes' ? (r.delta.s ?? 0) : 0) : -1
     if (!best || v > best.v) best = { id: sc.id, v }
   }
   return best?.id
