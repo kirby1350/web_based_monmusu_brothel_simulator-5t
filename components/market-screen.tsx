@@ -26,9 +26,11 @@ interface MarketScreenProps {
   settings: AppSettings
   onSaveChange: (save: GameSave) => void
   onBack: () => void
+  /** 嵌在「市场」页里：不显示自己的顶栏 */
+  embedded?: boolean
 }
 
-export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScreenProps) {
+export function MarketScreen({ save, settings, onSaveChange, onBack, embedded }: MarketScreenProps) {
   const { player, girls } = save
 
   const [step, setStep] = useState<'market' | 'purchase-dialogue'>('market')
@@ -333,7 +335,7 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
 
   return (
     <div className="flex flex-col h-full bg-background relative">
-      <header className="border-b border-border px-4 py-3 flex items-center justify-between shrink-0">
+      {!embedded && <header className="border-b border-border px-4 py-3 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" className="w-7 h-7" onClick={onBack}><ArrowLeft className="w-4 h-4" /></Button>
           <h1 className="text-sm font-bold gold-text">奴隶市场</h1>
@@ -347,7 +349,7 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
             <span className="text-xs gold-text font-semibold">{player.gold} G</span>
           </div>
         </div>
-      </header>
+      </header>}
 
       {atCapacity && (
         <div className="bg-rose-500/10 border-b border-rose-500/20 px-4 py-1.5 text-center text-[11px] text-rose-400">

@@ -1,21 +1,15 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Settings, Coins, Calendar, Store, Sword, ShoppingBag, Moon, Zap, Crown, Bed, DoorOpen, BedDouble } from 'lucide-react'
+import { Settings, Coins, Calendar, Store, Sword, Moon, Zap } from 'lucide-react'
 import { GameSave, MonstGirl, AppSettings } from '@/lib/types'
 import { ImageDisplay } from '@/components/image-display'
 import { GirlSheet } from '@/components/girl-sheet'
-import { StepActionsEditor } from '@/components/step-actions-editor'
-import { getStepActions } from '@/lib/custom-props'
-import { ShopPanel } from '@/components/shop-panel'
-import { upgradeServiceRoom, upgradeTrainingRoom } from '@/lib/shop'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { MAX_ACTIONS_PER_DAY, getGirlCapacity, getGuestCapacity, getUpgradeCost } from '@/lib/game-engine'
-import { endDay, nightPlan, unusedActions, upgradeDorm, getDormInfo, pickArrivalLeader, arrivalFallbackText, arrivalPromptNote, setBestBed, setMachineNight, bannerPath, shortfallText, upgradeChangeText, type FacilityKey } from '@/lib/hub-logic'
-import { getScene, sceneUpkeep, ownsScene, MACHINE_NIGHT_OBEDIENCE } from '@/lib/scenes'
-import { SERVICE_ROOM_UPGRADE_COSTS, TRAINING_ROOM_UPGRADE_COSTS, getUpgradeCostFor, getPlaySlots, TRAINING_ROOM_MULT, TRAINING_ROOM_PROP_SLOTS, IDLE_REST_BONUS, UNUSED_ACTION_REST_BONUS } from '@/lib/catalog'
+import { MAX_ACTIONS_PER_DAY } from '@/lib/game-engine'
+import { endDay, nightPlan, unusedActions, getDormInfo, pickArrivalLeader, arrivalFallbackText, arrivalPromptNote } from '@/lib/hub-logic'
+import { IDLE_REST_BONUS, UNUSED_ACTION_REST_BONUS } from '@/lib/catalog'
 import { clearOpeningCache, getOpeningCache, saveOpeningCache } from '@/lib/storage'
 import { contextImageTags, hubOpeningPrompt } from '@/lib/prompt-context'
 import { dismissDaySummary } from '@/lib/day-summary'
@@ -96,53 +90,16 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
   const actionsUsed = save.actionsUsedToday ?? 0
   const actionsLeft = Math.max(0, MAX_ACTIONS_PER_DAY - actionsUsed)
   const noActionsLeft = actionsLeft <= 0
-  const level = player.level ?? 1
-  const girlCap = getGirlCapacity(level)
   const guests = save.dailyGuests ?? []
   const appeared = new Set(save.appearedToday ?? [])
   const openGirl = girls.find((g) => g.id === openGirlId) ?? null
 
-  const [lit, setLit] = useState<FacilityKey | null>(null)
-  const celebrate = (k: FacilityKey, from: number, to: number) => {
-    flash(upgradeChangeText(k, from, to))
-    setLit(k); setTimeout(() => setLit((x) => (x === k ? null : x)), 1600)
-  }
-  const handleUpgrade = () => {
-    const cost = getUpgradeCost(level)
-    if (player.gold < cost) return
-    onSaveChange({ ...save, player: { ...player, gold: player.gold - cost, level: level + 1 } })
-    celebrate('brothel', level, level + 1)
-  }
-  const handleDorm = () => {
-    const from = getDormInfo(player.dormLevel).level
-    const r = upgradeDorm(save)
-    if (r.ok) { onSaveChange(r.save); celebrate('dorm', from, from + 1) } else flash(r.error)
-  }
-  const handleRoom = (kind: 'service' | 'training') => {
-    const from = kind === 'service' ? roomLv : trainLv
-    const r = kind === 'service' ? upgradeServiceRoom(save) : upgradeTrainingRoom(save)
-    if (r.ok) { onSaveChange(r.save); celebrate(kind, from, from + 1) } else flash(r.error)
-  }
-  const handleBestBed = (id: string) => {
-    const r = setBestBed(save, id || null)
-    if (r.ok) { onSaveChange(r.save); flash(r.message) } else flash(r.error)
-  }
-  const handleMachineNight = (id: string) => {
-    const r = setMachineNight(save, id || null)
-    if (r.ok) { onSaveChange(r.save); flash(r.message) } else flash(r.error)
-  }
   const handleEndDay = () => {
     setEndDayOpen(false)
     clearOpeningCache()
     onSaveChange(endDay(save))
     flash(`第 ${save.currentDay + 1} 天开始了，大家休整了一晚`)
   }
-
-  const dorm = getDormInfo(player.dormLevel)
-  const roomLv = player.serviceRoomLevel ?? 1
-  const trainLv = player.trainingRoomLevel ?? 1
-  const roomCost = getUpgradeCostFor(SERVICE_ROOM_UPGRADE_COSTS, roomLv)
-  const trainCost = getUpgradeCostFor(TRAINING_ROOM_UPGRADE_COSTS, trainLv)
 
   return (
     <div className="flex flex-col h-full bg-background relative">
@@ -247,15 +204,11 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
 
       {notice && <div className="mx-4 mt-2 bg-primary/10 border border-primary/30 rounded-lg px-3 py-1.5 text-xs text-primary" data-testid="notice">{notice}</div>}
 
-      {/* 三页：今日客人 / 设施 / 商店 */}
-      <Tabs defaultValue="guests" className="flex-1 min-h-0 flex flex-col">
-        <TabsList className="mx-4 mt-2 shrink-0">
-          <TabsTrigger value="guests" className="text-xs">今日客人（{guests.length}）</TabsTrigger>
-          <TabsTrigger value="facilities" className="text-xs">设施</TabsTrigger>
-          <TabsTrigger value="shop" className="text-xs">商店</TabsTrigger>
-        </TabsList>
-        <div className="flex-1 overflow-y-auto px-4 py-3">
-          <TabsContent value="guests" className="space-y-2 mt-0" data-testid="guest-list">
+      {/* 今日客人（设施 / 商店 已移到底部导航的「设施」「市场」） */}
+      <div className="flex-1 min-h-0 flex flex-col">
+        <p className="mx-4 mt-2 text-xs font-semibold gold-text shrink-0">今日客人（{guests.length}）</p>
+        <div className="flex-1 overflow-y-auto px-4 py-2">
+          <div className="space-y-2" data-testid="guest-list">
             {guests.length === 0 && <p className="text-xs text-muted-foreground">今天的客人都接待完了。</p>}
             {guests.map((gu) => (
               <div key={gu.id} className="rounded-lg border border-border bg-card px-3 py-2 space-y-1" data-testid="guest-card">
@@ -276,59 +229,9 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
                 </div>
               </div>
             ))}
-          </TabsContent>
-
-          <TabsContent value="facilities" className="grid grid-cols-2 gap-2 mt-0">
-            <FacilityCard icon={Crown} title="娼馆" level={level} desc={`魔物娘 ${girls.length}/${girlCap} · 每日客人 ${getGuestCapacity(level)}`}
-              cost={getUpgradeCost(level)} gold={player.gold} onUpgrade={handleUpgrade} testId="upgrade-brothel"
-              banner={bannerPath('brothel', level)} flash={lit === 'brothel'} />
-            <FacilityCard icon={BedDouble} title={`宿舍 · ${dorm.name}`} level={dorm.level}
-              desc={`每晚体力 +${dorm.nightly}${dorm.clearsExhaustion ? '，解除疲惫' : ''}${dorm.bestBedBonus ? `，指定一人再 +${dorm.bestBedBonus}` : ''}`}
-              cost={dorm.upgradeCost} gold={player.gold} onUpgrade={handleDorm} testId="upgrade-dorm"
-              banner={bannerPath('dorm', dorm.level)} flash={lit === 'dorm'}>
-              {dorm.bestBedBonus ? (
-                <select data-testid="best-bed" value={save.bestBedGirlId ?? ''} onChange={(e) => handleBestBed(e.target.value)}
-                  className="w-full rounded-md border border-border bg-background px-1.5 py-1 text-[10px]">
-                  <option value="">指定床位：无</option>
-                  {girls.map((g) => <option key={g.id} value={g.id}>指定床位：{g.name}</option>)}
-                </select>
-              ) : null}
-            </FacilityCard>
-            <FacilityCard icon={DoorOpen} title="服务房间" level={roomLv} desc={`额外 play 槽 ${getPlaySlots(roomLv)}`}
-              cost={roomCost} gold={player.gold} onUpgrade={() => handleRoom('service')} testId="upgrade-room"
-              banner={bannerPath('service', roomLv)} flash={lit === 'service'} />
-            <FacilityCard icon={Sword} title="调教室" level={trainLv} desc={`收益倍率 ×${TRAINING_ROOM_MULT[trainLv - 1]} · 道具槽 ${TRAINING_ROOM_PROP_SLOTS[trainLv - 1]}`}
-              cost={trainCost} gold={player.gold} onUpgrade={() => handleRoom('training')} testId="upgrade-training"
-              banner={bannerPath('training', trainLv)} flash={lit === 'training'} />
-            {(player.ownedScenes ?? []).length > 0 && (
-              <div className="col-span-2 rounded-lg border border-border bg-card px-3 py-2 space-y-1.5" data-testid="hub-scenes">
-                <div className="flex items-baseline justify-between">
-                  <p className="text-xs font-semibold gold-text">调教场景</p>
-                  <p className="text-[10px] text-muted-foreground">维护 {sceneUpkeep(player)} G/天（结束今天时扣）</p>
-                </div>
-                <p className="text-[11px] text-foreground/80">{(player.ownedScenes ?? []).map((id) => getScene(id)!.name).join('、')}</p>
-                {ownsScene(save, 'machine') && (
-                  <select data-testid="machine-night" value={save.machineNightGirlId ?? ''} onChange={(e) => handleMachineNight(e.target.value)}
-                    className="w-full rounded-md border border-border bg-background px-1.5 py-1 text-[10px]">
-                    <option value="">今晚机械挂机：无</option>
-                    {girls.filter((g) => !appeared.has(g.id)).map((g) => <option key={g.id} value={g.id}>今晚机械挂机：{g.name}（服从 +{MACHINE_NIGHT_OBEDIENCE}，体力恢复减半）</option>)}
-                  </select>
-                )}
-              </div>
-            )}
-            <Button variant="outline" size="sm" className="col-span-2 h-8 text-xs" onClick={() => onNavigate('market')}>
-              <ShoppingBag className="w-3.5 h-3.5 mr-1.5" />前往奴隶市场
-            </Button>
-            <StepActionsEditor title="标准做法（全馆）" testId="hub-step-actions" value={player.stepActions}
-              placeholders={getStepActions()}
-              onSave={(v) => { onSaveChange({ ...save, player: { ...player, stepActions: v } }); flash(v ? '已更新全馆标准做法' : '全馆标准做法已恢复默认') }} />
-          </TabsContent>
-
-          <TabsContent value="shop" className="mt-0">
-            <ShopPanel save={save} onSaveChange={onSaveChange} onOpenMarket={() => onNavigate('market')} />
-          </TabsContent>
+          </div>
         </div>
-      </Tabs>
+      </div>
 
       {/* 底部三个按钮（休息并入结束今天） */}
       <div className="border-t border-border px-4 py-2 shrink-0">
@@ -347,45 +250,6 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
       {openGirl && (
         <GirlSheet key={openGirl.id} girl={openGirl} save={save} settings={settings} onSaveChange={onSaveChange} onClose={() => { setOpenGirlId(null); setIntro(null) }} intro={intro && intro.girlId === openGirl.id ? intro : null} />
       )}
-    </div>
-  )
-}
-
-function FacilityCard({ icon: Icon, title, level, desc, cost, gold, onUpgrade, locked, testId, banner, flash, children }: {
-  icon: typeof Store; title: string; level: number; desc: string; cost: number | null; gold: number
-  onUpgrade?: () => void; locked?: boolean; testId?: string; banner?: string; flash?: boolean; children?: React.ReactNode
-}) {
-  const can = !locked && cost !== null && gold >= cost
-  const [bannerOk, setBannerOk] = useState(true)
-  const short = locked ? '' : shortfallText(cost, gold)
-  return (
-    <div data-testid={testId ? `${testId}-card` : undefined}
-      className={cn('rounded-xl border bg-card overflow-hidden flex flex-col transition-shadow duration-700',
-        flash ? 'border-amber-400 shadow-[0_0_14px_oklch(0.78_0.18_85/0.55)]' : 'border-border')}>
-      {banner && bannerOk && (
-        <div className="relative h-10 shrink-0">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img key={banner} src={banner} alt="" data-testid={testId ? `${testId}-banner` : undefined} onError={() => setBannerOk(false)}
-            className="absolute inset-0 w-full h-full object-cover animate-in fade-in duration-500" />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/30 to-card" />
-        </div>
-      )}
-      <div className="p-3 pt-2 flex flex-col gap-1.5 flex-1">
-        <div className="flex items-center gap-1.5">
-          <Icon className="w-3.5 h-3.5 text-amber-400" />
-          <span className="text-xs font-semibold">{title}</span>
-          <span className="flex-1" />
-          <span className="text-[10px] gold-text">Lv.{level}</span>
-        </div>
-        <p className="text-[10px] text-muted-foreground leading-snug flex-1">{desc}</p>
-        {children}
-        <button data-testid={testId} disabled={!can} onClick={onUpgrade}
-          className={cn('text-[10px] rounded-md border px-2 py-1 transition-colors',
-            can ? 'border-amber-400/40 text-amber-400 hover:bg-amber-400/10' : 'border-border text-muted-foreground/50 cursor-not-allowed')}>
-          {cost === null ? '已满级' : locked ? `升级 ${cost}G（即将开放）` : `升级 ${cost}G`}
-        </button>
-        {short && <p className="text-[10px] text-rose-400/80 text-center" data-testid={testId ? `${testId}-short` : undefined}>{short}</p>}
-      </div>
     </div>
   )
 }

@@ -165,7 +165,7 @@ export function SessionSetup({ save, onSkip, onLive }: SessionSetupProps) {
                     label={s.name} hint={plan.guest.prefOutfit && s.pref === plan.guest.prefOutfit ? '对口' : undefined} />
                 ))}
               </div>
-              {outfits.length === 1 && <p className="text-[10px] text-muted-foreground">衣橱里只有常服，其他服装之后在商店购买。</p>}
+              {outfits.length === 1 && <p className="text-[10px] text-muted-foreground">衣橱里只有常服，其他服装可在「市场 › 服装」购买。</p>}
             </section>
             {slots > 0 && (
               <section className="space-y-2">
@@ -363,7 +363,7 @@ export function TrainingSetup({ save, onSkip, onLive }: TrainingSetupProps) {
             {direction === 'sculpt' && (
               <section className="space-y-2">
                 <p className="text-[10px] text-muted-foreground uppercase tracking-widest">塑形药（背包）</p>
-                {potions.length === 0 ? <p className="text-[11px] text-rose-400/80">背包里没有塑形药，先去大厅「商店」买。</p> : (
+                {potions.length === 0 ? <p className="text-[11px] text-rose-400/80">背包里没有塑形药，先去「市场 › 道具」买。</p> : (
                   <div className="flex flex-wrap gap-1.5">
                     {potions.map((p) => <Chip key={p.id} active={potionId === p.id} onClick={() => setPotionId(p.id)} icon={itemIconPath('sculpt', p.id)} label={`${p.name} ×${inv[p.id]}`} />)}
                   </div>
@@ -416,7 +416,7 @@ export function TrainingSetup({ save, onSkip, onLive }: TrainingSetupProps) {
             <section className="space-y-2">
               <p className="text-[10px] text-muted-foreground uppercase tracking-widest">道具（调教室 {roomLevel} 级，最多 {slots} 件）</p>
               {slots === 0 ? <p className="text-[11px] text-muted-foreground">一级调教室没有道具槽，升级调教室后可用。</p>
-                : ownedProps.length === 0 && !(player.customProps ?? []).length ? <p className="text-[11px] text-muted-foreground">还没有调教道具，可在大厅「商店」购买。</p> : (
+                : ownedProps.length === 0 && !(player.customProps ?? []).length ? <p className="text-[11px] text-muted-foreground">还没有调教道具，可在「市场 › 道具」购买。</p> : (
                 <div className="flex flex-wrap gap-1.5">
                   {ownedProps.map((p) => {
                     const on = props.includes(p.id)

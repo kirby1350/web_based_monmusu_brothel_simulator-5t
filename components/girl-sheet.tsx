@@ -176,7 +176,7 @@ export function GirlSheet({ girl, save, settings, onSaveChange, onClose, intro }
                 {usedToday && <Badge variant="secondary" className="text-[9px] bg-emerald-500/15 text-emerald-300" data-testid="recovery-used-badge">今日已用</Badge>}
               </div>
               {RECOVERY_ITEMS.filter((i) => (player.inventory?.[i.id] ?? 0) > 0).length === 0 ? (
-                <p className="text-[11px] text-muted-foreground">背包里没有恢复药，可以在大厅「商店」购买。</p>
+                <p className="text-[11px] text-muted-foreground">背包里没有恢复药，可以在「市场 › 道具」购买。</p>
               ) : (
                 <div className="flex flex-wrap gap-1.5">
                   {RECOVERY_ITEMS.filter((i) => (player.inventory?.[i.id] ?? 0) > 0).map((i) => (
