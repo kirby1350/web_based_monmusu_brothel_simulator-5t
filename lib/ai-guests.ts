@@ -1,5 +1,6 @@
 // AI 润色当天客人：身份/预算/挑剔度/需求判定全由游戏决定，AI 只改文案与已存在的偏好取值。
 // 失败、超时、坏 JSON 一律静默保留随机客人。
+import { freeLimits } from './cheat'
 import type { GameSave, Guest, OutfitPref } from './types'
 import { GUEST_CLASSES, GUEST_PREF_TRAIT_TAGS } from './game-engine'
 import { OUTFIT_PREFS } from './catalog'
@@ -23,7 +24,7 @@ export function isAiEligible(g: Guest): boolean {
 }
 
 export function shouldGenerateAiGuests(save: GameSave): boolean {
-  return save.aiGuestsDay !== save.currentDay && (save.dailyGuests ?? []).some(isAiEligible)
+  return (freeLimits(save) || save.aiGuestsDay !== save.currentDay) && (save.dailyGuests ?? []).some(isAiEligible)
 }
 
 export function aiGuestPrompt(guest: Guest, others: string[], preference = ''): string {

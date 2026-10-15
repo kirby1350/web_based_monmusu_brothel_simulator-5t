@@ -1,5 +1,6 @@
 // 客人生成的三种「偏向」：早期保底（6b）、定向刷新（6c）、店铺主题（7）。
 // 偏好全由本地决定；AI 只润色文案（见 ai-guests.ts），刷新出的客人保持本地文案。
+import { freeLimits } from './cheat'
 import type { GameSave, Guest, MonstGirl, OutfitPref } from './types'
 import { createRandomGuest, generateDailyGuests, getGuestCapacity } from './game-engine'
 import { RACES } from './game-data'
@@ -112,6 +113,7 @@ export function refreshesUsed(save: GameSave): number {
   return save.guestRefresh?.day === save.currentDay ? save.guestRefresh.count : 0
 }
 export function refreshCost(save: GameSave, targeted: boolean): number | null {
+  if (freeLimits(save)) return 0
   const n = refreshesUsed(save)
   if (n >= REFRESH_LIMIT) return null
   return (targeted ? TARGETED_REFRESH_COST : REFRESH_COST)[n]

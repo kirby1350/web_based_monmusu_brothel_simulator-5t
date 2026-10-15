@@ -20,6 +20,7 @@ import { parseLooseJson, cn } from '@/lib/utils'
 import { OUTFITS, STOCKINGS, STEP_MAX, getSensitivityLevel, playIconPath, ALL_PLAYS } from '@/lib/catalog'
 import { buildStepRecap, provokeSection, lengthReminder, transitionTurn, transitionFallback, climaxSlipNote, shortReplyNote, extractMetaphors, pushRecent, recentUseLine } from '@/lib/prompt-context'
 import { bankWordsUsed } from '@/lib/prose-bank'
+import { HeatCheat } from '@/components/heat-cheat'
 import { ItemIcon } from '@/components/item-icon'
 import { SERVICE_STEPS } from '@/lib/resolve-service'
 import {
@@ -49,9 +50,11 @@ interface SessionSceneProps {
   wardrobe: string[]
   settings: AppSettings
   onFinish: (outcome: SceneOutcome) => void
+  /** 作弊模式：步骤条上多一个设兴奋/快感的入口 */
+  cheat?: boolean
 }
 
-export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRemember }: SessionSceneProps) {
+export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRemember, cheat }: SessionSceneProps) {
   const { girl, guest } = plan
   // 多人服务：主位 + 协同，提示词/面板/STATS 都按全员
   const cast = [girl, ...(plan.partners ?? [])]
@@ -277,7 +280,10 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
     <div className="flex flex-col flex-1 min-h-0">
       {/* 顶部步骤条 */}
       <div className="border-b border-border px-3 pt-2 pb-1.5 shrink-0 space-y-1.5" data-testid="step-bar">
-        <div className="flex gap-1">
+        <div className="flex gap-1 items-center">
+          {cheat && live.heat && (
+            <HeatCheat heat={live.heat} people={[{ id: 'guest', name: guest.name }, ...cast.map((g) => ({ id: g.id, name: g.name }))]} onChange={(h) => setLive((s) => ({ ...s, heat: h }))} />
+          )}
           {SERVICE_STEPS.map((st, i) => (
             <div key={st.key} data-testid={`step-${st.key}`} data-state={i < live.stepIndex ? 'done' : i === live.stepIndex ? 'current' : 'todo'}
               className={cn('flex-1 rounded-md border px-1 py-1 text-center text-xs transition-colors',
@@ -362,7 +368,8 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
 
 // ─── 调教的亲自上场（仍用旧调教提示词，无步骤条） ──────────────────────────────
 
-export function TrainingScene({ player, girl, directionLabel, trainingInfo, extraPrompt, settings, onFinish, scene, day, onRemember, zone, drillSkill }: {
+export function TrainingScene({ player, girl, directionLabel, trainingInfo, extraPrompt, settings, onFinish, scene, day, onRemember, zone, drillSkill, cheat }: {
+  cheat?: boolean
   onRemember?: (text: string) => void
   /** 敏感开发的部位（她的快感按这条带的敏感档推进） */
   zone?: SensitivityZone
@@ -477,6 +484,7 @@ export function TrainingScene({ player, girl, directionLabel, trainingInfo, extr
         <span>快感 {pleasure}</span>
         <span data-testid="tr-band">{girl.name}：{speechBand(heat.girls[girl.id] ?? { arousal: 0, pleasure: 0, climaxes: 0 }, heat.justClimaxed.includes(girl.id))}</span>
         <span className="flex-1" />
+        {cheat && <HeatCheat heat={heat} people={[{ id: 'guest', name: player.name }, { id: girl.id, name: girl.name }]} onChange={setHeat} />}
         <Button size="sm" variant="outline" className="h-7 text-xs border-rose-500/30 text-rose-400" onClick={() => onFinish(turns, pleasure, provoked)} data-testid="btn-end-training">
           结束调教
         </Button>

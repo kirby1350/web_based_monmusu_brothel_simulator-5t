@@ -7,7 +7,7 @@ import { getGameSave, saveGameSave, getSettings, saveSettings, clearGameSave } f
 import { generateDailyGuests, getGuestCapacity } from '@/lib/game-engine'
 import { GameSave, AppSettings } from '@/lib/types'
 import { migrateSave } from '@/lib/migrate-save'
-import { shouldGenerateAiGuests, generateAiGuests, applyAiGuests } from '@/lib/ai-guests'
+import { shouldGenerateAiGuests, generateAiGuests, applyAiGuests, isAiEligible } from '@/lib/ai-guests'
 import { syncMemory, needsAiSummary, buildGirlSummaryPrompt, generateMemorySummaries, applyMemorySummaries } from '@/lib/girl-memory'
 import { speechBrief } from '@/lib/speech-style'
 import { fetishPromptLine } from '@/lib/scenes'
@@ -19,6 +19,8 @@ import { FacilitiesScreen } from '@/components/facilities-screen'
 import { FlowsScreen } from '@/components/flows-screen'
 import { BottomNav } from '@/components/bottom-nav'
 import { SettingsPanel } from '@/components/settings-panel'
+import { CheatPanel } from '@/components/cheat-panel'
+import { setCheat, freeLimits } from '@/lib/cheat'
 import { Button } from '@/components/ui/button'
 
 export type GameTab = 'hub' | 'service' | 'training' | 'market' | 'facilities' | 'flows'
@@ -34,6 +36,7 @@ export default function GamePage() {
   const [activeTab, setActiveTab] = useState<GameTab>('hub')
   const [marketSub, setMarketSub] = useState<MarketSub>('slaves')
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [cheatOpen, setCheatOpen] = useState(false)
   const [confirmReset, setConfirmReset] = useState(false)
   // Track newly purchased girl to trigger hub dialogue
   const [newlyPurchasedGirl, setNewlyPurchasedGirl] = useState<import('@/lib/types').MonstGirl | null>(null)
@@ -76,6 +79,8 @@ export default function GamePage() {
   // AI 润色当天新客人：先用随机客人（已在存档里），后台请求，回来时只替换仍在客人池里的那几位。
   // 失败/超时静默保留随机客人；无论成败都记 aiGuestsDay，刷新不重复请求。
   const day = save?.currentDay
+  // 作弊「解除每日限制」：换来的新客人也会再润色一次
+  const freeAiKey = save && freeLimits(save) ? (save.dailyGuests ?? []).filter(isAiEligible).map((g) => g.id).join(',') : ''
   useEffect(() => {
     if (!save || !settings || !shouldGenerateAiGuests(save)) return
     let cancelled = false
@@ -98,7 +103,7 @@ export default function GamePage() {
     })
     return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [day, loaded])
+  }, [day, loaded, freeAiKey])
 
   // 每位魔物娘的「心里话」：新的一天对昨天有新经历的人各请求一次（非流式，同「保存为常客」的请求格式）；
   // 失败保留结束今天时写好的本地版；无论成败都记 aiDay，刷新不重复请求。
@@ -162,6 +167,7 @@ export default function GamePage() {
             onSaveChange={handleSaveChange}
             onNavigate={setActiveTab}
             onOpenSettings={() => setSettingsOpen(true)}
+            onOpenCheat={() => setCheatOpen(true)}
             newlyPurchasedGirl={newlyPurchasedGirl}
             onNewGirlGreeted={() => setNewlyPurchasedGirl(null)}
           />
@@ -218,6 +224,19 @@ export default function GamePage() {
           </div>
           <div className="flex-1 overflow-y-auto p-4">
             <SettingsPanel settings={settings} onSettingsChange={handleSettingsChange} />
+            {/* 作弊 / 调试模式：开关记在存档里（默认关） */}
+            <div className="mt-6 rounded-lg border border-rose-900/60 bg-zinc-950/70 p-3 space-y-2" data-testid="settings-cheat">
+              <p className="text-[11px] font-semibold tracking-widest text-rose-400">作弊模式（调试用）</p>
+              <label className="flex items-center gap-2 text-xs text-zinc-300">
+                <input type="checkbox" checked={!!save.cheat?.enabled} data-testid="settings-cheat-toggle"
+                  onChange={(e) => handleSaveChange(setCheat(save, { enabled: e.target.checked }))} />
+                开启作弊（大厅顶栏出现「作弊」入口；记在本存档里）
+              </label>
+              {save.cheat?.enabled && (
+                <button className="h-7 px-2.5 rounded-md border border-rose-800/70 bg-rose-950/40 text-[11px] text-rose-200 hover:bg-rose-900/50" data-testid="settings-cheat-open"
+                  onClick={() => { setSettingsOpen(false); setCheatOpen(true) }}>打开作弊面板</button>
+              )}
+            </div>
           </div>
           {/* 危险操作 — 重置存档 */}
           <div className="shrink-0 border-t border-rose-500/20 p-4">
@@ -233,6 +252,8 @@ export default function GamePage() {
             </Button>
           </div>
         </div>
+
+        {cheatOpen && save.cheat?.enabled && <CheatPanel save={save} onSaveChange={handleSaveChange} onClose={() => setCheatOpen(false)} />}
 
         {/* Settings backdrop (inside frame) */}
         {settingsOpen && (

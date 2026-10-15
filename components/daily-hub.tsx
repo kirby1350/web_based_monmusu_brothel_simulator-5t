@@ -28,12 +28,14 @@ interface DailyHubProps {
   onSaveChange: (save: GameSave) => void
   onNavigate: (tab: GameTab) => void
   onOpenSettings: () => void
+  /** 作弊模式开着时，顶栏多一个「作弊」入口 */
+  onOpenCheat?: () => void
   newlyPurchasedGirl?: MonstGirl | null
   onNewGirlGreeted?: () => void
 }
 
 
-export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSettings, newlyPurchasedGirl, onNewGirlGreeted }: DailyHubProps) {
+export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSettings, onOpenCheat, newlyPurchasedGirl, onNewGirlGreeted }: DailyHubProps) {
   const { player, girls } = save
   const [openGirlId, setOpenGirlId] = useState<string | null>(null)
   const [endDayOpen, setEndDayOpen] = useState(false)
@@ -120,6 +122,9 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
         <span className={cn('flex items-center gap-1 text-xs', noActionsLeft ? 'text-rose-400' : 'text-emerald-300')} data-testid="actions">
           <Zap className="w-3.5 h-3.5" />行动 {actionsLeft}/{MAX_ACTIONS_PER_DAY}
         </span>
+        {save.cheat?.enabled && onOpenCheat && (
+          <button className="h-6 px-2 rounded border border-rose-700/80 bg-rose-950/60 text-[10px] font-semibold text-rose-300 hover:bg-rose-900/60" onClick={onOpenCheat} data-testid="hub-cheat">作弊</button>
+        )}
         <Button variant="ghost" size="icon" className="w-7 h-7" onClick={onOpenSettings}>
           <Settings className="w-4 h-4" />
         </Button>

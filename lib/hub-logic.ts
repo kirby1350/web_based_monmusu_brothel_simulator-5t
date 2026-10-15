@@ -1,5 +1,6 @@
 import { buildDaySummary, freshDayLog } from './day-summary'
 // 大厅经营动作（纯函数）：送礼、宿舍升级、结束今天（含休养）
+import { freeLimits } from './cheat'
 import type { GameSave, Guest, MonstGirl, SkillKey } from './types'
 import {
   DORM_LEVELS, DORM_UPGRADE_COSTS, MAX_STAMINA, IDLE_REST_BONUS, UNUSED_ACTION_REST_BONUS,
@@ -26,7 +27,7 @@ export const GIFT_OPTIONS = [
 ]
 
 export function canGiveGiftToday(save: GameSave): boolean {
-  return save.player.giftGivenOnDay !== save.currentDay
+  return freeLimits(save) || save.player.giftGivenOnDay !== save.currentDay
 }
 
 export function giveGift(save: GameSave, girlId: string, giftIndex: number): HubResult {

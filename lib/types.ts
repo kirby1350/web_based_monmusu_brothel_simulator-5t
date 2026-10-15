@@ -358,6 +358,8 @@ export interface GameSave {
   guestRefresh?: { day: number; count: number }
   // 今晚挂在机械调教室过夜的魔物娘（结束今天时结算并清空）
   machineNightGirlId?: string
+  /** 作弊 / 调试模式（默认关） */
+  cheat?: import('./cheat').CheatState
 }
 
 /** 定制调教道具：名字、描述自填，效果来自固定模板 */
