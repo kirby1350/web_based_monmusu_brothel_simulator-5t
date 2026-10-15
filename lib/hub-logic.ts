@@ -8,6 +8,7 @@ import {
 import { nightlyIncidents } from './incidents'
 import { MAX_ACTIONS_PER_DAY, generateDailyGuests, getGuestCapacity, getGirlCapacity } from './game-engine'
 import { speechLine } from './speech-style'
+import { compactMemory, giftAffection, recordGift, addEvent } from './girl-memory'
 import { accumulateScene, nightmareIncident, ownsScene, sceneUpkeep, MACHINE_NIGHT_OBEDIENCE } from './scenes'
 
 export type HubResult = { ok: true; save: GameSave; message: string } | { ok: false; error: string }
@@ -33,10 +34,11 @@ export function giveGift(save: GameSave, girlId: string, giftIndex: number): Hub
   if (!gift || !girl) return { ok: false, error: '无效的礼物或魔物娘' }
   if (!canGiveGiftToday(save)) return { ok: false, error: '今天已经送过礼了（全馆每天一次）' }
   if (save.player.gold < gift.cost) return { ok: false, error: '金币不足' }
-  const updated = { ...girl, affection: Math.min(100, girl.affection + gift.affectionBonus) }
+  const aff = giftAffection(girl, giftIndex, gift.affectionBonus, save.currentDay)
+  const updated = recordGift({ ...girl, affection: Math.min(100, girl.affection + aff.value) }, giftIndex, gift.name, save.currentDay)
   return {
     ok: true,
-    message: `送出了「${gift.name}」！${girl.name} 的好感度 +${gift.affectionBonus}`,
+    message: `送出了「${gift.name}」！${girl.name} 的好感度 +${aff.value}${aff.note ? `（${aff.note}）` : ''}`,
     save: {
       ...save,
       player: { ...save.player, gold: save.player.gold - gift.cost, giftGivenOnDay: save.currentDay },
@@ -106,10 +108,12 @@ export function endDay(save: GameSave, rng: () => number = Math.random): GameSav
     const hooked = { ...base, stamina: clampStamina((g.stamina ?? MAX_STAMINA) + Math.floor(rec / 2)), obedience: Math.min(100, g.obedience + MACHINE_NIGHT_OBEDIENCE) }
     const acc = accumulateScene(hooked, 'machine', save.currentDay)
     nightNote = `${g.name}在机械调教室挂了一夜：服从 +${MACHINE_NIGHT_OBEDIENCE}${acc.awakenedNow ? '，觉醒了器具癖' : ''}`
-    return acc.girl
+    let after = g.memory ? addEvent(acc.girl, { day: save.currentDay, kind: 'training', text: '在机械调教室里被挂了一整夜', w: 1, scene: 'machine' }) : acc.girl
+    if (acc.awakenedNow && after.memory) after = addEvent(after, { day: save.currentDay, kind: 'awaken', text: `第${save.currentDay}天夜里在机械调教室觉醒了器具癖`, w: 3, scene: 'machine' })
+    return after
   })
   // 事件：过夜未处理扣服从；再按概率随机一人闯祸（记在新的一天）；有阴影的人可能做噩梦
-  let girls = nightlyIncidents(rested, save.currentDay + 1, rng)
+  let girls = nightlyIncidents(rested.map((g) => compactMemory(g, save.currentDay)), save.currentDay + 1, rng)
   if (girls.some((g) => !g.incident && (g.sceneState && Object.values(g.sceneState).some((st) => (st?.sp ?? 0) > 0)))) {
     girls = girls.map((g) => { const inc = nightmareIncident(g, save.currentDay + 1, rng); return inc ? { ...g, incident: inc } : g })
   }

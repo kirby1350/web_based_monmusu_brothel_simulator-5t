@@ -62,6 +62,7 @@ export interface TrainingResult {
   notes: string[]   // 道具 / 服装 / 种族加成说明
   summary: string
   scene?: SceneId
+  direction?: TrainingDirection
   /** 本场让她觉醒的性癖（场景 id） */
   awakenedScene?: SceneId
   /** 本场让她留下阴影的场景 */
@@ -247,7 +248,7 @@ export function resolveTraining(input: TrainingInput): TrainingResult {
   const label = TRAINING_DIRECTIONS.find((d) => d.key === direction)!.label
   for (let i = 0; i < notes.length; i++) for (const [from, to] of customNames) if (notes[i].startsWith(`${from}：`)) notes[i] = to + notes[i].slice(from.length)
   return {
-    ok: true, delta, measurement, newRank, becameTwoSided, staminaCost: stamina, girl: next, notes,
+    ok: true, direction, delta, measurement, newRank, becameTwoSided, staminaCost: stamina, girl: next, notes,
     summary: trainingSummary(girl.name, sceneDef ? `${sceneDef.name}·${label}` : label, delta, measurement, newRank),
     ...(sceneDef ? { scene: sceneDef.id, reputationDelta: sceneOut.rep } : {}),
     ...(awakenedScene ? { awakenedScene } : {}), ...(shadowScene ? { shadowScene } : {}),

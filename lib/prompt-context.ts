@@ -140,6 +140,11 @@ export function houseStateLines(save: GameSave): string {
   const fac = [['宿舍', p.dormLevel], ['接客间', p.serviceRoomLevel], ['调教室', p.trainingRoomLevel]].filter(([, v]) => (v as number) > 1)
   if (fac.length) lines.push(fac.map(([n, v]) => `${n} Lv${v}`).join('、'))
   if (save.regulars?.length) lines.push(`回头客 ${save.regulars.length} 位`)
+  // 昨天经历最多的那位的心里话（最多一人，截断）
+  const y = save.currentDay - 1
+  const mood = save.girls.filter((g) => g.memory?.summary && g.memory.events.some((e) => e.day === y))
+    .sort((a, b) => (b.memory!.events.filter((e) => e.day === y).length - a.memory!.events.filter((e) => e.day === y).length))[0]
+  if (mood) lines.push(`${mood.name}的心事：${mood.memory!.summary.slice(0, 40)}`)
   return lines.length ? `【馆内近况】${lines.join('｜')}` : ''
 }
 

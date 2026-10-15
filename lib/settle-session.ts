@@ -7,6 +7,7 @@ import type { TrainingResult } from './resolve-training'
 import { applyReputationDelta, calcServiceReward, MAX_ACTIONS_PER_DAY } from './game-engine'
 import { LIVE_SERVICE_STAMINA_LONG, LIVE_SERVICE_STAMINA_SHORT, MAX_STAMINA } from './catalog'
 import { sceneRiskIncident } from './scenes'
+import { recordService, recordTraining } from './girl-memory'
 
 /** 预览：收入区间（亲自上场最差到最好的大致范围）与体力 */
 export function previewService(input: Omit<ServiceInput, 'skip'>) {
@@ -63,7 +64,7 @@ export function applyServiceToSave(
         reputation: applyReputationDelta(save.player.reputation, tier.reputationDelta),
       },
       girls: save.girls.map((g) => g.id !== girlId ? g : {
-        ...g,
+        ...recordService(g, guest, { tier: tier.label, sat: result.satisfaction, reward: result.reward }, save.currentDay),
         stamina: after,
         exhausted: after === 0 ? true : g.exhausted,
         affection: Math.min(100, g.affection + result.affectionDelta),
@@ -89,7 +90,9 @@ export function applyTrainingToSave(save: GameSave, result: TrainingResult, poti
   const id = result.girl.id
   const before = save.girls.find((g) => g.id === id) ?? result.girl
   const risk = sceneRiskIncident(result.scene, before, result.girl, save.currentDay, rng)
-  const girlAfter = risk ? { ...result.girl, incident: risk } : result.girl
+  // 记忆以存档里的为准（亲自上场时可能刚「让她记住」了一句）
+  const base = { ...result.girl, memory: before.memory, ...(risk ? { incident: risk } : {}) }
+  const girlAfter = recordTraining(base, before, result, save.currentDay)
   return {
     ...save,
     dayLog: currentDayLog(save),  // 调教前先拍当天快照，小结里才看得到数值变化

@@ -225,6 +225,7 @@ export interface MonstGirl {
   itemUsedOnDay?: number                        // 当天已用过恢复药（每人每天一瓶）
   sceneState?: Partial<Record<SceneId, SceneState>> // 调教场景：使用记录 / 性癖积累 / 阴影
   awakened?: SceneId[]                          // 已觉醒的性癖（按场景记，名字见 TRAINING_SCENES）
+  memory?: import('./girl-memory').GirlMemory   // 她自己的记忆（事件 + 心里话）
   // 图片缓存
   imageTags: string
   imageUrl?: string
