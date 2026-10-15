@@ -88,17 +88,6 @@ const LEWD_VOICE_RULES = `【淫叫与拟声词强制规则（必须严格执行
   - 口交/深喉/吞精/插入玩具时使用：啾、噜、咕唧、噗、呕、滋、啾噜、噗噜、呕噗、咕啾
   - 例：啾噜啾噜啾❤~！咕唧滋滋❤~！噗呕……咕啾啾❤~`
 
-// 技能运用锚点：在场魔物娘已解锁的侍奉技巧，本场应主动施展（service / training 共用）
-function skillUsageAnchor(girls: MonstGirl[]): string {
-  const withSkills = girls.filter((g) => g.skills.length > 0)
-  if (withSkills.length === 0) return ''
-  return `
-
-【技能运用锚点（必须体现）】以下魔物娘已掌握专精侍奉技巧，本场必须主动施展，技巧越娴熟越能取悦对方：
-${withSkills.map((g) => `- ${g.name}：${g.skills.join('、')}`).join('\n')}
-（口技→深喉/舌技细节，手技→套弄揉捏，体位变换→主动换姿势，魅惑舞蹈→扭腰挑逗献媚，按摩→全身爱抚，低语诱惑→耳边淫言，多重服侍→同时伺候多处，特殊技巧→招牌绝活。技巧娴熟应明显抬高客人满意度。）`
-}
-
 // 满意度评分锚点：把 satisfaction 增量与「客人需求是否被满足」绑定（仅服务场景）
 function satisfactionRubric(desires: string): string {
   return `
@@ -223,7 +212,7 @@ ${session.girls.map(girl => `- ${girl.name} 的每一句话、呻吟、反应必
 
 ${REACTION_MATRIX}
 
-${LEWD_VOICE_RULES}${skillUsageAnchor(session.girls)}${satisfactionRubric(g.desires)}
+${LEWD_VOICE_RULES}${satisfactionRubric(g.desires)}
 ${proseSection(proseStyle)}
 【写作规则】
 1. 以极度沉浸式第三人称叙述，每次回复${proseWordCount}字
@@ -272,7 +261,7 @@ ${session.girls.map(girl => `- ${girl.name} 的每一句话、呻吟、反应必
 
 ${REACTION_MATRIX}
 
-${LEWD_VOICE_RULES}${skillUsageAnchor(session.girls)}
+${LEWD_VOICE_RULES}
 ${proseSection(proseStyle)}
 【写作规则】
 1. 以极度沉浸式第三人称叙述，每次回复${proseWordCount}字

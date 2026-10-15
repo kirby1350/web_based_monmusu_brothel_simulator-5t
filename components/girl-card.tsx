@@ -5,6 +5,7 @@ import { ChevronDown, ChevronUp, ImageIcon } from 'lucide-react'
 import { MonstGirl } from '@/lib/types'
 import { StatBar } from '@/components/stat-bar'
 import { ImageDisplay } from '@/components/image-display'
+import { PORTRAIT_CARD_SIZES } from '@/lib/portrait'
 import { AppSettings } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
@@ -52,6 +53,8 @@ export function GirlCard({
             cachedUrl={girl.imageUrl}
             onUrlCached={(url) => onImageCached?.(girl.id, url)}
             alt={girl.name}
+            size="md"
+            sizes={PORTRAIT_CARD_SIZES}
             className="w-full aspect-[3/4] rounded-none"
           />
           {selected && (
@@ -69,6 +72,8 @@ export function GirlCard({
             onUrlCached={(url) => onImageCached?.(girl.id, url)}
             alt={girl.name}
             autoGenerate={!girl.imageUrl}
+            size="md"
+            sizes={PORTRAIT_CARD_SIZES}
             className="w-full aspect-[3/4] rounded-none"
           />
         </div>
@@ -119,19 +124,6 @@ export function GirlCard({
             <p className="text-[10px] text-muted-foreground leading-relaxed line-clamp-2">
               {girl.personality}
             </p>
-            {girl.skills.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {girl.skills.map((skill) => (
-                  <Badge
-                    key={skill}
-                    variant="outline"
-                    className="text-[9px] h-4 px-1.5 py-0 border-primary/30 text-primary/80"
-                  >
-                    {skill}
-                  </Badge>
-                ))}
-              </div>
-            )}
           </div>
         )}
 

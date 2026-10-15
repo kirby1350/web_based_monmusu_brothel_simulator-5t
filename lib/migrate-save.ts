@@ -2,6 +2,7 @@
 import type { GameSave, Guest, MonstGirl, Player } from './types'
 import { defaultSensitivities, getDesireProfile } from './catalog'
 import { normalizeDayLog, freshDayLog } from './day-summary'
+import { refreshPresetText } from './preset-refresh'
 
 export function migratePlayer(p: Player): Player {
   return {
@@ -23,7 +24,8 @@ export const RACE_RENAMES: Record<string, string> = { 阿拉克涅: '蜘蛛娘',
 
 export function migrateGirl(raw: MonstGirl): MonstGirl {
   const g = RACE_RENAMES[raw.race] ? { ...raw, race: RACE_RENAMES[raw.race] } : raw
-  return {
+  // 预设角色的旧文案（玩家没改过的字段）刷新为当前版本；数值与进度不动
+  return refreshPresetText({
     ...g,
     skills: g.skills ?? [],
     incident: g.incident ?? null,
@@ -35,7 +37,7 @@ export function migrateGirl(raw: MonstGirl): MonstGirl {
     skillProgress: g.skillProgress ?? {},
     sensitivities: { ...defaultSensitivities(g.race), ...(g.sensitivities ?? {}) },
     sculptCounts: g.sculptCounts ?? { bust: 0, waist: 0, hip: 0 },
-  }
+  })
 }
 
 export function migrateGuest(guest: Guest): Guest {

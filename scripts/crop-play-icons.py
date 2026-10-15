@@ -5,11 +5,14 @@ A = '/home/box/agent-data/agents/6d90e57a-d7ee-4929-bdeb-4f58d9680c04/assets/'
 M = dict(deepthroat='8e769691', paizuri='1b4b65a7', positions='a8f63453', long_massage='9a960062', lewd_dance='b1ba16f8',
   endure='f86e275e', drain='94e4a316', race_cat_lick='135f78d6', race_cat_tail='e8cae43a', race_dog_beg='278c9853',
   race_dog_obey='482bf6fc', race_fox_tails='e199d842', race_fox_illusion='7b2f8c04', race_bunny_ride='f3d12beb',
-  race_slime_wrap='00ef4a5f', race_slime_inner='dd9682e6', race_lamia_coil='cf2ac5f6', race_lamia_gaze='bf8291cc',
-  race_lamia_hair='b9bef200', race_harpy_wing='3383c850', race_harpy_air='aeb5d741', race_spider_bind='7bc35e8f',
+  race_slime_wrap='00ef4a5f', race_slime_inner='dd9682e6', race_lamia_coil='cf2ac5f6', race_lamia_gaze='df658d9e',
+  race_lamia_hair='2abaaf37', race_harpy_wing='3383c850', race_harpy_air='aeb5d741', race_spider_bind='7bc35e8f',
   race_dragon_press='ff8ca4f0', race_elf_whisper='13b85431', race_drow_night='1abb5e9c', race_vamp_kiss='75054fba',
   race_witch_crest='c3f165f2', race_oni_press='ae12ee29', race_cow_milk='4c03e8a5', race_wolf_wild='b1b6e2a0')
-OVR = {}  # id -> (cx, cy, s) 手动修正（源图像素坐标）
+OVR = {  # id -> (cx, cy, s) 手动修正（源图像素坐标）
+  'race_lamia_gaze': (700, 360, 800),  # 蛇瞳魅惑：竖瞳偏左、右侧飘爱心；略放大取景（超出部分用背景色补），让睫毛和爱心入框
+  'race_lamia_hair': (700, 360, 720),  # 尾尖撩拨：尾巴从右上入画、爱心在中偏左下，右移让尾巴和爱心都入框
+}
 os.makedirs('public/icons/play', exist_ok=True)
 out = []
 for id, pre in M.items():

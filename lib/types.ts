@@ -202,7 +202,7 @@ export interface MonstGirl {
   affection: number
   obedience: number
   lewdness: number
-  skills: string[]  // 旧技能名（口技/手技…）保留展示，不参与新结算
+  skills: string[]  // 旧技能名（口技/手技…）：仅为兼容旧存档保留，不再展示、不进 prompt、不参与结算
   // ─── 新结算字段（全部可选，旧存档由 migrate-save 回填） ───
   stamina?: number                              // 体力 0–100，跨天保留
   exhausted?: boolean                           // 疲惫

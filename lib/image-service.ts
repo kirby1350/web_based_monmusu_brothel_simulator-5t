@@ -62,6 +62,20 @@ async function generatePixAI(
 }
 
 /**
+ * 从 TensorArt 轮询结果里取第一张图的 URL。
+ * 现行格式：{ job: { status: "SUCCESS", successInfo: { images: [{ url }] } } }；
+ * 旧格式：{ job: { images: [{ url }] } }（兜底）。
+ */
+export function tensorArtImageUrl(job: unknown): string | undefined {
+  const j = job as { successInfo?: { images?: { url?: unknown }[] }; images?: { url?: unknown }[] } | null | undefined
+  for (const list of [j?.successInfo?.images, j?.images]) {
+    const url = Array.isArray(list) ? list.find((im) => typeof im?.url === 'string' && im.url)?.url : undefined
+    if (typeof url === 'string') return url
+  }
+  return undefined
+}
+
+/**
  * 通过 TensorArt API 生成图片并等待结果
  */
 async function generateTensorArt(
@@ -99,11 +113,11 @@ async function generateTensorArt(
     })
     if (!pollRes.ok) continue
     const data = await pollRes.json()
-    // TensorArt poll response: { job: { status: "SUCCESS", images: [{ url: "..." }] } }
     const job = data?.job
     const status = job?.status
-    if ((status === 'SUCCESS' || status === 'COMPLETED') && job?.images?.[0]?.url) {
-      return { url: job.images[0].url }
+    const url = tensorArtImageUrl(job)
+    if ((status === 'SUCCESS' || status === 'COMPLETED') && url) {
+      return { url }
     }
     if (status === 'FAILED' || status === 'ERROR') {
       return { url: '', error: 'Task failed' }
@@ -111,6 +125,22 @@ async function generateTensorArt(
   }
 
   return { url: '', error: 'Timeout' }
+}
+
+// 本次页面会话中已鉴权失败（缺 Key / 401 / 403）的服务商：之后不再自动生图，避免每次进页面都打一个注定失败的请求
+const authFailed = new Set<string>()
+export function imageAuthFailed(provider: string): boolean { return authFailed.has(provider) }
+export function markImageAuthFailed(provider: string): void { authFailed.add(provider) }
+export function resetImageAuthFailed(): void { authFailed.clear() }
+
+/** 把路由返回的错误（常是 JSON 文本）转成一句短提示；auth=true 表示缺 Key 或鉴权失败 */
+export function friendlyImageError(raw: string | undefined): { text: string; auth: boolean } {
+  let msg = raw ?? ''
+  try { const j = JSON.parse(msg); if (j && typeof j.error === 'string') msg = j.error } catch { /* 非 JSON，原样用 */ }
+  const auth = /未配置.*Key|unauthori[sz]ed|\b40[13]\b|invalid.*(key|token)|app not found/i.test(msg)
+  if (auth) return { text: '生图未配置或 Key 无效（设置 → 生图）', auth: true }
+  if (!msg) return { text: '生成失败', auth: false }
+  return { text: msg.length > 60 ? msg.slice(0, 60) + '…' : msg, auth: false }
 }
 
 /**

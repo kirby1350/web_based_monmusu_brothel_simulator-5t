@@ -9,6 +9,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { StatBar } from '@/components/stat-bar'
 import { ImageDisplay } from '@/components/image-display'
+import { PortraitImg } from '@/components/portrait-img'
+import { PORTRAIT_CARD_SIZES } from '@/lib/portrait'
 import { buildMarketGirlPrompt, buildOpeningDialoguePrompt } from '@/lib/prompt-builder'
 import { getGirlCapacity } from '@/lib/game-engine'
 import { GIRL_TEMPLATES, GIRL_TEMPLATE_IMAGES } from '@/lib/game-data'
@@ -158,7 +160,7 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
         affection: Number(parsed.affection) || 20,
         obedience: Number(parsed.obedience) || 25,
         lewdness: Number(parsed.lewdness) || 15,
-        skills: (parsed.skills as string[]) ?? [],
+        skills: [], // 旧版招牌技能已停用（不参与结算），不再接收 AI 生成值
         imageTags: (parsed.imageTags as string) ?? '1girl, anime, masterpiece, best quality',
         price: Number(parsed.price) || 200,
       }))
@@ -231,7 +233,7 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
     }
   }
 
-  // ─── Post-purchase chat ───────────────────────────────────────��──────────────
+  // ─── Post-purchase chat ──────────────────────────────────────────────────
 
   const sendChat = async () => {
     if (!chatInput.trim() || !purchasedGirl) return
@@ -380,8 +382,7 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
                 <div key={template.name} className={cn('bg-card border border-border rounded-xl overflow-hidden', alreadyOwned && 'opacity-60')}>
                   <div className="aspect-[3/4] relative">
                     {imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={imageUrl} alt={template.name} className="w-full h-full object-cover object-top" />
+                      <PortraitImg url={imageUrl} size="md" sizes={PORTRAIT_CARD_SIZES} alt={template.name} className="w-full h-full object-cover object-top" />
                     ) : (
                       <div className="w-full h-full bg-muted/20 flex items-center justify-center">
                         <Star className="w-8 h-8 text-muted-foreground/20" />
@@ -481,6 +482,7 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
                       onUrlCached={(url) => setListings((prev) => prev.map((g) => g.id === girl.id ? { ...g, imageUrl: url } : g))}
                       alt={girl.name}
                       autoGenerate={!!(imageKeys[girl.id])}
+                      sizes={PORTRAIT_CARD_SIZES}
                       className="w-full h-full rounded-none"
                     />
                     {/* Settings button overlay */}
@@ -510,11 +512,6 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
                       <StatBar label="服从度" value={girl.obedience} color="blue" size="sm" />
                       <StatBar label="淫乱度" value={girl.lewdness} color="rose" size="sm" />
                     </div>
-                    {girl.skills.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {girl.skills.map((s) => <Badge key={s} variant="secondary" className="text-[9px] h-4 px-1.5">{s}</Badge>)}
-                      </div>
-                    )}
                     <Button
                       variant="outline"
                       className="w-full h-8 text-xs mt-1"
@@ -581,16 +578,6 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
               <DetailRow label="当前服装" value={detailGirl.outfit} />
               {detailGirl.sexualDesc && <DetailRow label="色色设定" value={detailGirl.sexualDesc} highlight />}
               <DetailRow label="背景故事" value={detailGirl.otherDesc} />
-              {detailGirl.skills.length > 0 && (
-                <div className="space-y-1">
-                  <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide">已有技能</p>
-                  <div className="flex flex-wrap gap-1">
-                    {detailGirl.skills.map((s) => (
-                      <span key={s} className="bg-secondary text-secondary-foreground rounded px-1.5 py-0.5 text-[10px]">{s}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
               <div className="space-y-1.5 pt-1">
                 <StatBar label="好感度" value={detailGirl.affection} color="pink" size="sm" />
                 <StatBar label="服从度" value={detailGirl.obedience} color="blue" size="sm" />
@@ -626,9 +613,9 @@ function DetailRow({ label, value, highlight }: { label: string; value: string; 
 
 function fallbackGirl(index: number): MonstGirl {
   const templates = [
-    { name: '茉莉', race: '兔娘', age: '18', bodyDesc: '娇小可爱，白色兔耳，粉色短发', bodyTags: 'bunny ears, pink hair, petite', bust: 78, waist: 55, hip: 82, personality: '活泼好动，对什么都充满好奇', personalityTags: 'energetic, curious', outfit: '白色蓬蓬裙', outfitTags: 'white dress', otherDesc: '流浪而来', otherTags: 'wanderer', affection: 25, obedience: 30, lewdness: 20, skills: [], imageTags: '1girl, bunny ears, pink hair, white dress, anime, masterpiece, best quality', price: 150 },
-    { name: '黎明', race: '黑暗精灵', age: '22', bodyDesc: '深���肤色，白色长发，高挑身材', bodyTags: 'dark elf, dark skin, white hair', bust: 88, waist: 60, hip: 90, personality: '傲慢冷酷，但内心隐藏温柔', personalityTags: 'tsundere, cold', outfit: '暗紫色皮革轻甲', outfitTags: 'leather armor', otherDesc: '被族人驱逐的前精灵侦察兵', otherTags: 'exiled elf', affection: 15, obedience: 20, lewdness: 35, skills: ['低语诱惑'], imageTags: '1girl, dark elf, dark skin, white hair, leather armor, anime, masterpiece, best quality', price: 320 },
-    { name: '珊珊', race: '牛娘', age: '20', bodyDesc: '丰满圆润，棕色牛角，温和笑容', bodyTags: 'holstaur, brown horns, large breasts', bust: 105, waist: 65, hip: 100, personality: '温柔贤淑，像大姐姐一样照顾人', personalityTags: 'gentle, nurturing', outfit: '白色农家风连衣裙', outfitTags: 'white rural dress', otherDesc: '前农场主人去世后独自流浪', otherTags: 'farm girl', affection: 45, obedience: 50, lewdness: 25, skills: ['按摩'], imageTags: '1girl, holstaur, large breasts, white dress, anime, masterpiece, best quality', price: 280 },
+    { name: '茉莉', race: '兔娘', age: '18', bodyDesc: '娇小玲珑，粉色短发翘着几撮呆毛，一对雪白长兔耳总是竖得笔直，听到动静就会抖一下；圆滚滚的兔尾巴藏在裙摆下，腿却意外有力', bodyTags: 'bunny girl, bunny ears, rabbit tail, pink hair, short hair, petite, small breasts', bust: 78, waist: 55, hip: 82, personality: '精力旺盛的小跟屁虫，对什么都好奇、对谁都自来熟，说话又快又跳；被摸耳朵时会一下子安静下来，红着脸小声说「再、再摸一下也可以……」', personalityTags: 'energetic, curious, cheerful, clingy, easily flustered', outfit: '白色蓬蓬裙 + 粉色蝴蝶结发卡', outfitTags: 'white dress, frilled dress, pink hair bow', otherDesc: '从山野里一路蹦跶到城里的流浪兔娘，听说这里「有饭吃还有人陪」就自己找上了门', otherTags: 'wanderer, runaway, country girl', affection: 25, obedience: 30, lewdness: 20, skills: [], imageTags: '1girl, solo, bunny girl, bunny ears, pink hair, short hair, petite, energetic smile, white dress, frilled dress, anime, masterpiece, best quality', price: 150 },
+    { name: '黎明', race: '黑暗精灵', age: '22', bodyDesc: '深褐肤色，银白长发高高束起，尖长的精灵耳上挂着一枚银环；身材高挑紧实，腰腹线条分明，是常年在林间潜行练出的猎手体格', bodyTags: 'dark elf, dark skin, white hair, long hair, ponytail, pointy ears, ear ring, tall, toned', bust: 88, waist: 60, hip: 90, personality: '冷淡、骄傲、嘴硬，开口就是「别误会，我只是没地方去」；可她会默默记住客人的口味，也会在别人睡着后替人盖好被子，只是死也不承认', personalityTags: 'tsundere, cold, proud, secretly caring, stoic', outfit: '暗紫色皮革轻甲 + 半掌手套 + 腰间短匕', outfitTags: 'leather armor, dark purple armor, fingerless gloves, dagger', otherDesc: '因为拒绝执行一道残酷的命令而被族人驱逐的前精灵侦察兵，带着一把短匕和一身伤疤来到这里', otherTags: 'exiled elf, former scout, outcast', affection: 15, obedience: 20, lewdness: 35, skills: [], imageTags: '1girl, solo, dark elf, dark skin, white hair, ponytail, pointy ears, cold expression, looking away, leather armor, anime, masterpiece, best quality', price: 320 },
+    { name: '珊珊', race: '牛娘', age: '20', bodyDesc: '丰满圆润的体态，栗色短发，一对小小的棕色牛角，笑起来眼睛弯成月牙；胸臀都沉甸甸的，身上带着干草和阳光的味道', bodyTags: 'holstaur, cow girl, cow ears, brown horns, brown hair, short hair, huge breasts, wide hips, plump', bust: 105, waist: 65, hip: 100, personality: '温柔又有点迷糊的农家姑娘，习惯照顾人，会把最大块的面包留给别人；被夸奖时会害羞地捏着裙角，小声说「我、我只会这些啦」', personalityTags: 'gentle, nurturing, airheaded, humble, warm', outfit: '白色农家风连衣裙 + 草编围裙', outfitTags: 'white rural dress, straw apron, sundress', otherDesc: '牧场的老主人去世后，她赶着最后一头小牛进城找活路，小牛卖了，她自己留了下来', otherTags: 'farm girl, rural, orphaned', affection: 45, obedience: 50, lewdness: 25, skills: [], imageTags: '1girl, solo, holstaur, cow girl, brown hair, short hair, huge breasts, warm smile, white dress, farm, anime, masterpiece, best quality', price: 280 },
   ]
   return { id: nanoid(), ...templates[index % templates.length] }
 }
