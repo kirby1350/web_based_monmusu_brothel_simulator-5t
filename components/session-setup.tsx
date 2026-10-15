@@ -2,6 +2,7 @@
 
 // 接客 / 调教共用的三步准备向导（阶段 2 只接了接客分支，调教分支在阶段 5）
 import { GirlThumb } from '@/components/girl-thumb'
+import { GuestPrefs } from '@/components/guest-prefs'
 import { useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight, FastForward, Swords } from 'lucide-react'
 import { CustomProp, GameSave, Guest, MonstGirl, OutfitId, StockingId, TrainingDirection, SkillKey, SensitivityZone, SceneId } from '@/lib/types'
@@ -44,7 +45,6 @@ interface SessionSetupProps {
   onLive: (plan: ServicePlan) => void
 }
 
-const KIND_LABEL: Record<string, string> = { M: '想施虐 · M 性对口', S: '想被榨 · S 性对口', 中性: '中性' }
 const MAIN_ZONE = { 口侍: '唇舌', 胸侍: '乳房', 身侍: '小穴' } as const
 const STEP_TITLES = ['选人', '准备', '确认']
 
@@ -128,13 +128,7 @@ export function SessionSetup({ save, onSkip, onLive }: SessionSetupProps) {
                     <span className="text-[10px] gold-text">预算 {gu.budget ?? 80}G</span>
                   </div>
                   <p className="text-[11px] text-foreground/80">{gu.desires}</p>
-                  <div className="flex flex-wrap gap-1">
-                    {gu.desireService && <Badge variant="secondary" className="text-[9px] h-4 px-1">需求 {gu.desireService}</Badge>}
-                    {gu.desireKind && <Badge variant="secondary" className="text-[9px] h-4 px-1">{KIND_LABEL[gu.desireKind]}</Badge>}
-                    <Badge variant="secondary" className="text-[9px] h-4 px-1">服装 {gu.prefOutfit ?? '无喜好'}</Badge>
-                    {gu.prefRace && <Badge variant="secondary" className="text-[9px] h-4 px-1">偏好 {gu.prefRace}</Badge>}
-                    {gu.prefTrait && <Badge variant="secondary" className="text-[9px] h-4 px-1">偏好 {gu.prefTrait}</Badge>}
-                  </div>
+                  <GuestPrefs guest={gu} girls={girl ? [girl, ...partners] : girls} wardrobe={player.wardrobe ?? []} />
                 </button>
               ))}
             </section>
@@ -192,6 +186,10 @@ export function SessionSetup({ save, onSkip, onLive }: SessionSetupProps) {
 
         {step === 1 && plan && (
           <>
+            <section className="space-y-1" data-testid="prep-guest-prefs">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-widest">{plan.guest.name}的喜好 · 对照{[plan.girl, ...(plan.partners ?? [])].map((g) => g.name).join('、')}与所选服装</p>
+              <GuestPrefs guest={plan.guest} girls={[plan.girl, ...(plan.partners ?? [])]} outfit={outfit} stockings={stockings} />
+            </section>
             <section className="space-y-2" data-testid="flow-block">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-[10px] text-muted-foreground uppercase tracking-widest">流程</p>

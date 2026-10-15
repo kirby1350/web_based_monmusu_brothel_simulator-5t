@@ -27,6 +27,7 @@ import {
 } from '@/lib/live-steps'
 import { heatPromptBlock, speechBand } from '@/lib/arousal'
 import { HeatPanel } from '@/components/heat-panel'
+import { GuestPrefs } from '@/components/guest-prefs'
 import { applyPartners } from '@/lib/multi-service'
 import { getMainService } from '@/lib/resolve-service'
 import type { ServicePlan } from '@/components/session-setup'
@@ -265,6 +266,7 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
           <button className="underline hover:text-rose-400" onClick={() => finish(live)}>提前结束</button>
         </div>
         {live.heat && <HeatPanel heat={live.heat} guest={guest} girls={cast} />}
+        <GuestPrefs guest={guest} girls={cast} outfit={live.outfit} stockings={live.stockings} compact />
         <div className="flex gap-1.5">
           <Button size="sm" className="h-7 text-xs glow-btn" data-testid="btn-next-step"
             onClick={(e) => {

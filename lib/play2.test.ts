@@ -184,7 +184,7 @@ test('多人亲自上场：兴奋/快感按每位协同各自记', () => {
   assert.ok(heatPromptBlock(s.heat!, c.guest.name, [c.girl, p1]).includes('甲'))
 })
 
-import { transitionTurn, transitionFallback, trimHistory } from './prompt-context'
+import { transitionTurn, transitionFallback } from './prompt-context'
 
 test('自动转场：指令带新一步做法、人物、档位；本地兜底是一句叙述；前情不收转场指令', () => {
   const t = { from: '挑逗', to: '前戏', action: '用乳汁润滑后慢慢揉弄。', girls: ['千雪', '娜露梅亚'], guest: '王老板', heatLine: '王老板动摇、千雪从容' }

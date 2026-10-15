@@ -15,6 +15,9 @@ import { contextImageTags, hubOpeningPrompt } from '@/lib/prompt-context'
 import { dismissDaySummary } from '@/lib/day-summary'
 import { TUTORIAL_STEPS, isTutorialVisible, advanceTutorial, dismissTutorial } from '@/lib/tutorial'
 import { cn } from '@/lib/utils'
+import { GuestPrefs } from '@/components/guest-prefs'
+import { BottomSheet } from '@/components/bottom-sheet'
+import { refreshGuests, refreshCost, refreshesUsed, parseGuestBias, REFRESH_LIMIT, EARLY_GUARANTEE_DAYS } from '@/lib/guest-gen'
 import type { GameTab } from '@/app/game/page'
 import { speechLine, speechRuleFor } from '@/lib/speech-style'
 
@@ -28,13 +31,14 @@ interface DailyHubProps {
   onNewGirlGreeted?: () => void
 }
 
-const KIND_LABEL: Record<string, string> = { M: '想施虐 · M 性对口', S: '想被榨 · S 性对口', 中性: '中性' }
 
 export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSettings, newlyPurchasedGirl, onNewGirlGreeted }: DailyHubProps) {
   const { player, girls } = save
   const [openGirlId, setOpenGirlId] = useState<string | null>(null)
   const [endDayOpen, setEndDayOpen] = useState(false)
   const [notice, setNotice] = useState('')
+  const [biasOpen, setBiasOpen] = useState(false)
+  const [biasText, setBiasText] = useState('')
 
   const [intro, setIntro] = useState<{ girlId: string; speaker: string; text: string; loading: boolean } | null>(null)
 
@@ -206,7 +210,25 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
 
       {/* 今日客人（设施 / 商店 已移到底部导航的「设施」「市场」） */}
       <div className="flex-1 min-h-0 flex flex-col">
-        <p className="mx-4 mt-2 text-xs font-semibold gold-text shrink-0">今日客人（{guests.length}）</p>
+        <div className="mx-4 mt-2 flex items-center gap-1.5 shrink-0">
+          <p className="text-xs font-semibold gold-text">今日客人（{guests.length}）</p>
+          <span className="flex-1" />
+          {(() => {
+            const c = refreshCost(save, false), ct = refreshCost(save, true)
+            const left = REFRESH_LIMIT - refreshesUsed(save)
+            const fresh = guests.some((g) => !(g.visits ?? 0))
+            return (<>
+              <button data-testid="btn-guest-refresh" disabled={c === null || !fresh || player.gold < (c ?? 0)}
+                onClick={() => { const r = refreshGuests(save, null); if ('error' in r) flash(r.error); else { onSaveChange(r.save); flash(`换了一批客人（−${r.cost}G，今天还能换 ${left - 1} 次）`) } }}
+                className="rounded-md border border-border px-1.5 py-0.5 text-[10px] text-foreground/80 disabled:opacity-40">换一批 {c !== null ? `${c}G` : ''}</button>
+              <button data-testid="btn-guest-target" disabled={ct === null || !fresh}
+                onClick={() => setBiasOpen(true)}
+                className="rounded-md border border-amber-400/40 px-1.5 py-0.5 text-[10px] text-amber-300 disabled:opacity-40">定向 {ct !== null ? `${ct}G` : ''}</button>
+              <span className="text-[9px] text-muted-foreground">{left}/{REFRESH_LIMIT}</span>
+            </>)
+          })()}
+        </div>
+        {save.currentDay <= EARLY_GUARANTEE_DAYS && <p className="mx-4 text-[9px] text-muted-foreground shrink-0">开业头 {EARLY_GUARANTEE_DAYS} 天：至少有一位客人适合馆里的姑娘。</p>}
         <div className="flex-1 overflow-y-auto px-4 py-2">
           <div className="space-y-2" data-testid="guest-list">
             {guests.length === 0 && <p className="text-xs text-muted-foreground">今天的客人都接待完了。</p>}
@@ -220,13 +242,7 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
                   <span className="text-[10px] gold-text">预算 {gu.budget ?? 80}G</span>
                 </div>
                 <p className="text-[11px] text-foreground/80">{gu.desires}</p>
-                <div className="flex flex-wrap gap-1 text-[9px]">
-                  {gu.desireService && <Badge variant="secondary" className="text-[9px] h-4 px-1">主需求 {gu.desireService}</Badge>}
-                  {gu.desireKind && <Badge variant="secondary" className="text-[9px] h-4 px-1">{KIND_LABEL[gu.desireKind]}</Badge>}
-                  {gu.prefOutfit && <Badge variant="secondary" className="text-[9px] h-4 px-1">服装喜好 {gu.prefOutfit}</Badge>}
-                  {gu.prefRace && <Badge variant="secondary" className="text-[9px] h-4 px-1">偏好 {gu.prefRace}</Badge>}
-                  {gu.prefTrait && <Badge variant="secondary" className="text-[9px] h-4 px-1">偏好 {gu.prefTrait}</Badge>}
-                </div>
+                <GuestPrefs guest={gu} girls={girls} wardrobe={player.wardrobe ?? []} />
               </div>
             ))}
           </div>
@@ -244,6 +260,33 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
           <ActionButton icon={Moon} label="结束今天" color="amber" onClick={() => setEndDayOpen(true)} testId="btn-endday" />
         </div>
       </div>
+
+      <BottomSheet open={biasOpen} onClose={() => setBiasOpen(false)} testId="guest-bias-sheet" title={`定向换客人（${refreshCost(save, true) ?? '—'}G，和「换一批」共用每天 ${REFRESH_LIMIT} 次）`}>
+        {(() => {
+          const parsed = parseGuestBias(biasText)
+          const races = [...new Set(girls.map((g) => g.race))]
+          const chips = [...races.map((r) => `喜欢${r}`), '巨乳', '贫乳', '丰臀', '兽耳', '口侍', '胸侍', '身侍', 'M', 'S']
+          const cost = refreshCost(save, true)
+          return (
+            <div className="space-y-2">
+              <input data-testid="guest-bias-input" value={biasText} onChange={(e) => setBiasText(e.target.value)} placeholder="例：喜欢牛娘、巨乳、胸侍、M"
+                className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs" />
+              <div className="flex flex-wrap gap-1">
+                {chips.map((c) => (
+                  <button key={c} data-testid={`bias-chip-${c}`} onClick={() => setBiasText((t) => t.includes(c) ? t : (t.trim() ? `${t.trim()}、${c}` : c))}
+                    className="rounded border border-border px-1.5 py-0.5 text-[10px] text-foreground/80 hover:border-amber-400/50">{c}</button>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground" data-testid="guest-bias-parsed">
+                {parsed.labels.length ? `会偏向：${parsed.labels.join('、')}（强偏向，不保证每位都对上）` : '没认出偏好：可以写种族、巨乳/贫乳/丰臀/兽耳、口侍/胸侍/身侍、M/S、服装喜好。'}
+              </p>
+              <button data-testid="guest-bias-confirm" disabled={!parsed.labels.length || cost === null || player.gold < (cost ?? 0)}
+                onClick={() => { const r = refreshGuests(save, parsed); if ('error' in r) flash(r.error); else { onSaveChange(r.save); flash(`按「${parsed.labels.join('、')}」换了一批客人（−${r.cost}G）`) } setBiasOpen(false) }}
+                className="w-full h-8 text-xs rounded-lg border border-amber-400/40 text-amber-400 disabled:opacity-40">换一批（{cost ?? '—'}G）</button>
+            </div>
+          )
+        })()}
+      </BottomSheet>
 
       {endDayOpen && <EndDaySheet save={save} onCancel={() => setEndDayOpen(false)} onConfirm={handleEndDay} />}
 

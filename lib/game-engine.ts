@@ -32,7 +32,7 @@ export function getUpgradeCost(level?: number): number {
 // ─── 每日客人随机生成（无需 AI，开局即生成） ──────────────────────────────────
 
 const GUEST_NAMES = ['雷克', '阿尔', '马克', '路德', '凯因', '托尔', '巴德', '格伦', '维克', '罗恩', '希德', '加洛']
-const GUEST_DESIRES = [
+export const GUEST_DESIRES = [
   '想把魔物娘的子宫灌满精液',
   '渴望被傲娇的魔物娘嫌弃着榨干',
   '想要温柔的乳交与深喉服务',

@@ -2,7 +2,8 @@
 import type { GameSave, MonstGirl, Player } from './types'
 import { GIRL_TEMPLATES, GIRL_TEMPLATE_IMAGES } from './game-data'
 import { withInitialProficiency } from './proficiency'
-import { generateDailyGuests, getGuestCapacity } from './game-engine'
+import { getGuestCapacity } from './game-engine'
+import { rollDailyGuests } from './guest-gen'
 
 export const PARTNER_CHOICES = 3
 
@@ -28,7 +29,7 @@ export function buildStartingSave(player: Player, first: MonstGirl, partner: Mon
     currentDay: 1,
     phase: 'morning',
     actionsUsedToday: 0,
-    dailyGuests: generateDailyGuests(getGuestCapacity(1), 0, []),
+    dailyGuests: rollDailyGuests(getGuestCapacity(1), 0, [], { day: 1, girls }),
     regulars: [],
   }
 }

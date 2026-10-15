@@ -163,6 +163,10 @@ export interface Incident { kind: '接客失败' | '闯祸'; text: string; day: 
 
 export interface Player {
   name: string
+  /** 店铺主题（经营页）；null/缺省 = 无主题 */
+  storeTheme?: string | null
+  /** 上次改主题的天数（冷却） */
+  storeThemeDay?: number
   traits: string[]
   customTraits: string
   fetishes: string[]
@@ -343,6 +347,8 @@ export interface GameSave {
   lastDaySummary?: import('./day-summary').DaySummary | null
   // AI 润色客人已尝试过的那一天（成功或失败都记，刷新不重复请求）
   aiGuestsDay?: number
+  /** 今天「换一批客人」用了几次 */
+  guestRefresh?: { day: number; count: number }
   // 今晚挂在机械调教室过夜的魔物娘（结束今天时结算并清空）
   machineNightGirlId?: string
 }
