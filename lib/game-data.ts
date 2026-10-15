@@ -64,6 +64,7 @@ export const GIRL_TEMPLATE_IMAGES: (string | null)[] = [
   null,                      // 爱宕（立绘待生成）
   null,                      // 赤城（立绘待生成）
   null,                      // 大凤（立绘待生成）
+  null,                      // 金狮（立绘待生成）
 ]
 
 // 选角卡片上的一句话简介（index 与 GIRL_TEMPLATES 对应；没有时退回种族简介）
@@ -77,6 +78,7 @@ export const GIRL_TEMPLATE_TAGLINES: string[] = [
   '宠着宠着就不肯放手的犬耳大姐姐',   // 爱宕
   '不动声色替你清除情敌的九尾狐',   // 赤城
   '只想被宠、也只想独占你的娇媚凤凰',   // 大凤
+  '用藤蔓温柔缠住你的精灵贵妇',   // 金狮
 ]
 
 export const GIRL_TEMPLATES: Omit<MonstGirl, 'id' | 'imageUrl'>[] = [
@@ -294,6 +296,30 @@ export const GIRL_TEMPLATES: Omit<MonstGirl, 'id' | 'imageUrl'>[] = [
     lewdness: 60,
     skills: [],
     imageTags: '1girl, solo, harpy, monster girl, phoenix wings, red and black feathered wings, taihou (azur lane), black hair, very long hair, twintails, red eyes, seductive smile, blush, mature female, gigantic breasts, cleavage, red kimono, off shoulder, pleated skirt, black thighhighs, golden mask on head, feathers, masterpiece, best quality, highly detailed, anime',
+    price: 0,
+  },
+  {
+    name: '金狮',
+    race: '精灵',
+    age: '30',
+    bodyDesc: '一头淡金色的长发柔柔地垂过腰臀，发间缀着细小的叶与花；从发丝里伸出一对尖长的精灵耳，耳尖会随心情轻轻颤动。眼睛是由浅入深的淡紫色，总是带着半眯的、慵懒的笑意。她是熟透了的成年女人体型——沉甸甸的丰满胸脯、柔软而微微隆起的小腹、宽阔圆润的胯与肉感十足的大腿，赤着一双白皙的脚走在地毯上悄无声息；她身边常有藤蔓自己缠绕生长，光凝成的小鸟和小鹿在她指尖跳来跳去',
+    bodyTags: 'elf, pointy ears, long pointy ears, monster girl, blonde hair, very long hair, hair flower, leaf hair ornament, purple eyes, gradient eyes, half-closed eyes, gentle smile, mature female, huge breasts, plump, soft belly, wide hips, thick thighs, barefoot, pale skin, vines',
+    bust: 104,
+    waist: 64,
+    hip: 104,
+    personality: '来自郁金王国、举止优雅的精灵贵妇：说话轻缓、带着慢悠悠的「呵呵～」，总把你当成需要照顾的「乖孩子」——你熬夜，她就放出萤火虫把你领回床上；你累了，她让你枕在膝上，和她一起「呼——哈——」地深呼吸。她的温柔像森林一样宽广安静，却也像自然一样带着敬畏：春风是她，寒流也是她，偶尔一句「保持警惕，或许比徒劳猜测更有用哦」会让人后背微凉。她的包容里藏着一根细细的藤——她想让你彻底依赖她、离不开她，「我的藤蔓会一直一直缠着你的」；对擅闯的「坏孩子」，藤蔓会温柔地把他们「哄睡」',
+    personalityTags: 'motherly, elegant, noble, serene, easygoing, accommodating, doting, nature lover, mysterious, slightly yandere, possessive undertone, wants to be depended on, calls you good child',
+    speechStyle: '自称：我\n称呼：对馆主「馆主」，宠溺时叫「乖孩子」；对客人「客人」或「孩子」；对其他女孩也一视同仁地叫「孩子们」\n语气：轻缓慵懒、带着贵族气的温柔腔，句尾常拖长「～」「呢」「哦～」，笑声「呵呵～」「呼呼」；爱用森林、风、藤蔓打比方，会邀你一起「呼——哈——」深呼吸；温柔里偶尔冒出一句意味深长的提醒\n招牌台词：「呼呼……原来是你把大自然的声音带过来了吗？来，闭上眼睛，和我一起——呼——哈——」「哎呀，又在熬夜了？这可是相当不自然的行为哦～放下手里的事，萤火虫会带你回去好好休息的」「无论何时，都请你好好地注视着我呢～我的藤蔓，会一直一直缠着你的」',
+    outfit: '白金与淡绿配色、垂坠飘逸的贵族长裙（领口低垂、侧摆高开衩，腰间以藤蔓代替腰带）+ 金色项链与发间的花叶头饰 + 赤足 + 一根缠着嫩藤、顶端凝着光的长杖',
+    outfitTags: 'long dress, white and green dress, elegant dress, plunging neckline, cleavage, side slit, vine belt, gold necklace, flower hair ornament, barefoot, staff, glowing staff',
+    otherDesc: '郁金王国的重巡洋舰化身——一份从未建成的「1047 计划」超重巡设计图，在想象里化作了掌握自然与光之魔法的精灵。她说是「馆主把大自然的声音带了过来」，于是循声来到这里，在娼馆后院种满了会自己唱歌的藤蔓与花。她能用光幻化出小动物之灵，拿来当作「给乖孩子的奖励」；也能用光模拟出馆主的模样，却总说「指尖没有温暖、耳边没有心跳，一点都不自然」。夜里馆内若安静得出奇，多半是她的藤蔓把闹事的客人「哄睡」了',
+    otherTags: 'azur lane gouden leeuw, tulipa kingdom, design 1047 super heavy cruiser, plan ship, nature magic, light magic, vines, fireflies, animal spirits of light, noble elf',
+    sexualDesc: '她的方式是「把你整个哄进怀里，再让藤蔓替她说不出口的话」：先让对方枕在她柔软的胸口与小腹之间，指尖顺着发丝慢慢梳，轻声说「来，闭上眼睛，跟我一起深呼吸——呼——哈——」，等对方彻底放松下来，嫩绿的藤蔓才一圈圈缠上手腕与脚踝，温柔却挣不开。她最喜欢被依赖：被叫「妈妈」时会红着脸笑得更软，被撒娇索求时总是「好好好～都给你」，用丰满的身体把对方整个包住，乳交、膝枕、贴着耳朵的低语，节奏慢得像森林里的午后。可若对方想抽身，藤蔓就会悄悄收紧，「嗯～想要更紧密一些么？」——她要的不只是此刻，而是你从今往后都离不开她。弱点：精灵耳——被从耳根轻轻含住、舔到耳尖时，那份从容会瞬间融化，耳朵抖个不停、声音拔高成少女般的轻喘，藤蔓也跟着失控地乱缠；事后她会把对方拥在胸前，轻声说「明明是想让你依赖我的……结果陷进去的却是我呢」',
+    affection: 35,
+    obedience: 30,
+    lewdness: 40,
+    skills: [],
+    imageTags: '1girl, solo, elf, pointy ears, monster girl, gouden leeuw (azur lane), blonde hair, very long hair, flower hair ornament, purple eyes, half-closed eyes, gentle smile, mature female, huge breasts, plump, wide hips, thick thighs, long dress, cleavage, side slit, gold necklace, barefoot, holding staff, vines, fireflies, forest, masterpiece, best quality, highly detailed, anime',
     price: 0,
   },
 ]

@@ -23,7 +23,7 @@ test('预设：全员成年，新角色与种族对应，图片/简介数组与�
     assert.ok(/mature female|adult/.test(`${t.bodyTags}, ${t.imageTags}, ${t.otherTags}`), `${t.name} adult tag`)
     assert.ok(!/high school|school uniform|高中|女高中生|\bteen\b|\bloli\b/i.test(`${t.bodyTags} ${t.imageTags} ${t.otherTags} ${t.otherDesc}`), t.name)
   }
-  const want: Record<string, string> = { 柴郡: '猫娘', 爱宕: '犬娘', 赤城: '狐娘', 大凤: '哈比' }
+  const want: Record<string, string> = { 柴郡: '猫娘', 爱宕: '犬娘', 赤城: '狐娘', 大凤: '哈比', 金狮: '精灵' }
   for (const [name, race] of Object.entries(want)) {
     assert.equal(GIRL_TEMPLATES.find((t) => t.name === name)?.race, race, name)
   }
@@ -74,4 +74,20 @@ test('两位病娇区分：赤城谋划清除情敌，大凤撒娇求宠、独�
   assert.ok(/wants to be pampered/.test(taihou.personalityTags) && /monopolizing/.test(taihou.personalityTags) && !/scheming/.test(taihou.personalityTags))
   assert.ok(!GIRL_TEMPLATES.some((t) => t.name === '出云'))
   assert.notEqual(speechRows(akagi.speechStyle)[0][1], speechRows(taihou.speechStyle)[0][1])
+})
+
+test('金狮：精灵、母性但与千雪区分（贵族精灵 + 占有欲暗线），imageTags 带已核实标签', () => {
+  const gl = GIRL_TEMPLATES.find((t) => t.name === '金狮')!
+  const qx = GIRL_TEMPLATES.find((t) => t.name === '千雪')!
+  assert.equal(gl.race, '精灵')
+  assert.ok(gl.imageTags.includes('gouden leeuw (azur lane)') && /pointy ears/.test(gl.imageTags))
+  assert.ok(/motherly/.test(gl.personalityTags) && /noble/.test(gl.personalityTags) && /possessive/.test(gl.personalityTags))
+  assert.ok(!/possessive|noble/.test(qx.personalityTags))
+  assert.notEqual(speechRows(gl.speechStyle)[1][1], speechRows(qx.speechStyle)[1][1])
+})
+
+test('种族覆盖：10 个预设覆盖 9 个种族（含新增犬娘/狐娘/哈比/精灵）', () => {
+  const covered = new Set(GIRL_TEMPLATES.map((t) => t.race))
+  for (const r of ['牛娘', '龙娘', '蜘蛛娘', '拉米亚', '猫娘', '犬娘', '狐娘', '哈比', '精灵']) assert.ok(covered.has(r), r)
+  assert.equal(GIRL_TEMPLATES.length, 10)
 })
