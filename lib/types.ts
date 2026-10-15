@@ -247,6 +247,8 @@ export interface MonstGirl {
   provokedDays?: number[]  // 激发阴影的日子（≤7 条；只在调教里用）
   sceneState?: Partial<Record<SceneId, SceneState>> // 调教场景：使用记录 / 性癖积累 / 阴影
   awakened?: SceneId[]                          // 已觉醒的性癖（按场景记，名字见 TRAINING_SCENES）
+  /** 后天体质（药剂临时 / 觉醒永久）；天生体质按种族算，不存 */
+  bodyTraits?: import('./body-traits').BodyTraitEntry[]
   memory?: import('./girl-memory').GirlMemory   // 她自己的记忆（事件 + 心里话）
   // 图片缓存
   imageTags: string
@@ -292,6 +294,8 @@ export interface Guest {
   aiFlavored?: boolean           // 已由 AI 润色过
   /** 在主题店期间生成的客人（经营页主题 id） */
   themeTag?: string
+  /** 偏好的体质（泌乳 / 淫纹…）；她有这项体质时迎客加分 */
+  prefBody?: import('./body-traits').BodyTraitId
 }
 
 export type GuestClass = 'commoner' | 'merchant' | 'adventurer' | 'noble' | 'captain'

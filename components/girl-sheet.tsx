@@ -14,7 +14,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { GIFT_OPTIONS, canGiveGiftToday, giveGift } from '@/lib/hub-logic'
 import { COMMON_ZONES, RACE_ZONE_NAMES, RACE_TRAITS, RACE_PLAYS, getSensitivityLevel } from '@/lib/catalog'
 import { SkillBars } from '@/components/skill-bars'
-import { useRecovery, recoveryUsedToday } from '@/lib/shop'
+import { useRecovery, recoveryUsedToday, useBodyPotion, useAntidote, potionInvId, ANTIDOTE } from '@/lib/shop'
+import { BODY_TRAITS, bodyTraitsOf, bodyTraitLabel, getBodyTrait } from '@/lib/body-traits'
 import { RECOVERY_ITEMS, itemIconPath } from '@/lib/catalog'
 import { ItemIcon } from '@/components/item-icon'
 import { StepActionsEditor } from '@/components/step-actions-editor'
@@ -189,6 +190,34 @@ export function GirlSheet({ girl, save, settings, onSaveChange, onClose, intro }
                 </div>
               )}
               {usedToday && <p className="text-[11px] text-amber-300/80 mt-1.5" data-testid="recovery-used-hint">{girl.name} 今天已经用过恢复药了，明天才能再用。</p>}
+            </div>
+
+            <div data-testid="girl-body-traits">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-2">体质</p>
+              {bodyTraitsOf(girl, save.currentDay).length === 0 ? (
+                <p className="text-[11px] text-muted-foreground">没有特殊体质。</p>
+              ) : (
+                <div className="flex flex-wrap gap-1">
+                  {bodyTraitsOf(girl, save.currentDay).map((t) => (
+                    <span key={t.id} data-testid={`body-trait-${t.id}`} title={getBodyTrait(t.id)?.desc}
+                      className={cn('rounded border px-1.5 py-0.5 text-[10px]', t.source === 'potion' ? 'border-fuchsia-400/40 text-fuchsia-300' : 'border-amber-400/40 text-amber-300')}>{bodyTraitLabel(t)}</span>
+                  ))}
+                </div>
+              )}
+              {(BODY_TRAITS.some((t) => (player.inventory?.[potionInvId(t.id)] ?? 0) > 0) || (player.inventory?.[ANTIDOTE.id] ?? 0) > 0) && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {BODY_TRAITS.filter((t) => (player.inventory?.[potionInvId(t.id)] ?? 0) > 0).map((t) => (
+                    <button key={t.id} data-testid={`use-potion-${t.id}`}
+                      onClick={() => { const r = useBodyPotion(save, girl.id, t.id); if (r.ok) onSaveChange(r.save); setFeedback(r.ok ? r.message : r.error) }}
+                      className="rounded-md border border-border px-2 py-1 text-[11px] hover:border-fuchsia-400/60">{t.potion.name} ×{player.inventory?.[potionInvId(t.id)]}</button>
+                  ))}
+                  {(player.inventory?.[ANTIDOTE.id] ?? 0) > 0 && (
+                    <button data-testid="use-antidote"
+                      onClick={() => { const r = useAntidote(save, girl.id); if (r.ok) onSaveChange(r.save); setFeedback(r.ok ? r.message : r.error) }}
+                      className="rounded-md border border-border px-2 py-1 text-[11px] hover:border-emerald-400/60">{ANTIDOTE.name} ×{player.inventory?.[ANTIDOTE.id]}</button>
+                  )}
+                </div>
+              )}
             </div>
 
             <Button variant="secondary" className="w-full h-9 text-xs" onClick={() => setChatOpen(true)}>

@@ -4,6 +4,7 @@ import { OUTFITS, STOCKINGS, getSkillRank, getInclination } from './catalog'
 import { getAvailablePlays, getMainService, scorePlay, traitMatched } from './resolve-service'
 import { GUEST_CLASSES } from './game-engine'
 import { getTheme } from './store-theme'
+import { getBodyTrait, bodyPrefHit } from './body-traits'
 
 export interface PrefCheck { key: string; label: string; ok?: boolean }
 const KIND_TEXT = { M: 'M（想施虐）', S: 'S（想被榨）' } as const
@@ -18,6 +19,7 @@ export function guestPrefChecks(guest: Guest, girls: MonstGirl[], opts: { outfit
   const out: PrefCheck[] = []
   if (guest.prefRace) out.push({ key: 'race', label: `种族 ${guest.prefRace}`, ok: any((g) => g.race === guest.prefRace) })
   if (guest.prefTrait) out.push({ key: 'trait', label: `身材 ${guest.prefTrait}`, ok: any((g) => traitMatched(guest, g)) })
+  if (guest.prefBody) out.push({ key: 'body', label: `体质 ${getBodyTrait(guest.prefBody)?.name ?? guest.prefBody}`, ok: any((g) => bodyPrefHit(guest, g)) })
   out.push({ key: 'main', label: `主类型 ${main}`, ok: any((g) => !!getSkillRank(g, main)) })
   const plays = girls.length ? [...new Set(girls.flatMap((g) => getAvailablePlays(g, guest).filter((p) => { const r = scorePlay(g, guest, p); return r.matched && r.score > 0 }).map((p) => p.name)))] : []
   out.push({ key: 'plays', label: plays.length ? `对口 play ${plays.slice(0, 2).join('、')}${plays.length > 2 ? '…' : ''}` : '对口 play', ok: girls.length ? plays.length > 0 : undefined })

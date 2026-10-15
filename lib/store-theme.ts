@@ -1,6 +1,7 @@
 // 7 店铺主题：经营页选 1 个（设施升级后可再开一格，暂未做）。
 // 主题只改客人的「成分」：与主题冲突的客人不会出现、对口的更常见；客流量不变。
 // 主题客人由符合主题的姑娘接待：满意度 +3（resolve-service 里算）。
+import { bodyTraitsOf, BODY_TRAIT_IDS } from './body-traits'
 import type { GameSave, Guest, MonstGirl } from './types'
 import { getInclination } from './catalog'
 import { withDesire, pickR } from './guest-desire'
@@ -74,6 +75,12 @@ export const STORE_THEMES: StoreTheme[] = [
     fits: (g) => g.race === '牛娘' || /温柔|母性|包容|成熟|人妻|圣女|宠溺/.test(`${g.personality ?? ''}${g.personalityTags ?? ''}`),
     boost: (g, r) => r() < THEME_BOOST ? { ...withDesire(g, '胸侍', '中性', r), prefOutfit: r() < 0.5 ? '和服' : g.prefOutfit } : g,
     exclude: (g, r) => /嫌弃|榨干/.test(g.desires) ? withDesire(g, '胸侍', '中性', r) : g,
+  },
+  {
+    id: '体质', label: '体质改造馆', desc: '偏爱特殊体质（泌乳、淫纹、发情…）的客人更多；体质对上客人口味时迎客另有加分。',
+    fits: (g) => bodyTraitsOf(g).length > 0,
+    boost: (g, r) => r() < THEME_BOOST ? { ...g, prefBody: pickR(BODY_TRAIT_IDS, r) } : g,
+    exclude: (g) => g,
   },
 ]
 

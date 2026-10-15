@@ -1,4 +1,5 @@
 import { denseStyleBlock, DENSE_LENGTH, type BankOpts } from './prose-bank'
+import { bodyTraitLine } from './body-traits'
 import { Player, MonstGirl, Guest, ServiceSession, GameSave, ProseStyle } from '@/lib/types'
 import { ALL_PLAYS as PLAYS, getSensitivityLevel, getSkillRank } from '@/lib/catalog'
 import type { OutfitId, StockingId, SceneId } from '@/lib/types'
@@ -137,7 +138,7 @@ function buildServiceSystemPromptBase(
     .map(
       (g, i) => {
         const bwh = girlBWH(g)
-        return `魔物娘${i + 1}：${g.name}（${g.race}）\n  外貌：${g.bodyDesc}${bwh ? `，三围 ${bwh}` : ''}\n  性格：${g.personality}${speechLine(g, '\n  ')}\n  服装：${session.type === 'service' && i === 0 ? outfitDescLine(g, state.outfit, state.stockings) : g.outfit}\n  服从度：${g.obedience}/100，淫乱度：${g.lewdness}/100，好感度：${g.affection}/100\n  状态：${girlStateCard(g, state.day, { private: session.type === 'training' })}${g.sexualDesc ? `\n  色色设定：${g.sexualDesc}` : ''}${fetishPromptLine(g) ? `\n  ${fetishPromptLine(g)}` : ''}${memLine(g, { type: session.type === 'training' ? 'training' : 'service', guestId: session.guest?.id, scene: state.scene }, '  ')}`
+        return `魔物娘${i + 1}：${g.name}（${g.race}）\n  外貌：${g.bodyDesc}${bwh ? `，三围 ${bwh}` : ''}\n  性格：${g.personality}${speechLine(g, '\n  ')}\n  服装：${session.type === 'service' && i === 0 ? outfitDescLine(g, state.outfit, state.stockings) : g.outfit}\n  服从度：${g.obedience}/100，淫乱度：${g.lewdness}/100，好感度：${g.affection}/100\n  状态：${girlStateCard(g, state.day, { private: session.type === 'training' })}${bodyTraitLine(g, state.day) ? `\n  ${bodyTraitLine(g, state.day)}` : ''}${g.sexualDesc ? `\n  色色设定：${g.sexualDesc}` : ''}${fetishPromptLine(g) ? `\n  ${fetishPromptLine(g)}` : ''}${memLine(g, { type: session.type === 'training' ? 'training' : 'service', guestId: session.guest?.id, scene: state.scene }, '  ')}`
       }
     )
     .join('\n')
@@ -367,6 +368,8 @@ export interface GuestPromptHints {
   prefs?: { race: boolean; trait: boolean; outfit: boolean }
   traitTags?: string[]
   outfitPrefs?: string[]
+  /** 客人偏好的体质（泌乳 / 淫纹…）：desires 里自然带出来 */
+  bodyPref?: string
 }
 
 export function buildGuestGenerationPrompt(
@@ -383,7 +386,7 @@ export function buildGuestGenerationPrompt(
   ].filter(Boolean).join('\n') : ''
   return `你是一个色情角色生成AI。为一款魔物娘娼馆经营游戏生成一个饥渴的客人。
 
-玩家偏好：${preference || '随机'}${guestClass ? `\n客人身份：${guestClass}（身份越高越体面、出手越阔绰，但也越挑剔，desires 要更讲究）${hints.style ? `\n人设方向：${hints.style}` : ''}` : ''}${hints.theme ? `\n需求方向（必须围绕它展开，不要换成别的玩法）：${hints.theme}` : ''}
+玩家偏好：${preference || '随机'}${guestClass ? `\n客人身份：${guestClass}（身份越高越体面、出手越阔绰，但也越挑剔，desires 要更讲究）${hints.style ? `\n人设方向：${hints.style}` : ''}` : ''}${hints.theme ? `\n需求方向（必须围绕它展开，不要换成别的玩法）：${hints.theme}` : ''}${hints.bodyPref ? `\n他还偏爱「${hints.bodyPref}」体质的魔物娘：desires 里顺带写出这份偏爱` : ''}
 （客人自身种族可自由设定；若写偏好的魔物娘种族，只能从：${VALID_RACES.join('、')}）
 已有客人（避免重复）：${existingGuests.join('、') || '无'}
 

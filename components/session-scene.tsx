@@ -21,6 +21,7 @@ import { OUTFITS, STOCKINGS, STEP_MAX, getSensitivityLevel, playIconPath, ALL_PL
 import { buildStepRecap, provokeSection, lengthReminder, transitionTurn, transitionFallback, climaxSlipNote, shortReplyNote, extractMetaphors, pushRecent, recentUseLine } from '@/lib/prompt-context'
 import { bankWordsUsed } from '@/lib/prose-bank'
 import { HeatCheat } from '@/components/heat-cheat'
+import { bodyTraitCraft } from '@/lib/body-traits'
 import { ItemIcon } from '@/components/item-icon'
 import { SERVICE_STEPS } from '@/lib/resolve-service'
 import {
@@ -195,7 +196,9 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
   const heatBlock = live.heat ? heatPromptBlock(live.heat, guest.name, cast) : ''
   const usedPlays = preview.plays.filter((p) => playStepOf(p.id, plan.flow?.playSteps, insertedAt) < live.stepIndex).map((p) => p.name)
   const recentLine = recentUseLine(recentMetaphors.slice(-8), usedPlays)
-  const ctxAll = [stepContext, craft, partnerCraft, division, behaviour, heatBlock, recentLine].filter(Boolean).join('\n')
+  // 体质（泌乳 / 淫纹…）这一步落在哪个身体细节上
+  const traitCraft = cast.map((g) => bodyTraitCraft(g, live.stepIndex)).filter(Boolean).join('\n')
+  const ctxAll = [stepContext, craft, traitCraft, partnerCraft, division, behaviour, heatBlock, recentLine].filter(Boolean).join('\n')
   // 提示词里的「满意度」用结算同一个数（不再有另算的射精满足度）
   const promptSession = { ...session, messages, guest: session.guest ? { ...session.guest, satisfaction: preview.satisfaction } : session.guest }
   const systemPrompt = buildServiceSystemPrompt(player, promptSession, settings.proseStyle, ctxAll, { outfit: live.outfit, stockings: live.stockings, heatLocal: !!live.heat,
@@ -422,7 +425,7 @@ export function TrainingScene({ player, girl, directionLabel, trainingInfo, extr
   const [recentMetaphors, setRecentMetaphors] = useState<string[]>([])
   const [recentBank, setRecentBank] = useState<string[]>([])
   const drillCraft = drillSkill ? `【特训技能的写法】\n${skillCraftLine(girl, drillSkill)}` : ''
-  const trainCtx = [heatPromptBlock(heat, player.name, [girl]), drillCraft, recentUseLine(recentMetaphors.slice(-8), [])].filter(Boolean).join('\n')
+  const trainCtx = [heatPromptBlock(heat, player.name, [girl]), drillCraft, bodyTraitCraft(girl, TRAINING_PHASE(turns + 1), day), recentUseLine(recentMetaphors.slice(-8), [])].filter(Boolean).join('\n')
     + `\n\n${trainingInfo ?? `【本次调教方向】${directionLabel}`}` + (extraPrompt ? `\n${extraPrompt}` : '') + (provoked ? provokeSection(girl, provoked) : '')
   // 重油段在最末尾：调教按回合阶段（1 挑逗 / 2 前戏 / 3 正戏）筛词
   const systemPrompt = buildServiceSystemPrompt(player, { ...session, messages }, settings.proseStyle, trainCtx, { scene, day, heatLocal: true,

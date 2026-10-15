@@ -1,4 +1,5 @@
 // 经营目录：技能、play、衣橱、道具、种族特技、敏感带、设施价格（TODO.md 已定数值）
+import { TRAIT_PLAYS } from './body-traits'
 import type {
   DesireKind, DesireService, Guest, Inclination, MonstGirl, OutfitId, OutfitPref,
   SensitivityLevel, SensitivityZone, ServingSkill, SkillKey, SkillRank, StockingId,
@@ -31,7 +32,9 @@ export interface PlayMatch { services?: DesireService[]; kinds?: DesireKind[]; k
 export interface PlayDef {
   id: string
   name: string
-  source: SkillKey | 'race'
+  source: SkillKey | 'race' | 'trait'
+  /** 体质 play：需要这项体质 */
+  bodyTrait?: string
   zone?: SensitivityZone
   /** 种族专属 play：所属种族、固定计分档、对口条件（任一命中即对口） */
   race?: string
@@ -77,7 +80,7 @@ export const RACE_PLAYS: Record<string, PlayDef[]> = {
   牛娘: [rp('牛娘', 'cow_milk', '乳汁侍奉', '熟练', '种族', { services: ['胸侍'], keywords: ['乳交'] })],
   狼娘: [rp('狼娘', 'wolf_wild', '野性交合', '熟练', '种族', { kinds: ['M'], keywords: ['操服'] })],
 }
-export const ALL_PLAYS: PlayDef[] = [...PLAYS, ...Object.values(RACE_PLAYS).flat()]
+export const ALL_PLAYS: PlayDef[] = [...PLAYS, ...Object.values(RACE_PLAYS).flat(), ...TRAIT_PLAYS]
 
 /** 种族专属 play 对口：主需求、M/S 倾向、需求关键词任一命中 */
 export function racePlayMatched(play: PlayDef, guest: Guest): boolean {

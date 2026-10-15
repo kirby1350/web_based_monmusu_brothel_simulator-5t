@@ -14,7 +14,8 @@ import {
 } from '@/lib/shop'
 import { cn } from '@/lib/utils'
 import { TRAINING_SCENES, sceneUnlocked, sceneUpkeep, unlockText, DIRECTION_LABEL } from '@/lib/scenes'
-import { buyScene } from '@/lib/shop'
+import { buyScene, buyBodyPotion, buyAntidote, potionInvId, ANTIDOTE } from '@/lib/shop'
+import { BODY_TRAITS } from '@/lib/body-traits'
 
 export type ShopKind = 'wardrobe' | 'items' | 'gifts' | 'scenes'
 
@@ -62,6 +63,14 @@ export function ShopPanel({ save, onSaveChange, kind }: ShopPanelProps) {
       id: p.id, icon: itemIconPath('sculpt', p.id), name: p.name, desc: `${{ bust: '胸围', waist: '腰围', hip: '臀围' }[p.stat]} ${p.delta > 0 ? '+' : ''}${p.delta}`,
       price: sculptPrice(save, p.stat), owned: inv[p.id] ? `背包 ${inv[p.id]}` : undefined, onBuy: () => buySculpt(save, p.id),
     })) })
+    sections.push({ title: '改造药剂', hint: '进背包，在魔物娘页给她喝；体质是临时的，药效按天数到期，解药可提前解除', items: [
+      ...BODY_TRAITS.map((t) => ({
+        id: potionInvId(t.id), name: t.potion.name, desc: `体质「${t.name}」· 药效 ${t.potion.days} 天`, flavor: t.desc, price: t.potion.price,
+        owned: inv[potionInvId(t.id)] ? `背包 ${inv[potionInvId(t.id)]}` : undefined, onBuy: () => buyBodyPotion(save, t.id),
+      })),
+      { id: ANTIDOTE.id, name: ANTIDOTE.name, desc: '解除她身上全部药剂带来的体质（天生 / 觉醒的不受影响）', price: ANTIDOTE.price,
+        owned: inv[ANTIDOTE.id] ? `背包 ${inv[ANTIDOTE.id]}` : undefined, onBuy: () => buyAntidote(save) },
+    ] })
     sections.push({ title: '调教道具', hint: '买一次后永久可选', items: TRAINING_PROPS.map((p) => ({
       id: p.id, icon: itemIconPath('prop', p.id), name: p.name, desc: p.zone ? `敏感开发 · ${p.zone}` : '调教加成', price: p.price,
       done: props.has(p.id), onBuy: () => buyTrainingProp(save, p.id),

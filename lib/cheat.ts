@@ -10,6 +10,7 @@ import { withDesire } from './guest-desire'
 import { endDay } from './hub-logic'
 import { PROF_MAX } from './proficiency'
 import type { HeatState } from './arousal'
+import { grantBodyTrait, removeBodyTrait, type BodyTraitId } from './body-traits'
 
 export interface CheatState { enabled: boolean; /** 解除每日限制：AI 润色客人不限当天一次、换客人免费不限次、送礼不限次 */ freeLimits?: boolean }
 export const cheatOn = (save: Pick<GameSave, 'cheat'>): boolean => !!save.cheat?.enabled
@@ -108,6 +109,7 @@ export interface GuestSpec {
   guestClass?: GuestClass
   personality?: string
   prefOutfit?: Guest['prefOutfit']
+  prefBody?: BodyTraitId
 }
 /** 按指定偏好造一位客人（本地，不调用 AI） */
 export function makeGuest(save: GameSave, spec: GuestSpec, rng: () => number = Math.random): Guest {
@@ -125,6 +127,7 @@ export function makeGuest(save: GameSave, spec: GuestSpec, rng: () => number = M
   if (spec.trait) g = { ...g, prefTrait: spec.trait }
   if (spec.personality) g = { ...g, personality: spec.personality }
   if (spec.prefOutfit !== undefined) g = { ...g, prefOutfit: spec.prefOutfit }
+  if (spec.prefBody) g = { ...g, prefBody: spec.prefBody }
   return { ...g, aiFlavored: true }
 }
 /** 为某位姑娘造一位「合适」的客人：偏好她的种族、主类型是她最拿手的那项 */
@@ -140,4 +143,12 @@ export function setHeatValues(h: HeatState, who: string, v: { arousal?: number; 
   const cur = (who === 'guest' ? h.guest : h.girls[who]) ?? { arousal: 0, pleasure: 0, climaxes: 0 }
   const next = { ...cur, ...(v.arousal !== undefined ? { arousal: clamp(v.arousal) } : {}), ...(v.pleasure !== undefined ? { pleasure: clamp(v.pleasure) } : {}) }
   return who === 'guest' ? { ...h, guest: next } : { ...h, girls: { ...h.girls, [who]: next } }
+}
+
+/** 作弊：给体质（days 缺省 = 永久；有 days = 按药剂计时） / 移除后天体质（天生的移不掉） */
+export function cheatGrantTrait(save: GameSave, girlId: string, id: BodyTraitId, days?: number): GameSave {
+  return { ...save, girls: save.girls.map((g) => (g.id !== girlId ? g : days ? grantBodyTrait(removeBodyTrait(g, id), id, 'potion', save.currentDay, days) : grantBodyTrait(removeBodyTrait(g, id), id, 'cheat', save.currentDay))) }
+}
+export function cheatRemoveTrait(save: GameSave, girlId: string, id: BodyTraitId): GameSave {
+  return { ...save, girls: save.girls.map((g) => (g.id === girlId ? removeBodyTrait(g, id) : g)) }
 }

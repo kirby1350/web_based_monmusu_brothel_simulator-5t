@@ -1,4 +1,5 @@
 // 提示词的游戏状态片段：纯函数，只产出文本/标签，不改任何请求格式
+import { getBodyTrait, bodyPrefHit } from './body-traits'
 import { DENSE_LENGTH, DENSE_TURN_NOTE } from './prose-bank'
 import type { ProseStyle } from './types'
 import type { ChatMessage, GameSave, Guest, MonstGirl, OutfitId, ServingSkill, SkillKey, StockingId } from './types'
@@ -104,6 +105,7 @@ export function guestPrefLine(guest: Guest, girl: MonstGirl, outfit: OutfitId = 
     const hit = o?.pref === guest.prefOutfit || s?.pref === guest.prefOutfit
     items.push(`服装：${guest.prefOutfit} ${hit ? `✔（已换上${hit && s?.pref === guest.prefOutfit ? s.name : o!.name}）` : '✘'}`)
   }
+  if (guest.prefBody) items.push(`体质：${getBodyTrait(guest.prefBody)?.name ?? guest.prefBody} ${bodyPrefHit(guest, girl) ? '✔' : '✘'}`)
   if (!items.length) return ''
   return `【客人偏好】${items.join('｜')}——命中项要被客人点名称赞，未命中项写出他的挑剔`
 }

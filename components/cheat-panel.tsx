@@ -12,8 +12,9 @@ import { PROF_SKILLS } from '@/lib/proficiency'
 import { TRAINING_SCENES, shadowLevel } from '@/lib/scenes'
 import {
   addGold, addReputation, unlockAll, addPresetGirl, restoreStamina, resetActions, endDayNow, skipToDay,
-  setGirlStats, makeGuest, matchingGuestSpec, spawnGuest, setCheat, freeLimits, type GuestSpec, type GirlStatPatch,
+  setGirlStats, makeGuest, matchingGuestSpec, spawnGuest, setCheat, freeLimits, cheatGrantTrait, cheatRemoveTrait, type GuestSpec, type GirlStatPatch,
 } from '@/lib/cheat'
+import { BODY_TRAITS, bodyTraitsOf, bodyTraitLabel, type BodyTraitId } from '@/lib/body-traits'
 
 const box = 'rounded-lg border border-rose-900/60 bg-zinc-950/80 p-3 space-y-2'
 const btn = 'h-7 px-2.5 rounded-md border border-rose-800/70 bg-rose-950/40 text-[11px] text-rose-200 hover:bg-rose-900/50 disabled:opacity-40'
@@ -78,6 +79,24 @@ export function CheatPanel({ save, onSaveChange, onClose }: { save: GameSave; on
             {save.girls.map((g) => <option key={g.id} value={g.id}>{g.name}（{g.race}）</option>)}
           </select>
           {girl && <GirlEditor key={girl.id} girl={girl} onApply={(p) => apply(setGirlStats(save, girl.id, p), `已改写${girl.name}的数值`)} />}
+          {girl && (
+            <div className="space-y-1" data-testid="cheat-traits">
+              <p className="text-[10px] text-zinc-500">体质（天生的移不掉；「3天」按药剂计时）</p>
+              {BODY_TRAITS.map((t) => {
+                const cur = bodyTraitsOf(girl, save.currentDay).find((x) => x.id === t.id)
+                return (
+                  <div key={t.id} className="flex items-center justify-between gap-1 text-[11px]">
+                    <span className={cur ? 'text-fuchsia-300' : 'text-zinc-400'}>{cur ? bodyTraitLabel(cur) : t.name}</span>
+                    <span className="flex gap-1">
+                      <button className={btn} data-testid={`cheat-trait-perm-${t.id}`} onClick={() => apply(cheatGrantTrait(save, girl.id, t.id), `${girl.name}：${t.name}（永久）`)}>永久</button>
+                      <button className={btn} data-testid={`cheat-trait-3d-${t.id}`} onClick={() => apply(cheatGrantTrait(save, girl.id, t.id, 3), `${girl.name}：${t.name}（3 天）`)}>3天</button>
+                      <button className={btn} disabled={!cur || cur.source === 'innate'} data-testid={`cheat-trait-rm-${t.id}`} onClick={() => apply(cheatRemoveTrait(save, girl.id, t.id), `${girl.name}：移除${t.name}`)}>移除</button>
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
           {girl && <button className={btn} data-testid="cheat-match-guest" onClick={() => apply(spawnGuest(save, makeGuest(save, matchingGuestSpec(girl))), `已为${girl.name}加一位合适的客人`)}>为她造一位合适的客人</button>}
         </section>
 
@@ -104,6 +123,7 @@ export function CheatPanel({ save, onSaveChange, onClose }: { save: GameSave; on
             <Pick label="M/S" value={spec.kind} opts={['M', 'S', '中性']} onChange={(kind) => setSpec({ ...spec, kind: kind as DesireKind })} testid="cheat-g-kind" />
             <Pick label="身份" value={spec.guestClass} opts={Object.keys(GUEST_CLASSES)} labels={Object.values(GUEST_CLASSES).map((c) => c.label)} onChange={(c) => setSpec({ ...spec, guestClass: c as GuestClass })} testid="cheat-g-class" />
             <Pick label="性格" value={spec.personality} opts={GUEST_PERSONALITIES} onChange={(personality) => setSpec({ ...spec, personality })} testid="cheat-g-pers" />
+            <Pick label="偏好体质" value={spec.prefBody} opts={BODY_TRAITS.map((t) => t.id)} labels={BODY_TRAITS.map((t) => t.name)} onChange={(b) => setSpec({ ...spec, prefBody: b as BodyTraitId | undefined })} testid="cheat-g-body" />
             <Pick label="服装喜好" value={spec.prefOutfit ?? undefined} opts={OUTFIT_PREFS} onChange={(o) => setSpec({ ...spec, prefOutfit: (o as OutfitPref) ?? undefined })} testid="cheat-g-outfit" />
           </div>
           <Pick label="需求（含玩法；选了它就不看主类型/M-S）" value={spec.desires} opts={GUEST_DESIRES} onChange={(desires) => setSpec({ ...spec, desires })} testid="cheat-g-desire" />
