@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Check, ImageIcon } from 'lucide-react'
-import { GIRL_TEMPLATES, GIRL_TEMPLATE_IMAGES, RACES } from '@/lib/game-data'
+import { GIRL_TEMPLATES, GIRL_TEMPLATE_IMAGES, GIRL_TEMPLATE_TAGLINES, RACES } from '@/lib/game-data'
 import { MonstGirl } from '@/lib/types'
 import { StatBar } from '@/components/stat-bar'
 import { Badge } from '@/components/ui/badge'
@@ -54,8 +54,8 @@ export function GirlTemplates({ onSelect }: GirlTemplatesProps) {
                 </div>
               )}
               {/* Name overlay */}
-              <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-2">
-                <p className="text-xs font-semibold gold-text leading-none">{tmpl.name}</p>
+              <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent px-2 pt-8 pb-2">
+                <p className="text-xs font-semibold gold-text leading-none [text-shadow:0_1px_2px_rgb(0_0_0/0.95),0_0_6px_rgb(0_0_0/0.8)]!">{tmpl.name}</p>
                 <Badge variant="secondary" className="text-[8px] h-3.5 px-1 py-0 mt-1">{tmpl.race}</Badge>
               </div>
             </div>
@@ -70,9 +70,9 @@ export function GirlTemplates({ onSelect }: GirlTemplatesProps) {
                   B{tmpl.bust ?? '?'} / W{tmpl.waist ?? '?'} / H{tmpl.hip ?? '?'}
                 </p>
               )}
-              {race && (
-                <p className="text-[9px] text-muted-foreground/50 leading-relaxed line-clamp-1 mt-0.5">
-                  {race.description}
+              {(GIRL_TEMPLATE_TAGLINES[i] || race) && (
+                <p className="text-[9px] text-muted-foreground/70 leading-relaxed line-clamp-1 mt-0.5" data-testid="template-tagline">
+                  {GIRL_TEMPLATE_TAGLINES[i] || race?.description}
                 </p>
               )}
             </div>

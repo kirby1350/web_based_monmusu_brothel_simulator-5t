@@ -62,6 +62,15 @@ export const GIRL_TEMPLATE_IMAGES: (string | null)[] = [
   '/presets/zhixi.jpg',      // 志希
 ]
 
+// 选角卡片上的一句话简介（index 与 GIRL_TEMPLATES 对应；没有时退回种族简介）
+export const GIRL_TEMPLATE_TAGLINES: string[] = [
+  '温柔得像午后阳光的奶牛大姐姐',   // 千雪
+  '爱调侃又宠溺的剑士姐姐大人',     // 娜露梅亚
+  '外表圣洁、内心执着的冰龙圣女',   // 露埃拉
+  '躲在书页与丝网后的安静书灵',     // 文香
+  '随性好奇、爱「采样」的天才调香师', // 志希
+]
+
 export const GIRL_TEMPLATES: Omit<MonstGirl, 'id' | 'imageUrl'>[] = [
   {
     name: '千雪',
