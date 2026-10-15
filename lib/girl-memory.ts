@@ -5,7 +5,10 @@ import type { TrainingResult } from './resolve-training'
 import { getScene } from './scenes'
 import { parseLooseJson } from './utils'
 
-export type MemoryKind = 'first' | 'arrival' | 'training' | 'service' | 'gift' | 'incident' | 'punish' | 'quote' | 'milestone' | 'awaken'
+export type MemoryKind = 'first' | 'arrival' | 'training' | 'service' | 'gift' | 'incident' | 'punish' | 'quote' | 'milestone' | 'awaken' | 'shadow'
+/** 只在调教 / 私下聊天里回想的事（阴影）；接客、馆内开场、心里话都不带 */
+export const PRIVATE_KINDS: MemoryKind[] = ['shadow']
+const isPrivate = (e: Pick<MemoryEvent, 'kind'>) => PRIVATE_KINDS.includes(e.kind)
 export interface MemoryEvent { day: number; kind: MemoryKind; text: string; w: 1 | 2 | 3; guestId?: string; scene?: SceneId }
 export interface GuestTally { name: string; count: number; bestSat: number }
 export interface GirlMemory {
@@ -106,7 +109,8 @@ export function recordTraining(after: MonstGirl, before: MonstGirl, result: Trai
     const a = getScene(result.awakenedScene)!
     g = markFirst(g, `awaken:${a.id}`, day, `第${day}天在${a.name}里觉醒了${a.fetish}`, { scene: a.id, kind: 'awaken' })
   }
-  if (result.shadowScene) g = addEvent(g, { day, kind: 'training', text: `${getScene(result.shadowScene)!.name}成了她心里的阴影`, w: 2, scene: result.shadowScene })
+  if (result.shadowScene) g = addEvent(g, { day, kind: 'shadow', text: `${getScene(result.shadowScene)!.name}成了她心里的阴影`, w: 2, scene: result.shadowScene })
+  if (result.provokedScene) g = addEvent(g, { day, kind: 'shadow', text: `在${getScene(result.provokedScene)!.name}里被馆主揭开了阴影，抖着顺从了`, w: 2, scene: result.provokedScene })
   if (result.newRank) g = addEvent(g, { day, kind: 'milestone', text: `技能练到了「${result.newRank}」`, w: 2 })
   if (result.becameTwoSided) g = markFirst(g, 'two-sided', day, `第${day}天成为了「两面」`)
   return g
@@ -227,7 +231,7 @@ export function localSummary(g: MonstGirl): string {
   const m = memOf(g)
   if (!m.events.length && !m.quotes.length) return ''
   const mood = g.affection >= 70 ? '一想到馆主心里就暖暖的' : g.affection >= 40 ? '对馆主说不上讨厌，偶尔也会想起他' : '还是有点怕馆主，但也开始习惯这里了'
-  const key = [...m.events].sort((a, b) => b.w - a.w || b.day - a.day).slice(0, 3).map((e) => e.text.replace(/^第\d+天/, ''))
+  const key = m.events.filter((e) => !isPrivate(e)).sort((a, b) => b.w - a.w || b.day - a.day).slice(0, 3).map((e) => e.text.replace(/^第\d+天/, ''))
   const q = m.quotes.length ? `；忘不了那句「${m.quotes[m.quotes.length - 1].text}」` : ''
   return cut(`${mood}。记得：${key.join('；')}${q}`, SUMMARY_MAX)
 }
@@ -237,10 +241,11 @@ export function localSummary(g: MonstGirl): string {
 export interface MemoryContext { type: 'service' | 'training' | 'interaction' | 'hub'; guestId?: string; scene?: SceneId }
 
 export function selectForPrompt(g: MonstGirl, ctx: MemoryContext, n = 3): MemoryEvent[] {
-  const ev = memOf(g).events
+  // 阴影只在调教 / 私下聊天里回想
+  const ev = memOf(g).events.filter((e) => !isPrivate(e) || ctx.type === 'training' || ctx.type === 'interaction')
   const score = (e: MemoryEvent): number => {
     let s = e.w * 2 + e.day / 1000
-    if (ctx.type === 'training' && ['training', 'punish', 'first', 'awaken'].includes(e.kind)) s += 3
+    if (ctx.type === 'training' && ['training', 'punish', 'first', 'awaken', 'shadow'].includes(e.kind)) s += 3
     if (ctx.scene && e.scene === ctx.scene) s += 5
     if (ctx.type === 'service' && ctx.guestId && e.guestId === ctx.guestId) s += 6
     if (ctx.type === 'interaction' && ['gift', 'quote', 'milestone'].includes(e.kind)) s += 3
@@ -278,7 +283,7 @@ export function needsAiSummary(g: MonstGirl, day: number): boolean {
 
 export function buildGirlSummaryPrompt(g: MonstGirl, player: Pick<Player, 'name'>, speech: string, fetish: string): string {
   const m = memOf(g)
-  const recent = [...m.events].sort((a, b) => b.day - a.day).slice(0, 8).map((e) => `第${e.day}天：${e.text}`).join('\n')
+  const recent = m.events.filter((e) => !isPrivate(e)).sort((a, b) => b.day - a.day).slice(0, 8).map((e) => `第${e.day}天：${e.text}`).join('\n')
   return `你在为一款魔物娘娼馆经营游戏整理角色的内心独白。请以魔物娘${g.name}（${g.race}，性格：${g.personality}${speech ? `；${speech}` : ''}）的第一人称，写一段她此刻对馆主${player.name}与这些经历的「心里话」。
 ${fetish ? `${fetish}\n` : ''}好感 ${g.affection}/100，服从 ${g.obedience}/100，淫乱 ${g.lewdness}/100
 上一段心里话：${m.summary || '（还没有）'}

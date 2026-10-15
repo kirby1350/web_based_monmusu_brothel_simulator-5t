@@ -7,7 +7,7 @@ import { memOf, removeEvent, removeQuote, type MemoryKind } from '@/lib/girl-mem
 import { cn } from '@/lib/utils'
 
 const KIND_LABEL: Record<MemoryKind, string> = {
-  first: '第一次', arrival: '入馆', training: '调教', service: '接客', gift: '礼物', incident: '事件', punish: '惩罚', quote: '你的话', milestone: '变化', awaken: '觉醒',
+  first: '第一次', arrival: '入馆', training: '调教', service: '接客', gift: '礼物', incident: '事件', punish: '惩罚', quote: '你的话', milestone: '变化', awaken: '觉醒', shadow: '阴影',
 }
 const KIND_COLOR: Partial<Record<MemoryKind, string>> = {
   first: 'text-amber-300', arrival: 'text-amber-300', awaken: 'text-fuchsia-300', gift: 'text-pink-300', incident: 'text-rose-300', punish: 'text-rose-300', quote: 'text-emerald-300', milestone: 'text-sky-300',
@@ -50,7 +50,7 @@ export function MemoryTab({ girl, onChange }: { girl: MonstGirl; onChange: (g: M
             <div key={`${i}-${e.day}-${e.text}`} className="flex items-start gap-2 rounded-lg border border-border bg-secondary/30 px-2.5 py-1.5" data-testid="memory-event">
               <span className="text-[10px] text-muted-foreground w-10 shrink-0 pt-px">第{e.day}天</span>
               <span className={cn('text-[10px] w-10 shrink-0 pt-px', KIND_COLOR[e.kind] ?? 'text-foreground/60')}>{KIND_LABEL[e.kind]}{e.w === 3 ? '★' : ''}</span>
-              <p className="flex-1 text-xs leading-snug">{e.text}</p>
+              <p className="flex-1 text-xs leading-snug">{e.text.replace(/^第\d+天(夜里)?/, (m, n) => (n ? "夜里" : ""))}</p>
               <button aria-label="删除这条记忆" className="text-muted-foreground hover:text-rose-300" onClick={() => onChange(removeEvent(girl, i))}><X className="w-3 h-3" /></button>
             </div>
           ))}

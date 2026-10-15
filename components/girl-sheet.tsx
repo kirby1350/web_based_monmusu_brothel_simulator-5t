@@ -21,7 +21,7 @@ import { StepActionsEditor } from '@/components/step-actions-editor'
 import { getStepActions } from '@/lib/custom-props'
 import { cn } from '@/lib/utils'
 import { SpeechStyleBlock } from '@/components/speech-style-block'
-import { awakenedFetishes, shadowScenes, getScene } from '@/lib/scenes'
+import { awakenedFetishes, shadowScenes, shadowLevel, SHADOW_LEVEL_LABEL, getScene } from '@/lib/scenes'
 import { MemoryTab } from '@/components/memory-tab'
 
 interface GirlSheetProps {
@@ -121,7 +121,7 @@ export function GirlSheet({ girl, save, settings, onSaveChange, onClose, intro }
                   <span key={d.id} title={d.fetishDesc} className="rounded-full border border-fuchsia-400/40 bg-fuchsia-500/10 px-2 py-0.5 text-[10px] text-fuchsia-200">✦ {d.fetish}</span>
                 ))}
                 {shadowScenes(girl).map((id) => (
-                  <span key={id} title="温泉恩宠间可以慢慢抚平" className="rounded-full border border-slate-400/30 bg-slate-500/10 px-2 py-0.5 text-[10px] text-slate-300">阴影 · {getScene(id)!.name}</span>
+                  <span key={id} title="只在调教里起作用：可以激发换服从；温泉恩宠间可以慢慢抚平" className="rounded-full border border-slate-400/30 bg-slate-500/10 px-2 py-0.5 text-[10px] text-slate-300">阴影·{SHADOW_LEVEL_LABEL[shadowLevel(girl, id)]} · {getScene(id)!.name}</span>
                 ))}
               </div>
             ) : null}

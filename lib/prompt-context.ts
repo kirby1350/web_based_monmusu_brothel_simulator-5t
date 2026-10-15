@@ -7,7 +7,7 @@ import {
 import { traitMatched } from './resolve-service'
 import { resolveTraining, TRAINING_DIRECTIONS, type TrainingInput } from './resolve-training'
 import { stripStatsBlock } from './game-engine'
-import { awakenedFetishes, getScene, sceneReaction, shadowScenes, REACTION_LABEL } from './scenes'
+import { awakenedFetishes, getScene, sceneReaction, shadowScenes, shadowLevel, SHADOW_LEVEL_LABEL, REACTION_LABEL } from './scenes'
 import type { SceneId } from './types'
 
 /** 种族被动的一句效果（写进提示词，让叙述能体现） */
@@ -20,7 +20,8 @@ export const RACE_TRAIT_EFFECT: Record<string, string> = {
 const SERVING: ServingSkill[] = ['待客', '手技', '口侍', '胸侍', '身侍']
 
 /** 1. 每位魔物娘的状态卡（替代旧「技能」行） */
-export function girlStateCard(girl: MonstGirl, day?: number): string {
+/** private：调教 / 私下场合才带阴影；接客不带 */
+export function girlStateCard(girl: MonstGirl, day?: number, opts: { private?: boolean } = {}): string {
   const skills = SERVING.map((k) => { const r = getSkillRank(girl, k); return r ? `${k} ${r}` : '' }).filter(Boolean)
   const incl = getInclination(girl)
   const ms = girl.msProgress
@@ -37,7 +38,7 @@ export function girlStateCard(girl: MonstGirl, day?: number): string {
     zones.length ? `敏感：${zones.join('、')}` : '',
     girl.incident ? `事件：${girl.incident.kind}·${girl.incident.text}（未处理）` : '',
     girl.awakened?.length ? `觉醒性癖：${awakenedFetishes(girl).map((d) => d.fetish).join('、')}` : '',
-    shadowScenes(girl).length ? `阴影：${shadowScenes(girl).map((id) => getScene(id)!.name).join('、')}` : '',
+    opts.private && shadowScenes(girl).length ? `阴影：${shadowScenes(girl).map((id) => getScene(id)!.name).join('、')}` : '',
     day ? `第${day}天` : '',
   ].filter(Boolean)
   return parts.join('｜')
@@ -62,7 +63,7 @@ export function trainingContext(input: TrainingInput): string {
 }
 
 /** 调教场景段：场景描写 + 她的反应（亲和/抗拒/觉醒/阴影）；没有场景时空串 */
-export function sceneContext(input: Pick<TrainingInput, 'girl' | 'scene'>): string {
+export function sceneContext(input: Pick<TrainingInput, 'girl' | 'scene' | 'provoke'>): string {
   const def = getScene(input.scene)
   if (!def) return ''
   const g = input.girl
@@ -71,8 +72,12 @@ export function sceneContext(input: Pick<TrainingInput, 'girl' | 'scene'>): stri
     : r === 'affinity' ? `她是${g.race}，天生亲近这里，比别人更快沉进去`
     : r === 'aversion' ? `她是${g.race}，本能地抗拒这里：要写出她的害怕与挣扎，但不要让她崩坏`
     : '她第一次面对这样的地方时会紧张，身体却诚实'
-  const shadow = shadowScenes(g).includes(def.id) ? '；这里在她心里留有阴影，会发抖、想逃' : ''
-  return `\n【调教场景】${def.name}：${def.place}\n她的反应（${REACTION_LABEL[r] || '普通'}）：${react}${shadow}——请让场景本身成为叙述的主角，道具与环境要被实际使用`
+  const lv = shadowLevel(g, def.id)
+  const shadow = lv ? `；这里在她心里留有阴影（${SHADOW_LEVEL_LABEL[lv]}），会发抖、想逃` : ''
+  const provoke = input.provoke && lv
+    ? `\n【激发阴影】馆主这次故意揭开她在${def.name}留下的阴影：写出她被唤起的恐惧、发抖与无力抵抗后的顺从（服从大幅上升）；她仍是原来的性格、自称与口癖，不要崩坏、不要恶堕，事后要有余悸`
+    : ''
+  return `\n【调教场景】${def.name}：${def.place}\n她的反应（${REACTION_LABEL[r] || '普通'}）：${react}${shadow}——请让场景本身成为叙述的主角，道具与环境要被实际使用${provoke}`
 }
 
 /** 3. 客人偏好命中 */

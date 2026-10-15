@@ -144,7 +144,7 @@ function buildServiceSystemPromptBase(
     .map(
       (g, i) => {
         const bwh = girlBWH(g)
-        return `魔物娘${i + 1}：${g.name}（${g.race}）\n  外貌：${g.bodyDesc}${bwh ? `，三围 ${bwh}` : ''}\n  性格：${g.personality}${speechLine(g, '\n  ')}\n  服装：${g.outfit}\n  服从度：${g.obedience}/100，淫乱度：${g.lewdness}/100，好感度：${g.affection}/100\n  状态：${girlStateCard(g, state.day)}${g.sexualDesc ? `\n  色色设定：${g.sexualDesc}` : ''}${fetishPromptLine(g) ? `\n  ${fetishPromptLine(g)}` : ''}${memLine(g, { type: session.type === 'training' ? 'training' : 'service', guestId: session.guest?.id, scene: state.scene }, '  ')}`
+        return `魔物娘${i + 1}：${g.name}（${g.race}）\n  外貌：${g.bodyDesc}${bwh ? `，三围 ${bwh}` : ''}\n  性格：${g.personality}${speechLine(g, '\n  ')}\n  服装：${g.outfit}\n  服从度：${g.obedience}/100，淫乱度：${g.lewdness}/100，好感度：${g.affection}/100\n  状态：${girlStateCard(g, state.day, { private: session.type === 'training' })}${g.sexualDesc ? `\n  色色设定：${g.sexualDesc}` : ''}${fetishPromptLine(g) ? `\n  ${fetishPromptLine(g)}` : ''}${memLine(g, { type: session.type === 'training' ? 'training' : 'service', guestId: session.guest?.id, scene: state.scene }, '  ')}`
       }
     )
     .join('\n')

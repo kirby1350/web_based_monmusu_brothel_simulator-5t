@@ -9,7 +9,7 @@ import { nightlyIncidents } from './incidents'
 import { MAX_ACTIONS_PER_DAY, generateDailyGuests, getGuestCapacity, getGirlCapacity } from './game-engine'
 import { speechLine } from './speech-style'
 import { compactMemory, giftAffection, recordGift, addEvent } from './girl-memory'
-import { accumulateScene, nightmareIncident, ownsScene, sceneUpkeep, MACHINE_NIGHT_OBEDIENCE } from './scenes'
+import { accumulateScene, ownsScene, sceneUpkeep, MACHINE_NIGHT_OBEDIENCE } from './scenes'
 
 export type HubResult = { ok: true; save: GameSave; message: string } | { ok: false; error: string }
 
@@ -112,11 +112,8 @@ export function endDay(save: GameSave, rng: () => number = Math.random): GameSav
     if (acc.awakenedNow && after.memory) after = addEvent(after, { day: save.currentDay, kind: 'awaken', text: `第${save.currentDay}天夜里在机械调教室觉醒了器具癖`, w: 3, scene: 'machine' })
     return after
   })
-  // 事件：过夜未处理扣服从；再按概率随机一人闯祸（记在新的一天）；有阴影的人可能做噩梦
-  let girls = nightlyIncidents(rested.map((g) => compactMemory(g, save.currentDay)), save.currentDay + 1, rng)
-  if (girls.some((g) => !g.incident && (g.sceneState && Object.values(g.sceneState).some((st) => (st?.sp ?? 0) > 0)))) {
-    girls = girls.map((g) => { const inc = nightmareIncident(g, save.currentDay + 1, rng); return inc ? { ...g, incident: inc } : g })
-  }
+  // 事件：过夜未处理扣服从；再按概率随机一人闯祸（记在新的一天）。阴影不产生夜间事件（只在调教里起作用）
+  const girls = nightlyIncidents(rested.map((g) => compactMemory(g, save.currentDay)), save.currentDay + 1, rng)
   // 调教场景维护费（扣到 0 为止）
   const upkeep = sceneUpkeep(save.player)
   const paid = Math.min(upkeep, Math.max(0, save.player.gold))

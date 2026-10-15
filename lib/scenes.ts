@@ -125,7 +125,22 @@ export const AVERSION_MAIN_PENALTY = 2
 export const AVERSION_AFFECTION = -3
 export const SHADOW_AFFECTION = -2
 export const MACHINE_NIGHT_OBEDIENCE = 3
-export const NIGHTMARE_CHANCE = 0.1
+/**
+ * 激发阴影（只在调教里起作用；不影响接客、不产生闯祸）：
+ * 在她有阴影的场景里做驯服/惩罚时，可以故意揭开阴影——服从大涨，代价是好感、体力、阴影加深。
+ * 服从 = 10 + 2×(阴影层数−1)，7 天内第 n 次 ×[1, 0.6, 0.35]；好感 −5 −2×(层数−1)；体力再 +10；阴影积累 +2；
+ * 这一场不长性癖积累；激发过的第二天不能再激发（连续两天不行）。
+ */
+export const PROVOKE_OBEDIENCE = 10
+export const PROVOKE_LEVEL_BONUS = 2
+export const PROVOKE_DECAY = [1, 0.6, 0.35]
+export const PROVOKE_AFFECTION = -5
+export const PROVOKE_LEVEL_AFFECTION = -2
+export const PROVOKE_STAMINA = 10
+export const PROVOKE_DEEPEN = 2
+/** 阴影层数：积累 3/6/9 → 1/2/3 层 */
+export const SHADOW_LEVEL_STEP = 3
+export const SHADOW_MAX_LEVEL = 3
 export const FETISH_GREET_BONUS = 2
 
 // ─── 解锁 / 维护 ──────────────────────────────────────────────────────────────
@@ -190,6 +205,40 @@ export function hasShadow(girl: Pick<MonstGirl, 'sceneState' | 'awakened'>, id: 
   return !girl.awakened?.includes(id) && stateOf(girl, id).sp >= SHADOW_THRESHOLD
 }
 
+/** 阴影层数 0–3（0 = 没有阴影） */
+export function shadowLevel(girl: Pick<MonstGirl, 'sceneState' | 'awakened'>, id: SceneId): number {
+  if (!hasShadow(girl, id)) return 0
+  return Math.min(SHADOW_MAX_LEVEL, Math.floor(stateOf(girl, id).sp / SHADOW_LEVEL_STEP))
+}
+
+export const SHADOW_LEVEL_LABEL = ['', '浅', '深', '刻骨']
+
+/** 7 天内已激发过几次 */
+export function recentProvokes(girl: Pick<MonstGirl, 'provokedDays'>, day: number): number {
+  return (girl.provokedDays ?? []).filter((d) => d > day - SCENE_WINDOW_DAYS && d <= day).length
+}
+
+/** 能不能在这个场景、这个方向上激发阴影；能则 null，否则原因 */
+export function provokeBlock(girl: Pick<MonstGirl, 'sceneState' | 'awakened' | 'provokedDays'>, scene: SceneId | undefined, direction: string, day: number): string | null {
+  if (!scene || !hasShadow(girl, scene)) return '只能在她有阴影的场景里激发'
+  if (direction !== 'tame' && direction !== 'punish') return '只有驯服 / 惩罚能激发阴影'
+  const pd = girl.provokedDays ?? []
+  if (pd.includes(day)) return '今天已经激发过了'
+  if (pd.includes(day - 1)) return '昨天刚激发过，她撑不住连续两天'
+  return null
+}
+
+/** 激发阴影的服从加成与好感代价（按当前阴影层数与本周次数） */
+export function provokeEffect(girl: Pick<MonstGirl, 'sceneState' | 'awakened' | 'provokedDays'>, scene: SceneId, day: number): { obedience: number; affection: number; level: number; decay: number } {
+  const level = Math.max(1, shadowLevel(girl, scene))
+  const decay = PROVOKE_DECAY[Math.min(recentProvokes(girl, day), PROVOKE_DECAY.length - 1)]
+  return {
+    obedience: Math.round((PROVOKE_OBEDIENCE + PROVOKE_LEVEL_BONUS * (level - 1)) * decay),
+    affection: PROVOKE_AFFECTION + PROVOKE_LEVEL_AFFECTION * (level - 1),
+    level, decay,
+  }
+}
+
 export function shadowScenes(girl: Pick<MonstGirl, 'sceneState' | 'awakened'>): SceneId[] {
   return SCENE_IDS.filter((id) => hasShadow(girl, id))
 }
@@ -212,9 +261,10 @@ export interface AccumulateResult { girl: MonstGirl; awakenedNow: boolean; shado
  * 记一次场景使用：使用日、性癖积累、阴影积累；够条件就觉醒（清掉该场景阴影）。
  * 温泉：她所有场景的阴影各 −1。lewdness 用结算后的值。
  */
-export function accumulateScene(girl: MonstGirl, id: SceneId, day: number): AccumulateResult {
+export function accumulateScene(girl: MonstGirl, id: SceneId, day: number, opts: { provoke?: boolean } = {}): AccumulateResult {
   const cur = stateOf(girl, id)
-  const gain = sceneGain(girl, id)
+  // 激发阴影：这一场只有恐惧，不长性癖，阴影加深
+  const gain = opts.provoke ? { fp: 0, sp: PROVOKE_DEEPEN } : sceneGain(girl, id)
   const uses = [...cur.uses, day].filter((d) => d > day - SCENE_WINDOW_DAYS).slice(-SCENE_WINDOW_DAYS)
   const st: SceneState = { uses, fp: cur.fp + gain.fp, sp: cur.sp + gain.sp }
   const hadShadow = hasShadow(girl, id)
@@ -270,11 +320,4 @@ export function sceneRiskIncident(
   if (id === 'tentacle' && (after.stamina ?? 100) === 0) return rng() < 0.2 ? { kind: '闯祸', text: '被触手房吓坏了，躲在被子里不肯出来', day } : null
   if (id === 'hypnosis') return rng() < 0.1 ? { kind: '闯祸', text: '催眠反噬，整天发呆，还叫错了你的名字', day } : null
   return null
-}
-
-export function nightmareIncident(girl: MonstGirl, day: number, rng: () => number): { kind: '闯祸'; text: string; day: number } | null {
-  const sh = shadowScenes(girl)
-  if (!sh.length || girl.incident) return null
-  if (rng() >= NIGHTMARE_CHANCE) return null
-  return { kind: '闯祸', text: `半夜梦见${getScene(sh[0])!.name}惊醒，哭闹着吵醒了全馆`, day }
 }

@@ -4,7 +4,7 @@ import type { GameSave, MonstGirl } from './types'
 import { fxGirl, fxPlayer, fxGuest } from './prompt-fixtures'
 import {
   TRAINING_SCENES, getScene, sceneUnlocked, sceneUpkeep, sceneReaction, accumulateScene, sceneDecay, hasShadow,
-  fetishMatchesGuest, FETISH_THRESHOLD, sceneRiskIncident, nightmareIncident,
+  fetishMatchesGuest, FETISH_THRESHOLD, sceneRiskIncident, shadowLevel, provokeBlock, provokeEffect,
 } from './scenes'
 import { resolveTraining, resolveLiveTraining } from './resolve-training'
 import { buyScene } from './shop'
@@ -13,6 +13,7 @@ import { endDay, setMachineNight } from './hub-logic'
 import { resolveService } from './resolve-service'
 import { trainingContext, girlStateCard, contextImageTags } from './prompt-context'
 import { buildServiceSystemPrompt } from './prompt-builder'
+import { addEvent, emptyMemory, girlMemoryBlock, localSummary, recordTraining, memOf } from './girl-memory'
 import { createServiceSession } from './game-engine'
 import { migrateSave } from './migrate-save'
 
@@ -103,10 +104,6 @@ test('阴影：抗拒种族 3 次后生效、再扣好感；温泉每次 −1；
   assert.ok(r.notes.some((n) => n.startsWith('阴影')))
   g = accumulateScene(g, 'onsen', 60).girl
   assert.equal(g.sceneState!.dungeon!.sp, 2); assert.equal(hasShadow(g, 'dungeon'), false)
-  // 夜里噩梦：有阴影才掷骰
-  let s3 = human({ race: '狼娘' }); for (let d = 1; d <= 3; d++) s3 = accumulateScene(s3, 'dungeon', d * 10).girl
-  assert.ok(nightmareIncident(s3, 9, () => 0.05)); assert.equal(nightmareIncident(s3, 9, () => 0.5), null)
-  assert.equal(nightmareIncident(human(), 9, () => 0), null)
 })
 
 test('结算写档：声望、风险事件只在有风险时掷骰', () => {
@@ -176,4 +173,66 @@ test('亲自上场：场景加成照样生效，只写一两句减半', () => {
 test('迁移：ownedScenes 缺省为空', () => {
   const s = migrateSave({ player: { ...fxPlayer }, girls: [], currentDay: 1, phase: 'morning' } as GameSave)
   assert.deepEqual(s.player.ownedScenes, [])
+})
+
+const shadowWolf = (sp = 3) => human({ race: '狼娘', stamina: 100, sceneState: { dungeon: { uses: [], fp: 0, sp } } })
+
+test('激发阴影：服从大涨、好感/体力代价、阴影加深、不长性癖、不能连续两天、递减', () => {
+  const g = shadowWolf()
+  assert.equal(shadowLevel(g, 'dungeon'), 1)
+  const base = { girl: g, direction: 'tame' as const, skip: true, scene: 'dungeon' as const, day: 50 }
+  const normal = resolveTraining(base)
+  const pr = resolveTraining({ ...base, provoke: true })
+  assert.ok(pr.ok)
+  assert.equal(pr.delta.obedience - normal.delta.obedience, 10)
+  assert.equal(pr.delta.affection - normal.delta.affection, -5)
+  assert.equal(pr.staminaCost - normal.staminaCost, 10)
+  assert.equal(pr.girl.sceneState!.dungeon!.sp, 5); assert.equal(normal.girl.sceneState!.dungeon!.sp, 4)
+  assert.equal(pr.girl.sceneState!.dungeon!.fp, 0)
+  assert.deepEqual(pr.girl.provokedDays, [50]); assert.equal(pr.provokedScene, 'dungeon')
+  assert.ok(pr.notes.some((n) => n.startsWith('激发阴影')))
+  // 冷却：当天 / 第二天不行，第三天行但 ×0.6
+  assert.match(provokeBlock(pr.girl, 'dungeon', 'tame', 51)!, /昨天/)
+  assert.equal(resolveTraining({ ...base, girl: pr.girl, day: 51, provoke: true }).ok, false)
+  assert.equal(provokeBlock(pr.girl, 'dungeon', 'tame', 52), null)
+  assert.equal(provokeEffect(pr.girl, 'dungeon', 52).obedience, 6)
+  // 深层阴影：+2/层，好感 −2/层
+  const deep = shadowWolf(6)
+  assert.deepEqual([provokeEffect(deep, 'dungeon', 9).obedience, provokeEffect(deep, 'dungeon', 9).affection], [12, -7])
+  // 没阴影 / 不对口方向 / 不在阴影场景：不能激发
+  assert.match(provokeBlock(human(), 'dungeon', 'tame', 5)!, /有阴影的场景/)
+  assert.match(provokeBlock(g, 'dungeon', 'release', 5)!, /驯服/)
+  assert.equal(resolveTraining({ ...base, scene: undefined, provoke: true }).ok, false)
+  // 觉醒路线照旧：觉醒清阴影后就不能激发
+  assert.equal(provokeBlock({ ...g, awakened: ['dungeon'] }, 'dungeon', 'tame', 5) !== null, true)
+})
+
+test('阴影不进接客：结算、提示词、夜间事件、心里话都不受影响', () => {
+  const g = shadowWolf(), plain = human({ race: '狼娘', stamina: 100 })
+  const guest = fxGuest()
+  // 接客数值一致
+  const a = resolveService({ girl: plain, guest, skip: true }), b = resolveService({ girl: g, guest, skip: true })
+  assert.deepEqual(b.steps.map((x) => x.score), a.steps.map((x) => x.score)); assert.equal(b.satisfaction, a.satisfaction)
+  // 接客提示词不带阴影；调教提示词带
+  const withMem = addEvent({ ...g, memory: emptyMemory() }, { day: 4, kind: 'shadow', text: '拘束地牢成了她心里的阴影', w: 2, scene: 'dungeon' })
+  const svc = buildServiceSystemPrompt(fxPlayer, createServiceSession('service', [withMem], { guest }))
+  assert.ok(!svc.includes('阴影'), svc)
+  const tr = buildServiceSystemPrompt(fxPlayer, createServiceSession('training', [withMem], {}), 'standard', undefined, { scene: 'dungeon' })
+  assert.ok(tr.includes('阴影：拘束地牢') && tr.includes('成了她心里的阴影'))
+  assert.ok(girlMemoryBlock(withMem, { type: 'interaction' }).includes('阴影'))
+  assert.ok(!girlMemoryBlock(withMem, { type: 'hub' }).includes('阴影'))
+  assert.ok(!localSummary(withMem).includes('阴影'))
+  assert.ok(!girlStateCard(g).includes('阴影') && girlStateCard(g, 5, { private: true }).includes('阴影'))
+  // 调教上下文：激发时带【激发阴影】段
+  assert.ok(trainingContext({ girl: g, direction: 'tame', skip: true, scene: 'dungeon', day: 9, provoke: true }).includes('【激发阴影】'))
+  assert.ok(!trainingContext({ girl: g, direction: 'tame', skip: true, scene: 'dungeon', day: 9 }).includes('【激发阴影】'))
+  // 激发写进记忆（私密）
+  const pr = resolveTraining({ girl: withMem, direction: 'tame', skip: true, scene: 'dungeon', day: 9, provoke: true })
+  const rec = recordTraining(pr.girl, withMem, pr, 9)
+  assert.ok(memOf(rec).events.some((e) => e.kind === 'shadow' && e.text.includes('揭开了阴影')))
+  // 夜里：有没有阴影，事件结果一样（不再有噩梦闯祸）
+  for (const seed of [0.01, 0.05, 0.12, 0.5]) {
+    const r1 = endDay(mkSave({}, [{ ...plain, id: 'w' }]), () => seed), r2 = endDay(mkSave({}, [{ ...g, id: 'w' }]), () => seed)
+    assert.deepEqual(r2.girls[0].incident ?? null, r1.girls[0].incident ?? null)
+  }
 })

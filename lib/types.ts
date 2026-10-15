@@ -223,6 +223,7 @@ export interface MonstGirl {
   sensitivities?: Partial<Record<SensitivityZone, number>> // 六条共通带 + 种族带，0–100
   sculptCounts?: { bust: number; waist: number; hip: number } // 各项塑形次数（涨价）
   itemUsedOnDay?: number                        // 当天已用过恢复药（每人每天一瓶）
+  provokedDays?: number[]  // 激发阴影的日子（≤7 条；只在调教里用）
   sceneState?: Partial<Record<SceneId, SceneState>> // 调教场景：使用记录 / 性癖积累 / 阴影
   awakened?: SceneId[]                          // 已觉醒的性癖（按场景记，名字见 TRAINING_SCENES）
   memory?: import('./girl-memory').GirlMemory   // 她自己的记忆（事件 + 心里话）
