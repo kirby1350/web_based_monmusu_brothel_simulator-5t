@@ -189,7 +189,7 @@ ${girlDescriptions}
 【客人信息】
 姓名：${g.name}　种族：${g.race}　性格：${g.personality}
 特性：${g.traits.join('、') || '无'}
-需求：${g.desires}${session.girls.map((x) => guestPrefLine(g, x, state.outfit, state.stockings)).filter(Boolean).map((l) => '\n' + l).join('')}${(g.visits ?? 0) > 0 ? `\n来访：第 ${(g.visits ?? 0) + 1} 次` : ''}
+需求：${g.desires}${g.desireDetail ? `（${g.desireDetail}）` : ''}${session.girls.map((x) => guestPrefLine(g, x, state.outfit, state.stockings)).filter(Boolean).map((l) => '\n' + l).join('')}${(g.visits ?? 0) > 0 ? `\n来访：第 ${(g.visits ?? 0) + 1} 次` : ''}
 当前状态 — 肉棒快感 ${stats?.pleasure ?? 0}/100，体力 ${stats?.stamina ?? 100}/100${stats?.isExhausted ? '（射精过度、阴茎抽搐）' : ''}，射精满足度 ${g.satisfaction}/100
 ${g.memories && Object.keys(g.memories).length > 0 ? `
 【关系记忆（老客人档案，必须自然融入叙述语气）】
@@ -375,14 +375,33 @@ Requirements:
 
 // ─── 客人生成提示词 ────────────────────────────────────────────────────────────
 
+/** AI 润色客人时的约束：身份/预算由游戏决定，AI 只写文案和（已存在的）偏好 */
+export interface GuestPromptHints {
+  /** 身份对应的人设方向（贵族高傲挑剔、冒险者粗犷…） */
+  style?: string
+  /** 需求方向（游戏抽好的原需求，判定用，不可偏离） */
+  theme?: string
+  /** 哪些偏好需要填（与游戏抽到的一致，不能多也不能少） */
+  prefs?: { race: boolean; trait: boolean; outfit: boolean }
+  traitTags?: string[]
+  outfitPrefs?: string[]
+}
+
 export function buildGuestGenerationPrompt(
   preference: string,
   existingGuests: string[],
-  guestClass?: string
+  guestClass?: string,
+  hints: GuestPromptHints = {}
 ): string {
+  const p = hints.prefs
+  const prefFields = p ? [
+    p.race ? `  "prefRace": "偏好的魔物娘种族，只能从以下选一个：${VALID_RACES.join('、')}",` : '',
+    p.trait ? `  "prefTrait": "偏好特征，只能从以下选一个：${(hints.traitTags ?? []).join('、')}",` : '',
+    p.outfit ? `  "prefOutfit": "服装喜好，只能从以下选一个：${(hints.outfitPrefs ?? []).join('、')}",` : '',
+  ].filter(Boolean).join('\n') : ''
   return `你是一个色情角色生成AI。为一款魔物娘娼馆经营游戏生成一个饥渴的客人。
 
-玩家偏好：${preference || '随机'}${guestClass ? `\n客人身份：${guestClass}（身份越高越体面、出手越阔绰，但也越挑剔，desires 要更讲究）` : ''}
+玩家偏好：${preference || '随机'}${guestClass ? `\n客人身份：${guestClass}（身份越高越体面、出手越阔绰，但也越挑剔，desires 要更讲究）${hints.style ? `\n人设方向：${hints.style}` : ''}` : ''}${hints.theme ? `\n需求方向（必须围绕它展开，不要换成别的玩法）：${hints.theme}` : ''}
 （客人自身种族可自由设定；若写偏好的魔物娘种族，只能从：${VALID_RACES.join('、')}）
 已有客人（避免重复）：${existingGuests.join('、') || '无'}
 
@@ -393,7 +412,7 @@ export function buildGuestGenerationPrompt(
   "personality": "一句话色情性格描述",
   "traits": ["性癖1", "性癖2"],
   "desires": "一句非常具体、下流的性需求描述（例如：想把猫娘的子宫灌满精液）",
-  "imageTags": "英文生图tag，逗号分隔，包含淫荡外貌、勃起特征、色情表情"
+${prefFields ? prefFields + '\n' : ''}  "imageTags": "英文生图tag，逗号分隔，包含淫荡外貌、勃起特征、色情表情"
 }
 
 只输出JSON，不要其他内容。${JSON_HALFWIDTH_NOTE}`

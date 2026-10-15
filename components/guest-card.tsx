@@ -67,6 +67,7 @@ export function GuestCard({
         <p className="text-[10px] text-muted-foreground leading-relaxed italic">
           &ldquo;{guest.desires}&rdquo;
         </p>
+        {guest.desireDetail && <p className="text-[10px] text-muted-foreground/80 leading-relaxed">{guest.desireDetail}</p>}
 
         {!compact && (
           <>

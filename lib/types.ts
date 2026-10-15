@@ -255,6 +255,8 @@ export interface Guest {
   prefOutfit?: OutfitPref | null // 服装喜好；约一半客人为 null
   guestClass?: GuestClass        // 身份档（缺省 = 平民）
   demand?: number                // 挑剔度：结算满意度直接扣这么多
+  desireDetail?: string          // AI 润色的需求细节（只做文案；判定仍看 desires）
+  aiFlavored?: boolean           // 已由 AI 润色过
 }
 
 export type GuestClass = 'commoner' | 'merchant' | 'adventurer' | 'noble' | 'captain'
@@ -312,6 +314,8 @@ export interface GameSave {
   dayLog?: import('./day-summary').DayLog
   // 上一天的小结，大厅弹卡展示，关闭即置 null
   lastDaySummary?: import('./day-summary').DaySummary | null
+  // AI 润色客人已尝试过的那一天（成功或失败都记，刷新不重复请求）
+  aiGuestsDay?: number
 }
 
 /** 定制调教道具：名字、描述自填，效果来自固定模板 */
