@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { ImageIcon, RefreshCw, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { generateImage } from '@/lib/image-service'
+import { generateImage, friendlyImageError, imageAuthFailed, markImageAuthFailed } from '@/lib/image-service'
 import { AppSettings } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { PortraitImg } from '@/components/portrait-img'
@@ -53,7 +53,9 @@ export function ImageDisplay({
       setUrl(result.url)
       onUrlCached?.(result.url)
     } else {
-      setError(result.error ?? '生成失败')
+      const err = friendlyImageError(result.error)
+      if (err.auth) markImageAuthFailed(settings.imageProvider)
+      setError(err.text)
     }
   }, [tags, settings, onUrlCached])
 
@@ -62,7 +64,8 @@ export function ImageDisplay({
   }, [cachedUrl])
 
   useEffect(() => {
-    if (autoGenerate && !url && hasApiKey && tags) {
+    // 自动生图：已有图片不生成；本次会话里该服务商已因缺 Key/鉴权失败过，也不再自动打（手动点仍可重试）
+    if (autoGenerate && !url && hasApiKey && tags && !imageAuthFailed(settings.imageProvider)) {
       generate()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -73,7 +76,7 @@ export function ImageDisplay({
     if (url) {
       return (
         <div className={cn('relative rounded-lg overflow-hidden', className)}>
-          <PortraitImg url={url} size={size} sizes={sizes} alt={alt} className="w-full h-full object-cover" />
+          <PortraitImg url={url} size={size} sizes={sizes} alt={alt} className="w-full h-full object-cover object-top" />
         </div>
       )
     }
@@ -109,18 +112,22 @@ export function ImageDisplay({
   if (url) {
     return (
       <div className={cn('relative group rounded-lg overflow-hidden', className)}>
-        <PortraitImg url={url} size={size} sizes={sizes} alt={alt} className="w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+        <PortraitImg url={url} size={size} sizes={sizes} alt={alt} className="w-full h-full object-cover object-top" />
+        {/* 缩略图（sm）整块是点击目标，不放重绘按钮；其余放在右上角的小按钮，不挡脸 */}
+        {size !== 'sm' && (
           <Button
             size="icon"
             variant="secondary"
-            className="w-8 h-8"
-            onClick={generate}
-            title="重新生成"
+            className="absolute top-1.5 right-1.5 w-6 h-6 rounded-md bg-black/60 text-white hover:bg-black/80 transition-opacity opacity-70 [@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+            onClick={(e) => { e.stopPropagation(); generate() }}
+            title="重新生图"
+            aria-label="重新生图"
+            data-testid="image-regenerate"
           >
-            <RefreshCw className="w-3.5 h-3.5" />
+            <RefreshCw className="w-3 h-3" />
           </Button>
-        </div>
+        )}
+        {error && <p className="absolute bottom-0 inset-x-0 bg-black/70 text-[9px] text-rose-300/90 px-1.5 py-0.5 truncate">{error}</p>}
       </div>
     )
   }
@@ -131,13 +138,14 @@ export function ImageDisplay({
         'flex flex-col items-center justify-center gap-3 rounded-lg border border-border border-dashed bg-muted/10 aspect-[3/4] cursor-pointer hover:bg-muted/20 transition-colors',
         className
       )}
-      onClick={generate}
+      // 缩略图（sm）的占位块交给外层（打开详情），不在这里生图
+      onClick={size === 'sm' ? undefined : (e) => { e.stopPropagation(); generate() }}
     >
       {error ? (
         <>
           <ImageIcon className="w-8 h-8 text-destructive/50" />
           <p className="text-[10px] text-destructive/70 text-center px-3">{error}</p>
-          <Button size="sm" variant="outline" className="text-xs h-7 px-3" onClick={generate}>
+          <Button size="sm" variant="outline" className="text-xs h-7 px-3" onClick={(e) => { e.stopPropagation(); generate() }}>
             重试
           </Button>
         </>
