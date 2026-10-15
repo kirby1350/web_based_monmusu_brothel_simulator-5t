@@ -1,6 +1,7 @@
 'use client'
 
 import { trimHistory, withTurnSuffix } from '@/lib/prompt-context'
+import { STREAM_TIMEOUT_MS } from '@/lib/prose-bank'
 
 import {
   useState,
@@ -95,10 +96,10 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
         const controller = new AbortController()
         abortRef.current = controller
 
-        // 90 秒自动中止，防止界面卡死（300–500 字的长回复要多留时间）
+        // 自动中止，防止界面卡死；重油 800–1200 字（模型常写到 2000+ 字）加 STATS 块，90 秒会在中途截断
         const timeoutId = setTimeout(() => {
           controller.abort()
-        }, 90_000)
+        }, STREAM_TIMEOUT_MS)
 
         // 声明在 try 之外，catch（中止/超时）也需要读取已接收的内容
         let full = ''

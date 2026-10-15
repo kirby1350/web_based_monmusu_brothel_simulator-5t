@@ -83,6 +83,8 @@ export function bankWordsUsed(text: string): string[] {
 
 export const DENSE_MIN_WORDS = 12
 export const DENSE_LENGTH = { min: 800, max: 1200 }
+/** 聊天流式回复的前端超时：要容得下重油长回复（实测 ~25 字/秒，2700+ 字约 110 秒）+ STATS 块 */
+export const STREAM_TIMEOUT_MS = 180_000
 
 /** 【★重油文风★】段：放在系统提示词最末尾，作为最后、最高优先级的文风指令 */
 export function denseStyleBlock(o: BankOpts): string {

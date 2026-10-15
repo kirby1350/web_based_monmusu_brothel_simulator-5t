@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { sampleBank, availableWords, bankWordsUsed, denseStyleBlock, PROSE_BANK, DENSE_MIN_WORDS } from './prose-bank'
+import { sampleBank, availableWords, bankWordsUsed, denseStyleBlock, PROSE_BANK, DENSE_MIN_WORDS, STREAM_TIMEOUT_MS } from './prose-bank'
 import { lengthReminder, shortReplyNote } from './prompt-context'
 import { buildServiceSystemPrompt } from './prompt-builder'
 import { createServiceSession } from './game-engine'
@@ -57,4 +57,8 @@ test('重油：每回合提醒与偏短提醒按 800–1200 字', () => {
   assert.equal(shortReplyNote(r), '')
   assert.ok(shortReplyNote(r, 'dense').includes('800–1200'))
   assert.ok(shortReplyNote('字'.repeat(700), 'dense').includes('偏短') && shortReplyNote('字'.repeat(900), 'dense') === '')
+})
+
+test('重油长回复不会被前端流式超时截断：超时 ≥ 150 秒', () => {
+  assert.ok(STREAM_TIMEOUT_MS >= 150_000)
 })
