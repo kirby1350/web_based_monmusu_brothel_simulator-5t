@@ -15,6 +15,7 @@ import type { TrainingResult } from '@/lib/resolve-training'
 import type { ServiceResult } from '@/lib/resolve-service'
 import type { SettleInfo } from '@/lib/settle-session'
 import { cn } from '@/lib/utils'
+import { speechLine } from '@/lib/speech-style'
 
 interface SessionResultProps {
   mode: 'skip' | 'live'
@@ -73,7 +74,7 @@ export function SessionResult({ mode, girl, guest, outfit, stockings, result, in
   const writeMore = async () => {
     setLoading(true)
     const apiKey = settings.chatModel.startsWith('grok') ? settings.grokApiKey : settings.chatApiKey
-    const prompt = `用中文写一段约200字的第三人称叙事，描写魔物娘${girl.name}（${girl.race}，性格：${girl.personality}）接待客人${guest.name}（${guest.race}，需求：${guest.desires}）的经过。` +
+    const prompt = `用中文写一段约200字的第三人称叙事，描写魔物娘${girl.name}（${girl.race}，性格：${girl.personality}${speechLine(girl, '；')}）接待客人${guest.name}（${guest.race}，需求：${guest.desires}）的经过。` +
       `流程依次是：${result.steps.map((s) => s.label).join('、')}${result.plays.length ? `，中间追加了${result.plays.map((p) => p.name).join('、')}` : ''}。` +
       `她穿着${OUTFITS.find((o) => o.id === outfit)?.name}。客人最终评价为「${result.tier.label}」。只输出正文，不要输出任何数据块。`
     try {

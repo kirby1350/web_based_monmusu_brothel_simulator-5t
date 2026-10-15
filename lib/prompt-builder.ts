@@ -2,6 +2,7 @@ import { Player, MonstGirl, Guest, ServiceSession, GameSave, ProseStyle } from '
 import { ALL_PLAYS as PLAYS, getSensitivityLevel, getSkillRank } from '@/lib/catalog'
 import type { OutfitId, StockingId } from '@/lib/types'
 import { girlStateCard, guestPrefLine, VALID_RACES } from '@/lib/prompt-context'
+import { speechLine, speechRuleFor } from '@/lib/speech-style'
 
 /** 系统提示词的可选游戏状态：天数、当前服装（客人偏好命中用） */
 export interface PromptState { day?: number; outfit?: OutfitId; stockings?: StockingId }
@@ -135,7 +136,7 @@ function buildServiceSystemPromptBase(
     .map(
       (g, i) => {
         const bwh = girlBWH(g)
-        return `魔物娘${i + 1}：${g.name}（${g.race}）\n  外貌：${g.bodyDesc}${bwh ? `，三围 ${bwh}` : ''}\n  性格：${g.personality}\n  服装：${g.outfit}\n  服从度：${g.obedience}/100，淫乱度：${g.lewdness}/100，好感度：${g.affection}/100\n  状态：${girlStateCard(g, state.day)}${g.sexualDesc ? `\n  色色设定：${g.sexualDesc}` : ''}`
+        return `魔物娘${i + 1}：${g.name}（${g.race}）\n  外貌：${g.bodyDesc}${bwh ? `，三围 ${bwh}` : ''}\n  性格：${g.personality}${speechLine(g, '\n  ')}\n  服装：${g.outfit}\n  服从度：${g.obedience}/100，淫乱度：${g.lewdness}/100，好感度：${g.affection}/100\n  状态：${girlStateCard(g, state.day)}${g.sexualDesc ? `\n  色色设定：${g.sexualDesc}` : ''}`
       }
     )
     .join('\n')
@@ -196,7 +197,7 @@ ${session.girls.map(girl => `- ${girl.name} 的每一句话、呻吟、反应必
   - 傲娇/倔强/M倾向 → 先嘴硬羞辱/抗拒，再快感爆发时崩溃哭求
   - 痴女/主动求操 → 即使服从低也要摇臀夹紧、下流挑逗
   - 胆小/纯情 → 带着哭腔、颤抖说出羞耻话，脸红到耳根
-  - 特殊癖好（如乳首开发、子宫高潮、潮吹体质、深喉吞精狂热）必须在合适时机反复触发并强调`).join('\n')}
+  - 特殊癖好（如乳首开发、子宫高潮、潮吹体质、深喉吞精狂热）必须在合适时机反复触发并强调`).join('\n')}${speechRuleFor(session.girls, '\n- ')}
 
 【客人行为与言语锚点（必须严格遵守）】
 - ${g.name} 的行动、言语、玩法必须100%体现性格「${g.personality}」、特性「${g.traits.join('、') || '无'}」和需求「${g.desires}」：
@@ -257,7 +258,7 @@ ${session.girls.map(girl => `- ${girl.name} 的每一句话、呻吟、反应必
   - 傲娇/倔强/M倾向 → 先嘴硬反抗/羞辱调教者，再快感爆发时崩溃哭求内射
   - 痴女/主动求操 → 即使服从低也要摇臀挺胸、用下流话语求虐求插
   - 胆小/纯情 → 哭腔颤抖、脸红耳根说出羞耻乞求，身体却诚实喷水
-  - 特殊癖好（如乳首开发、子宫高潮、潮吹体质、深喉吞精狂热、M属性失禁等）必须在合适时机反复触发并强调描写`).join('\n')}
+  - 特殊癖好（如乳首开发、子宫高潮、潮吹体质、深喉吞精狂热、M属性失禁等）必须在合适时机反复触发并强调描写`).join('\n')}${speechRuleFor(session.girls, '\n- ')}
 
 ${REACTION_MATRIX}
 
@@ -322,7 +323,7 @@ export function buildInteractionSystemPrompt(
 
 【魔物娘】
 姓名：${girl.name}，种族：${girl.race}
-性格：${girl.personality}
+性格：${girl.personality}${speechLine(girl)}
 外貌：${girl.bodyDesc}${girlBWH(girl) ? `，三围 ${girlBWH(girl)}` : ''}
 好感度：${girl.affection}/100，服从度：${girl.obedience}/100
 当前服装：${girl.outfit}
@@ -331,7 +332,7 @@ export function buildInteractionSystemPrompt(
 1. 以第一人称扮演魔物娘 ${girl.name} 回应玩家
 2. 好感度高时会主动发情、描述自己湿了或想被插入；好感度低则害羞、扭捏但身体诚实
 3. 回复50-100字，语言自然、下流、带喘息感
-4. 互动越色情越能明显提升好感度，允许轻微呻吟与性暗示`
+4. 互动越色情越能明显提升好感度，允许轻微呻吟与性暗示${speechRuleFor([girl], '\n5. ')}`
 }
 
 // ─── TAG 生成提示词 ────────────────────────────────────────────────────────────
@@ -432,6 +433,7 @@ export function buildMarketGirlPrompt(preference: string, existingNames: string[
   "otherDesc": "淫乱背景故事（一句话）",
   "otherTags": "英文背景tag",
   "sexualDesc": "色色设定：详细描述该角色的性癖、敏感弱点、偏好玩法、高潮特征（2-5句话）",
+  "speechStyle": "口癖，四行用\\n分隔：自称：…\\n称呼：对馆主「…」；对客人「…」\\n语气：语气与句尾习惯\\n招牌台词：「…」「…」「…」",
   "affection": 初始好感度数字(5-35),
   "obedience": 初始服从度数字(5-45),
   "lewdness": 初始淫乱度数字(10-60),
@@ -528,7 +530,7 @@ export function buildOpeningDialoguePrompt(
       const serviceGirls = extra?.girl ? [mainGirl] : girls
       const isMulti = serviceGirls.length > 1
       const girlBriefs = serviceGirls
-        .map((g) => `- ${g.name}（${g.race}），性格：${g.personality}，好感度：${g.affection}/100，淫乱度：${g.lewdness}/100${girlBWH(g) ? `，三围：${girlBWH(g)}` : ''}`)
+        .map((g) => `- ${g.name}（${g.race}），性格：${g.personality}，好感度：${g.affection}/100，淫乱度：${g.lewdness}/100${girlBWH(g) ? `，三围：${girlBWH(g)}` : ''}${speechLine(g, '，')}`)
         .join('\n')
       // 回头客：开场需体现熟络（带上与在场魔物娘的关系记忆）
       const sg = extra?.guest
@@ -553,7 +555,7 @@ ${extra?.guest ? `【客人】${extra.guest.name}（${extra.guest.race}），${e
 ${isMulti ? '- 每一位魔物娘都必须在开场白中出现，各自有专属的体态/神情/迎接姿态描写，不可只写其中一位或让某位沦为背景\n' : ''}- 根据好感度与淫乱度调整氛围尺度：
   - 好感度高+淫乱度高：主动撩拨、媚眼如丝，暗含肉欲期待
   - 好感度低/淫乱度低：温柔有礼但带一丝局促，眼神试探
-- 不直接描写性行为，保留悬念与紧张感
+- 不直接描写性行为，保留悬念与紧张感${speechRuleFor(serviceGirls, '\n- ')}
 - 只输出叙述文本，不要说明或标题`
     }
 
@@ -562,7 +564,7 @@ ${isMulti ? '- 每一位魔物娘都必须在开场白中出现，各自有专�
       const trainGirls = extra?.girl ? [mainGirl] : girls
       const isMulti = trainGirls.length > 1
       const girlBriefs = trainGirls
-        .map((g) => `- ${g.name}（${g.race}），性格：${g.personality}，好感度：${g.affection}/100，服从度：${g.obedience}/100，淫乱度：${g.lewdness}/100`)
+        .map((g) => `- ${g.name}（${g.race}），性格：${g.personality}，好感度：${g.affection}/100，服从度：${g.obedience}/100，淫乱度：${g.lewdness}/100${speechLine(g, '，')}`)
         .join('\n')
       return `你是一个重口味成人互动小说写作引擎。写一段淫虐调教开场白。
 
@@ -583,7 +585,7 @@ ${isMulti ? `- 每一位魔物娘都必须在开场白中出现，各自有专�
   - 淫乱度高（70+）：身体极度敏感，已主动流水、子宫抽搐般期待插入，内心渴求被粗暴蹂躏到高潮
   - 淫乱度中（40-69）：敏感但仍害羞，乳头与蜜穴反应强烈，却试图掩饰
   - 淫乱度低（<40）：几乎无自觉反应，仅因恐惧或刺激而轻微湿润，更多是羞耻与紧张
-- 整体充满即将被彻底干到高潮、淫堕的紧张、期待与征服感，语言直白露骨但聚焦感官与心理描写
+- 整体充满即将被彻底干到高潮、淫堕的紧张、期待与征服感，语言直白露骨但聚焦感官与心理描写${speechRuleFor(trainGirls, '\n- ')}
 - 只输出叙述文本，不要说明或标题`
     }
 
@@ -603,7 +605,7 @@ ${isMulti ? `- 每一位魔物娘都必须在开场白中出现，各自有专�
       if (!mainGirl) return ''
       return `你是一个幻想互动小说写作引擎。以第一人称扮演 ${mainGirl.name} 向 ${player.name} 进行日常问候与闲聊。
 
-【魔物娘】${mainGirl.name}（${mainGirl.race}），性格：${mainGirl.personality}
+【魔物娘】${mainGirl.name}（${mainGirl.race}），性格：${mainGirl.personality}${speechLine(mainGirl)}
 好感度：${mainGirl.affection}/100，淫乱度：${mainGirl.lewdness}/100${bwh ? `\n三围：${bwh}` : ''}
 【玩家】${player.name}
 
@@ -616,7 +618,7 @@ ${isMulti ? `- 每一位魔物娘都必须在开场白中出现，各自有专�
   - 淫乱度低（<40）：完全避免色情暗示，保持纯日常、可爱或温柔
   - 淫乱度中（40-69）：偶尔带轻微暧昧暗示（如"今天好热呢""身体有点奇怪"），但不直白
   - 淫乱度高（70+）：更开放，可能会不经意说出带性暗示的俏皮话（如尾巴缠人、衣服滑落、身体发烫等），但仍保持日常聊天框架，不直接求欢
-- 整体氛围温馨、幻想风格，适合经营模拟器的日常互动，体现魔物娘的个性与对玩家的情感变化
+- 整体氛围温馨、幻想风格，适合经营模拟器的日常互动，体现魔物娘的个性与对玩家的情感变化${speechRuleFor([mainGirl], '\n- ')}
 - 只输出 ${mainGirl.name} 说的这段完整对话文本，不要说明或标题`
 
     case 'purchase': {
@@ -631,7 +633,7 @@ ${isMulti ? `- 每一位魔物娘都必须在开场白中出现，各自有专�
       return `你是一个色情互动小说写作引擎。以第一人称扮演 ${mainGirl.name} 被 ${player.name} 买下并带回娼馆后的第一段回应（欢迎+自我介绍）。
 
 【场景】${mainGirl.name}刚刚被带回 ${player.name} 的魔物娘娼馆，大厅烛光摇曳，空气中混着淡淡的香薰与先前魔物娘留下的体香
-【魔物娘】${mainGirl.name}（${mainGirl.race}），性格：${mainGirl.personality}
+【魔物娘】${mainGirl.name}（${mainGirl.race}），性格：${mainGirl.personality}${speechLine(mainGirl)}
 三围：${bwh || '未知'}
 服从度：${mainGirl.obedience}/100，淫乱度：${mainGirl.lewdness}/100${mainGirl.sexualDesc ? `\n性癖：${mainGirl.sexualDesc}` : ''}
 背景：${mainGirl.otherDesc}
@@ -643,7 +645,7 @@ ${isMulti ? `- 每一位魔物娘都必须在开场白中出现，各自有专�
 - 接着描写另一位馆内魔物娘（${welcomer ? welcomer.name : ''}）主动上前欢迎自己：根据那位魔物娘的好感度与性格，表现出不同态度（好感高则热情拥抱/调戏，好感低则好奇观察/轻声问候）${!welcomer ? '\n- 若馆内暂无其他魔物娘，则描写独自打量这座娼馆的孤独与期待' : ''}
 - 然后进行自我介绍：包括外貌（强调三围的诱惑感与身体特征）、性格、背景、当前心情（服从度低时带抗拒与不安但身体已微微发热；服从度中时犹豫好奇；服从度高时顺从甚至主动表达想被调教/侍奉的意愿）
 - 融入淫乱度与性癖：淫乱度低时害羞描述自己敏感部位，淫乱度高时大胆说出发情反应或性癖偏好（轻度色情暗示，如"我的尾巴一碰就湿了""喜欢被粗暴对待"等）
-- 整体氛围温馨暧昧带点肉欲期待，适合成人向经营模拟器，不需极度重口
+- 整体氛围温馨暧昧带点肉欲期待，适合成人向经营模拟器，不需极度重口${speechRuleFor([mainGirl], '\n- ')}
 - 只输出 ${mainGirl.name} 说的第一段完整回应文本（包含对场景的感受、对其他魔物娘的反应、自我介绍），不要说明或标题`
     }
 
@@ -667,7 +669,7 @@ export function buildMemoryPrompt(
 
   return `根据以下这次服务信息，分别生成：
 1. 客人${guest.name}（${guest.race}，性格：${guest.personality}）对魔物娘${girl.name}新形成的最新印象（15-25字，第一人称，体现情感变化）
-2. 魔物娘${girl.name}（${girl.race}，性格：${girl.personality}）对客人${guest.name}新形成的最新印象（15-25字，第一人称，贴合她的性格语气）
+2. 魔物娘${girl.name}（${girl.race}，性格：${girl.personality}${speechLine(girl, '；')}）对客人${guest.name}新形成的最新印象（15-25字，第一人称，贴合她的性格语气）
 
 ${prevContext}
 第${visitCount}次服务摘要：${sessionSummary}
