@@ -64,7 +64,7 @@ test('新衣服的调教加成', () => {
   const ob = (o?: OutfitId) => train(o).delta.obedience
   assert.equal(ob('nun') - ob(undefined), 1)
   const pm = (o?: OutfitId) => train(o, { direction: 'punish', girl: girl({ incident: { kind: '闯祸', text: 'x', day: 1 } }) }).delta.m
-  assert.equal(pm('harness') - pm(undefined), 3)
+  assert.equal(pm('harness') - pm(undefined), 4)
   const lw = (o?: OutfitId) => train(o, { direction: 'release' }).delta.lewdness
   for (const o of ['babydoll', 'latex', 'queen'] as const) assert.equal(lw(o) - lw(undefined), 1, o)
   const sens = (o: OutfitId | undefined, zone: string, props: string[] = []) => train(o, { direction: 'sensitize', zone, props }).delta.sensitivity
@@ -74,7 +74,7 @@ test('新衣服的调教加成', () => {
   assert.equal(sens('sling', '乳房', ['nipple_clamps']) - sens(undefined, '乳房', ['nipple_clamps']), 0)
   assert.equal(sens('bunny', '乳房') - sens(undefined, '乳房'), 0)
   const dr = (o: OutfitId | undefined, props: string[] = []) => train(o, { direction: 'drill', skill: '待客', props }).delta.skillProgress
-  assert.equal(dr('dancer') - dr(undefined), 4)
+  assert.equal(dr('dancer') - dr(undefined), 6)
   assert.equal(dr('dancer', ['mirror']) - dr(undefined, ['mirror']), 0) // 有练习镜不叠加
   const aff = (o?: OutfitId) => train(o, { direction: 'release' }).delta.affection
   assert.equal(aff('bridal') - aff(undefined), 1)

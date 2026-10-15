@@ -42,12 +42,14 @@ let save: GameSave = migrateSave({
   dailyGuests: generateDailyGuests(getGuestCapacity(1), 0, []), regulars: [],
 })
 
-const stats = { upkeep: 0, sceneUses: {} as Record<string, number>, awakenings: [] as string[], peakOb: [] as string[], punish: 0, sats: [] as number[], serviceIncome: 0, services: 0, trainings: 0, rests: 0, idle: 0, tiers: {} as Record<string, number>, upgrades: [] as string[], potions: 0, bought: 0, incomeByDay: [] as number[] }
+const stats = { upkeep: 0, sceneUses: {} as Record<string, number>, awakenings: [] as string[], peakOb: [] as string[], punish: 0, sats: [] as number[], serviceIncome: 0, services: 0, trainings: 0, rests: 0, idle: 0, tiers: {} as Record<string, number>, upgrades: [] as string[], potions: 0, bought: 0, incomeByDay: [] as number[], svcByGirl: {} as Record<string, number>, drills: 0, invest: 0 }
 const firstAffordable: Record<string, number | undefined> = {}
 
 const DAYS = Number(process.env.SIM_DAYS ?? 30)
+const DRILL_VALUE_MIN = Number(process.env.SIM_DRILL_MIN ?? 6)
 for (let day = 1; day <= DAYS; day++) {
   const goldStart = save.player.gold
+  const investStart = save.player.gold
   // sscenes：放权场景优先于设施（先补调教室到 Lv2 解锁女王调教室）
   if (STRAT === 'sscenes' && day >= 2) {
     if ((save.player.trainingRoomLevel ?? 1) < 2) { const r = upgradeTrainingRoom(save); if (r.ok && r.save.player.gold >= RESERVE) { save = r.save; stats.upgrades.push(`D${day} 调教室`) } }
@@ -82,6 +84,7 @@ for (let day = 1; day <= DAYS; day++) {
     const want = [...OUTFITS, ...STOCKINGS].find((o) => o.pref && prefs.includes(o.pref) && !owned.has(o.id) && save.player.gold - o.price >= RESERVE)
     if (want) { const r = buyWardrobe(save, want.id); if (r.ok) { save = r.save; stats.upgrades.push(`D${day} 衣:${want.name}`) } }
   }
+  stats.invest += Math.max(0, investStart - save.player.gold)
   // 3) 行动
   for (let a = 0; a < MAX_ACTIONS_PER_DAY; a++) {
     // 体力低：先喂热餐（不占行动）
@@ -91,16 +94,18 @@ for (let day = 1; day <= DAYS; day++) {
       }
     }
     if (TRAINS && a === 0) {
-      const t = [...save.girls].filter((g) => (g.stamina ?? 100) >= 60).sort((x, y) => x.obedience + x.lewdness - y.obedience - y.lewdness)[0]
-      // 已入门、未到精通的服侍技能里挑最高的特训，否则驯服/放权
-      const pv = (k: SkillKey) => t?.proficiency?.[k] ?? 0
-      const sk = t && [...SERVING_PROF_SKILLS].filter((k) => pv(k) >= PROF_TIERS.初学 && pv(k) < PROF_TIERS.精通).sort((a, b) => pv(b) - pv(a))[0]
+      // 聪明一点的特训：只在「今天的客人里能换来明显的满意度」时先练（见 bestDrill），否则先接客
+      const bd = bestDrill()
+      const sOwned = STRAT === 'sscenes' && (save.player.ownedScenes ?? []).some((id) => S_SCENES.includes(id))
+      const t = sOwned ? [...save.girls].filter((g) => (g.stamina ?? 100) >= 60 && g.obedience >= 40).sort((x, y) => (x.proficiency?.S性 ?? 0) - (y.proficiency?.S性 ?? 0))[0] : undefined
       if (t) {
-        const sOwned = STRAT === 'sscenes' && (save.player.ownedScenes ?? []).some((id) => S_SCENES.includes(id))
-        const dir: TrainingDirection = sOwned && t.obedience >= 40 ? 'release' : sk ? 'drill' : t.obedience <= t.lewdness ? 'tame' : 'release'
-        const scene = pickScene(t, dir)
-        const r = resolveTraining({ girl: t, direction: dir, skill: sk || undefined, skip: true, roomLevel: save.player.trainingRoomLevel, scene, day: save.currentDay })
+        const scene = pickScene(t, 'release')
+        const r = resolveTraining({ girl: t, direction: 'release', skip: true, roomLevel: save.player.trainingRoomLevel, scene, day: save.currentDay })
         if (r.ok) { save = applyTrainingToSave(save, r, undefined, rng); stats.trainings++; noteScene(r, scene); continue }
+      } else if (bd && bd.value >= DRILL_VALUE_MIN) {
+        const scene = pickScene(bd.girl, 'drill')
+        const r = resolveTraining({ girl: bd.girl, direction: 'drill', skill: bd.skill, skip: true, roomLevel: save.player.trainingRoomLevel, scene, day: save.currentDay })
+        if (r.ok) { save = applyTrainingToSave(save, r, undefined, rng); stats.trainings++; stats.drills++; noteScene(r, scene); continue }
       }
     }
     // 先处理事件、先把不能跳过的新人驯服到 25
@@ -127,8 +132,16 @@ for (let day = 1; day <= DAYS; day++) {
       const guest = guests[b.gi]
       const r = resolveService({ girl: b.g, guest, skip: true, roomLevel: save.player.serviceRoomLevel, sessionIndexToday: save.actionsUsedToday ?? 0, outfit: b.outfit, stockings: b.stockings })
       save = applyServiceToSave(save, b.g.id, guest, r, rng).save
-      stats.services++; stats.sats.push(r.satisfaction); stats.serviceIncome += r.reward; stats.tiers[r.tier.label] = (stats.tiers[r.tier.label] ?? 0) + 1
+      stats.services++; stats.svcByGirl[b.g.name] = (stats.svcByGirl[b.g.name] ?? 0) + 1; stats.sats.push(r.satisfaction); stats.serviceIncome += r.reward; stats.tiers[r.tier.label] = (stats.tiers[r.tier.label] ?? 0) + 1
       continue
+    }
+    if (TRAINS) {
+      const bd = bestDrill()
+      if (bd && bd.value > 0) {
+        const scene = pickScene(bd.girl, 'drill')
+        const r = resolveTraining({ girl: bd.girl, direction: 'drill', skill: bd.skill, skip: true, roomLevel: save.player.trainingRoomLevel, scene, day: save.currentDay })
+        if (r.ok) { save = applyTrainingToSave(save, r, undefined, rng); stats.trainings++; stats.drills++; noteScene(r, scene); continue }
+      }
     }
     const trainee = [...save.girls].filter((g) => (g.stamina ?? 100) >= 40).sort((x, y) => x.obedience - y.obedience)[0]
     if (trainee) {
@@ -153,6 +166,26 @@ for (let day = 1; day <= DAYS; day++) {
     `| ${save.girls.map((g) => `${g.name}[体${g.stamina} 服${g.obedience} 淫${g.lewdness} 好${g.affection}${g.incident ? ' !' : ''}${g.awakened?.length ? ' ✦' + g.awakened.length : ''}${shadowScenes(g).length ? ' 影' : ''}]`).join(' ')}`)
   save = endDay(save, rng)
   stats.incomeByDay.push(save.player.gold - goldStart)  // 含当晚维护费
+}
+
+/** 特训价值：对今天每位客人，她练完后（跳过、常服）满意度的提升之和；取最大的人 × 技能 */
+function bestDrill(): { girl: MonstGirl; skill: SkillKey; value: number } | undefined {
+  const guests = save.dailyGuests ?? []
+  if (!guests.length) return undefined
+  const sat = (g: MonstGirl) => guests.reduce((acc, c) => acc + resolveService({ girl: g, guest: c, skip: true, roomLevel: save.player.serviceRoomLevel, sessionIndexToday: 0, outfit: 'regular', stockings: 'none' }).satisfaction, 0)
+  let best: { girl: MonstGirl; skill: SkillKey; value: number } | undefined
+  for (const g of save.girls) {
+    if ((g.stamina ?? 100) < 60 || !canSkipService(g)) continue
+    const before = sat(g)
+    for (const k of SERVING_PROF_SKILLS) {
+      if ((g.proficiency?.[k] ?? 0) >= 95) continue
+      const r = resolveTraining({ girl: g, direction: 'drill', skill: k, skip: true, roomLevel: save.player.trainingRoomLevel, day: save.currentDay })
+      if (!r.ok) continue
+      const v = sat({ ...r.girl, stamina: g.stamina }) - before
+      if (!best || v > best.value) best = { girl: g, skill: k, value: v }
+    }
+  }
+  return best
 }
 
 /** 场景策略：好感 <35 有温泉就温泉；否则选对口、非抗拒、服从/淫乱加成最大的 */
@@ -204,4 +237,13 @@ out(`最终技能 ${save.girls.map((g) => `${g.name}[${Object.entries(g.proficie
 out(`最终服从 ${save.girls.map((g) => `${g.name}${g.obedience}`).join(' ')}｜平均好感 ${Math.round(save.girls.reduce((a, g) => a + g.affection, 0) / save.girls.length)}`)
 const inc = stats.incomeByDay
 out(`日净收入：前 10 天均 ${Math.round(inc.slice(0, 10).reduce((a, b) => a + b, 0) / 10)}，后 10 天均 ${Math.round(inc.slice(-10).reduce((a, b) => a + b, 0) / 10)}`)
+{
+  const servingOf = (g: MonstGirl) => SERVING_PROF_SKILLS.map((k) => g.proficiency?.[k] ?? 0)
+  const top = [...save.girls].sort((a, b) => servingOf(b).filter((v) => v >= 50).length - servingOf(a).filter((v) => v >= 50).length)[0]
+  const topShare = Math.max(0, ...Object.values(stats.svcByGirl)) / Math.max(1, stats.services)
+  console.log('SIMJSON ' + JSON.stringify({ strat: STRAT, seed, gold: save.player.gold, invest: stats.invest, worth: save.player.gold + stats.invest, sat: Math.round(stats.sats.reduce((a, b) => a + b, 0) / Math.max(1, stats.sats.length)),
+    gokuraku: stats.tiers['极乐'] ?? 0, manzoku: stats.tiers['满意'] ?? 0, regulars: (save.regulars ?? []).length, rep: save.player.reputation ?? 0, income: stats.serviceIncome,
+    services: stats.services, trainings: stats.trainings, drills: stats.drills, topGirl: top?.name, top50: top ? servingOf(top).filter((v) => v >= 50).length : 0, top75: top ? servingOf(top).filter((v) => v >= 75).length : 0,
+    girls50: save.girls.filter((g) => servingOf(g).some((v) => v >= 50)).length, topShare: Math.round(topShare * 100) }))
+}
 require('node:fs').writeFileSync(process.env.SIM_OUT ?? '/workspace/sim-30days.txt', log.join('\n') + '\n')

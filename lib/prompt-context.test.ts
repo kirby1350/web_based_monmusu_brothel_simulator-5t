@@ -83,7 +83,7 @@ test('6. 图片标签：换装替换服装 tag、加状态 tag、质量词保底
 
 test('2/7/8. 调教上下文、馆内近况、建议提示词与种族表', () => {
   const tc = trainingContext({ girl: fxGirl(), direction: 'drill', skill: '口侍', roomLevel: 2, props: ['mirror'], skip: true })
-  assert.ok(tc.includes('特训') && tc.includes('口侍（初学 熟练度 30，50 升熟练；每场约 +10）') && tc.includes('Lv2（×1.25）') && tc.includes('练习镜'))
+  assert.ok(tc.includes('特训') && tc.includes('口侍（初学 熟练度 30，50 升熟练；每场约 +16）') && tc.includes('Lv2（×1.25）') && tc.includes('练习镜'))
   const hs = houseStateLines({ player: fxPlayer, girls: [fxGirl({ incident: { kind: '闯祸', text: '偷吃了点心', day: 5 } })], currentDay: 6, phase: 'morning' })
   assert.ok(hs.includes('千雪闯祸') && hs.includes('宿舍 Lv2'))
   const sp = buildSuggestionPrompt('service', reply(3), [], { step: '前戏', standardAction: '轻抚阴蒂', desires: '黑丝' })

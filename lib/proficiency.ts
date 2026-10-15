@@ -32,21 +32,24 @@ export const SERVICE_PROF_SIDE = 1
 export const SERVICE_PROF_LIVE_MULT = 1.5
 /** 接客最多练到 74（熟练封顶），精通要靠特训 */
 export const SERVICE_PROF_CAP = 74
-/** 特训 +10（乘调教室倍率）；练习镜 / 舞娘装（待客）/ 催眠室 各 +4 */
-export const DRILL_PROF_GAIN = 10
-export const DRILL_PROF_BONUS = 4
-/** 驯服 / 惩罚 M性 +5、放权 S性 +5（乘倍率）；拘束道具 / 惩罚事件等各 +3 */
-export const MS_PROF_GAIN = 5
-export const MS_PROF_EXTRA = 3
-/** 敏感开发：对应部位的技能 +2 */
-export const SENSITIZE_PROF_GAIN = 2
+/** 特训 +16（乘调教室倍率）；练习镜 / 舞娘装（待客）/ 催眠室 各 +6 */
+export const DRILL_PROF_GAIN = 16
+export const DRILL_PROF_BONUS = 6
+/** 驯服 / 惩罚 M性 +8、放权 S性 +8（乘倍率）；拘束道具 / 惩罚事件 / 地牢等各 +4 */
+export const MS_PROF_GAIN = 8
+export const MS_PROF_EXTRA = 4
+/** 敏感开发：对应部位的技能 +5 */
+export const SENSITIZE_PROF_GAIN = 5
 export const ZONE_SKILL: Partial<Record<SensitivityZone, ServingSkill>> = { 唇舌: '口侍', 乳房: '胸侍', 小穴: '身侍', 阴蒂: '手技' }
 /** 两面：M性、S性都 ≥50，且服从、淫乱都 ≥70 时自动成为两面 */
 export const TWO_SIDED_PROF = 50
 export const TWO_SIDED_STAT = 70
 
-/** 递减：<50 ×1、50–74 ×0.6、≥75 ×0.3 */
+/** 递减（接客）：<50 ×1、50–74 ×0.6、≥75 ×0.3 */
 export function profDim(v: number): number { return v < PROF_TIERS.熟练 ? 1 : v < PROF_TIERS.精通 ? 0.6 : 0.3 }
+/** 递减（调教）：专门练比接客顺手得多——<50 ×1、50–74 ×0.85、≥75 ×0.5 */
+export const TRAIN_DIM: [number, number, number] = [1, 0.8, 0.4]
+export function profDimTraining(v: number): number { return v < PROF_TIERS.熟练 ? TRAIN_DIM[0] : v < PROF_TIERS.精通 ? TRAIN_DIM[1] : TRAIN_DIM[2] }
 
 export function profRank(v: number | undefined): SkillRank | undefined {
   if (v === undefined || v < PROF_TIERS.初学) return undefined
@@ -102,23 +105,23 @@ export function canBecomeTwoSided(g: MonstGirl): boolean {
 export interface ProfChange { skill: SkillKey; from: number; to: number; rankUp?: SkillRank }
 
 /** 按递减系数加熟练度（cap 以上不涨）；保留一位小数 */
-export function addProf(cur: number, base: number, cap = PROF_MAX): number {
+export function addProf(cur: number, base: number, cap = PROF_MAX, dim: (v: number) => number = profDim): number {
   if (base <= 0 || cur >= cap) return cur
-  return Math.min(cap, Math.round((cur + base * profDim(cur)) * 10) / 10)
+  return Math.min(cap, Math.round((cur + base * dim(cur)) * 10) / 10)
 }
 
 /**
  * 给一个魔物娘加一批熟练度（base 是递减前的基础值），同步倾向并检查两面。
  * 没有 proficiency 的旧对象先按旧档位换算（与迁移一致）。
  */
-export function growProficiency(girl: MonstGirl, gains: Proficiency, cap = PROF_MAX): { girl: MonstGirl; changes: ProfChange[]; becameTwoSided: boolean } {
+export function growProficiency(girl: MonstGirl, gains: Proficiency, cap = PROF_MAX, dim: (v: number) => number = profDim): { girl: MonstGirl; changes: ProfChange[]; becameTwoSided: boolean } {
   const cur: Proficiency = { ...(girl.proficiency ?? proficiencyFromLegacy(girl)) }
   const changes: ProfChange[] = []
   for (const k of PROF_SKILLS) {
     const base = gains[k]
     if (!base) continue
     const from = cur[k] ?? 0
-    const to = addProf(from, base, cap)
+    const to = addProf(from, base, cap, dim)
     if (to === from) continue
     cur[k] = to
     const before = profRank(from), after = profRank(to)

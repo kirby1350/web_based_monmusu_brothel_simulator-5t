@@ -278,16 +278,16 @@ test('放权场景：女王调教室 / 王座间——S性、淫乱、好感、�
   })
   assert.deepEqual(getScene('queen_room')!.directions, ['release'])
   assert.deepEqual(getScene('throne')!.directions, ['release'])
-  // 普通种族：放权基础 S性 +5，女王调教室再 +6、淫乱 +3、好感 +1
+  // 普通种族：放权基础 S性 +8，女王调教室再 +8、淫乱 +3、好感 +1
   const plain = resolveTraining({ girl: mk('猫娘'), direction: 'release', skip: true })
   const q = resolveTraining({ girl: mk('猫娘'), direction: 'release', skip: true, scene: 'queen_room', day: 1 })
-  assert.equal(q.delta.s, plain.delta.s + 6)
+  assert.equal(q.delta.s, plain.delta.s + 8)
   assert.equal(q.delta.lewdness, plain.delta.lewdness + 3)
   assert.equal(q.delta.affection, plain.delta.affection + 1)
-  assert.equal(q.girl.proficiency!['S性'], 10 + 11)
-  // 王座间：S性 +8、声望 +1、体力 +5；龙娘亲和淫乱主项 +2
+  assert.equal(q.girl.proficiency!['S性'], 10 + 16)
+  // 王座间：S性 +10、声望 +1、体力 +5；龙娘亲和淫乱主项 +2
   const t = resolveTraining({ girl: mk('龙娘'), direction: 'release', skip: true, scene: 'throne', day: 1 })
-  assert.equal(t.delta.s, plain.delta.s + 8)
+  assert.equal(t.delta.s, plain.delta.s + 10)
   assert.equal(t.delta.lewdness, plain.delta.lewdness + 2 + 2)
   assert.equal(t.reputationDelta, 1)
   assert.equal(t.staminaCost, 25)

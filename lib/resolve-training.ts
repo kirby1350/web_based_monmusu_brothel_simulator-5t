@@ -14,17 +14,17 @@ import {
   SKIP_OBEDIENCE_MIN, TRAINING_PROPS, MAX_STAMINA, COMMON_ZONES, SENSITIVITY_DEFAULT, outfitName,
 } from './catalog'
 import {
-  growProficiency, DRILL_PROF_GAIN, DRILL_PROF_BONUS, MS_PROF_GAIN, MS_PROF_EXTRA, SENSITIZE_PROF_GAIN, ZONE_SKILL,
+  growProficiency, profDimTraining, PROF_MAX, DRILL_PROF_GAIN, DRILL_PROF_BONUS, MS_PROF_GAIN, MS_PROF_EXTRA, SENSITIZE_PROF_GAIN, ZONE_SKILL,
   type ProfChange,
 } from './proficiency'
 
 export const TRAINING_DIRECTIONS: { key: TrainingDirection; label: string; hint: string }[] = [
-  { key: 'tame', label: '驯服', hint: '服从 +6，M性 +5' },
-  { key: 'release', label: '放权', hint: '淫乱 +6，S性 +5' },
+  { key: 'tame', label: '驯服', hint: '服从 +6，M性 +8' },
+  { key: 'release', label: '放权', hint: '淫乱 +6，S性 +8' },
   { key: 'sculpt', label: '塑形', hint: '用一瓶塑形药改三围，淫乱 +1' },
-  { key: 'drill', label: '特训', hint: '一项技能熟练度 +10' },
-  { key: 'sensitize', label: '敏感开发', hint: '一条敏感带 +10，对应技能 +2' },
-  { key: 'punish', label: '惩罚', hint: '驯服效果 + 服从 +3、M性 +3；处理掉事件' },
+  { key: 'drill', label: '特训', hint: '一项技能熟练度 +16' },
+  { key: 'sensitize', label: '敏感开发', hint: '一条敏感带 +10，对应技能 +5' },
+  { key: 'punish', label: '惩罚', hint: '驯服效果 + 服从 +3、M性 +4；处理掉事件' },
 ]
 
 /** 调教体力消耗：每场固定 20（道具、种族、调教室都不改体力） */
@@ -121,7 +121,7 @@ export function resolveTraining(input: TrainingInput): TrainingResult {
     const why = provokeBlock(girl, input.provoke, input.day ?? 1)
     if (why) return { ok: false, error: why, delta, staminaCost: 0, girl, notes, summary: why }
   }
-  // 催眠室特训：熟练度 +4
+  // 催眠室特训：熟练度 +6
   const sceneProg = input.scene === 'hypnosis' && direction === 'drill' ? DRILL_PROF_BONUS : 0
   const fail = (error: string): TrainingResult => ({ ok: false, error, delta, staminaCost: 0, girl, notes, summary: error })
 
@@ -186,7 +186,7 @@ export function resolveTraining(input: TrainingInput): TrainingResult {
       const skill = input.skill
       if (!skill) return fail('需要指定一项技能')
       profSkill = skill
-      // 舞娘纱衣：特训「待客」+4，与练习镜不叠加
+      // 舞娘纱衣：特训「待客」+6，与练习镜不叠加
       const dancerBonus = input.outfit === 'dancer' && skill === '待客' && !props.has('mirror') ? DRILL_PROF_BONUS : 0
       delta.skillProgress = m(DRILL_PROF_GAIN) + (props.has('mirror') ? DRILL_PROF_BONUS : 0) + dancerBonus + sceneProg
       if (sceneProg) notes.push(`催眠室：熟练度 +${DRILL_PROF_BONUS}`)
@@ -297,8 +297,8 @@ function applyScene(input: TrainingInput, id: SceneId, next: MonstGirl, delta: T
       else for (const z of COMMON_ZONES) if (z !== input.zone) extraZones[z] = k(2)
       break
     case 'onsen': if (direction === 'tame') ob = k(3); else lw = k(3); break
-    case 'queen_room': s = k(6); lw = k(3); break
-    case 'throne': s = k(8); lw = k(2); rep = 1; break
+    case 'queen_room': s = k(8); lw = k(3); break
+    case 'throne': s = k(10); lw = k(2); rep = 1; break
   }
   // 主项：亲和/觉醒 +2，抗拒 −2
   const mainAdj = reaction === 'affinity' || reaction === 'awakened' ? AFFINITY_MAIN_BONUS : reaction === 'aversion' ? -AVERSION_MAIN_PENALTY : 0
@@ -348,7 +348,7 @@ function applyDelta(girl: MonstGirl, next: MonstGirl, delta: TrainingDelta, prof
   if (delta.m > 0) gains['M性'] = delta.m
   if (delta.s > 0) gains['S性'] = delta.s
   if (profSkill && delta.skillProgress > 0) gains[profSkill] = (gains[profSkill] ?? 0) + delta.skillProgress
-  const r = growProficiency(next, gains)
+  const r = growProficiency(next, gains, PROF_MAX, profDimTraining)
   next.proficiency = r.girl.proficiency
   next.inclination = r.girl.inclination
   return { changes: r.changes, becameTwoSided: r.becameTwoSided }
