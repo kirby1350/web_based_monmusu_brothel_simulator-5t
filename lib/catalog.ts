@@ -220,7 +220,9 @@ export const DORM_LEVELS = [
 ]
 export const TRAINING_ROOM_MULT = [1, 1.25, 1.5, 2]
 export const TRAINING_ROOM_PROP_SLOTS = [0, 1, 2, 3]
-export const REST_STAMINA = 50
+/** 结束今天的休养加成：今天没出场的人 +15（并解除疲惫）；每剩 1 次没用的行动全员 +15 */
+export const IDLE_REST_BONUS = 15
+export const UNUSED_ACTION_REST_BONUS = 15
 export const MAX_STAMINA = 100
 export function getUpgradeCostFor(table: number[], level?: number): number | null {
   const lv = level ?? 1

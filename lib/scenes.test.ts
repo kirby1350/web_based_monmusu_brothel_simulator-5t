@@ -123,7 +123,8 @@ test('结算写档：声望、风险事件只在有风险时掷骰', () => {
 test('结束今天：扣维护费、挂机服从 +3 与体力减半、写进小结', () => {
   const s = { ...mkSave({ ownedScenes: ['machine', 'dungeon'], gold: 100, dormLevel: 1 }, [human({ id: 'a', stamina: 40 }), human({ id: 'b', stamina: 40 })]) }
   const m = setMachineNight(s, 'a'); assert.ok(m.ok)
-  const n = endDay((m as { save: GameSave }).save, () => 0.99)
+  // 行动用满、b 出场了：b 只有宿舍恢复；a 挂机减半
+  const n = endDay({ ...(m as { save: GameSave }).save, actionsUsedToday: 3, appearedToday: ['b'] }, () => 0.99)
   assert.equal(n.player.gold, 97)
   assert.equal(n.lastDaySummary?.upkeep, 3)
   const a = n.girls.find((g) => g.id === 'a')!, b = n.girls.find((g) => g.id === 'b')!

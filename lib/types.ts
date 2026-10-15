@@ -318,7 +318,7 @@ export interface GameSave {
   regulars?: Guest[]
   // 单间宿舍指定的额外回复对象
   bestBedGirlId?: string
-  // 今天已出场（接客/调教/休息）的魔物娘 id，结束今天时清空
+  // 今天已出场（接客/调教）的魔物娘 id，结束今天时清空
   appearedToday?: string[]
   // 存档格式版本（缺省 = 0，旧存档），由 migrateSave 升到 SAVE_VERSION
   saveVersion?: number

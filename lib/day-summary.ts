@@ -20,6 +20,8 @@ export interface DaySummary {
   upkeep?: number
   /** 机械调教室夜间挂机 */
   night?: string
+  /** 休养加成说明（UX 6） */
+  rest?: string
 }
 
 /** 「差一点」成为回头客的满意度线 */

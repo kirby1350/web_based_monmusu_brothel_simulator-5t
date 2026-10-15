@@ -13,9 +13,9 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { MAX_ACTIONS_PER_DAY, getGirlCapacity, getGuestCapacity, getUpgradeCost } from '@/lib/game-engine'
-import { endDay, restGirl, upgradeDorm, getDormInfo, pickArrivalLeader, arrivalFallbackText, arrivalPromptNote, setBestBed, setMachineNight, bannerPath, shortfallText, upgradeChangeText, type FacilityKey } from '@/lib/hub-logic'
+import { endDay, nightPlan, unusedActions, upgradeDorm, getDormInfo, pickArrivalLeader, arrivalFallbackText, arrivalPromptNote, setBestBed, setMachineNight, bannerPath, shortfallText, upgradeChangeText, type FacilityKey } from '@/lib/hub-logic'
 import { getScene, sceneUpkeep, ownsScene, MACHINE_NIGHT_OBEDIENCE } from '@/lib/scenes'
-import { SERVICE_ROOM_UPGRADE_COSTS, TRAINING_ROOM_UPGRADE_COSTS, getUpgradeCostFor, getPlaySlots, TRAINING_ROOM_MULT, TRAINING_ROOM_PROP_SLOTS, REST_STAMINA } from '@/lib/catalog'
+import { SERVICE_ROOM_UPGRADE_COSTS, TRAINING_ROOM_UPGRADE_COSTS, getUpgradeCostFor, getPlaySlots, TRAINING_ROOM_MULT, TRAINING_ROOM_PROP_SLOTS, IDLE_REST_BONUS, UNUSED_ACTION_REST_BONUS } from '@/lib/catalog'
 import { clearOpeningCache, getOpeningCache, saveOpeningCache } from '@/lib/storage'
 import { contextImageTags, hubOpeningPrompt } from '@/lib/prompt-context'
 import { dismissDaySummary } from '@/lib/day-summary'
@@ -39,7 +39,7 @@ const KIND_LABEL: Record<string, string> = { M: '想施虐 · M 性对口', S: '
 export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSettings, newlyPurchasedGirl, onNewGirlGreeted }: DailyHubProps) {
   const { player, girls } = save
   const [openGirlId, setOpenGirlId] = useState<string | null>(null)
-  const [restPicking, setRestPicking] = useState(false)
+  const [endDayOpen, setEndDayOpen] = useState(false)
   const [notice, setNotice] = useState('')
 
   const [intro, setIntro] = useState<{ girlId: string; speaker: string; text: string; loading: boolean } | null>(null)
@@ -131,15 +131,11 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
     const r = setMachineNight(save, id || null)
     if (r.ok) { onSaveChange(r.save); flash(r.message) } else flash(r.error)
   }
-  const handleRest = (girlId: string) => {
-    const r = restGirl(save, girlId)
-    setRestPicking(false)
-    if (r.ok) { onSaveChange(r.save); flash(r.message) } else flash(r.error)
-  }
   const handleEndDay = () => {
+    setEndDayOpen(false)
     clearOpeningCache()
     onSaveChange(endDay(save))
-    flash(`第 ${save.currentDay + 1} 天开始了，宿舍让大家恢复了体力`)
+    flash(`第 ${save.currentDay + 1} 天开始了，大家休整了一晚`)
   }
 
   const dorm = getDormInfo(player.dormLevel)
@@ -186,6 +182,7 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
               {!!d.unresolved && <p className="text-rose-300/70">仍有 {d.unresolved} 件旧事件未处理</p>}
               {!!d.upkeep && <p className="text-muted-foreground" data-testid="day-upkeep">调教场景维护 −{d.upkeep} G</p>}
               {d.night && <p className="text-muted-foreground" data-testid="day-night">{d.night}</p>}
+              {d.rest && <p className="text-emerald-300/90" data-testid="day-rest">休养：{d.rest}</p>}
               {d.stats.length > 0 && <p className="text-muted-foreground">{d.stats.map((x) => `${x.girl} ${[x.ob && `服${sign(x.ob)}`, x.lw && `淫${sign(x.lw)}`, x.aff && `好${sign(x.aff)}`].filter(Boolean).join(' ')}`).join('｜')}</p>}
               <div className="flex justify-end pt-1">
                 <button className="text-primary font-semibold" data-testid="day-summary-close" onClick={() => onSaveChange(dismissDaySummary(save))}>知道了</button>
@@ -226,10 +223,10 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
           {girls.map((g) => {
             const st = g.stamina ?? 100
             return (
-              <div key={g.id} role="button" tabIndex={0} data-testid={`girl-${g.name}`} onClick={() => restPicking ? handleRest(g.id) : setOpenGirlId(g.id)}
-                onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); if (restPicking) { handleRest(g.id) } else { setOpenGirlId(g.id) } } }}
+              <div key={g.id} role="button" tabIndex={0} data-testid={`girl-${g.name}`} onClick={() => setOpenGirlId(g.id)}
+                onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setOpenGirlId(g.id) } }}
                 className={cn('w-16 shrink-0 rounded-lg border bg-card p-1 text-left transition-colors cursor-pointer',
-                  restPicking ? 'border-emerald-400/60 hover:bg-emerald-400/10' : 'border-border hover:border-primary/50')}>
+                  'border-border hover:border-primary/50')}>
                 <div className="relative w-full aspect-square rounded-md overflow-hidden">
                   <ImageDisplay tags={contextImageTags(g, { exhausted: g.exhausted || (g.stamina ?? 100) < 30, incident: !!g.incident })} settings={settings} cachedUrl={g.imageUrl}
                     onUrlCached={(url) => onSaveChange({ ...save, girls: girls.map((x) => x.id === g.id ? { ...x, imageUrl: url } : x) })}
@@ -246,10 +243,6 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
             )
           })}
         </div>
-        {restPicking && (
-          <p className="text-[10px] text-emerald-300 mt-1">选择要休息的魔物娘（体力 +{REST_STAMINA}，占 1 次行动）
-            <button className="ml-2 underline text-muted-foreground" onClick={() => setRestPicking(false)}>取消</button></p>
-        )}
       </div>
 
       {notice && <div className="mx-4 mt-2 bg-primary/10 border border-primary/30 rounded-lg px-3 py-1.5 text-xs text-primary" data-testid="notice">{notice}</div>}
@@ -337,19 +330,19 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
         </div>
       </Tabs>
 
-      {/* 底部四个按钮 */}
+      {/* 底部三个按钮（休息并入结束今天） */}
       <div className="border-t border-border px-4 py-2 shrink-0">
         {noActionsLeft && <p className="text-[10px] text-rose-400/80 text-center mb-1.5">今日行动已用尽，点击「结束今天」进入下一天</p>}
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <ActionButton icon={Store} label="接客" color="primary" onClick={() => onNavigate('service')}
             disabled={girls.length === 0 || noActionsLeft || guests.length === 0} />
           <ActionButton icon={Sword} label="调教" color="rose" onClick={() => onNavigate('training')}
             disabled={girls.length === 0 || noActionsLeft} />
-          <ActionButton icon={Bed} label="休息" color="emerald" onClick={() => setRestPicking((v) => !v)}
-            disabled={girls.length === 0 || noActionsLeft} testId="btn-rest" />
-          <ActionButton icon={Moon} label="结束今天" color="amber" onClick={handleEndDay} testId="btn-endday" />
+          <ActionButton icon={Moon} label="结束今天" color="amber" onClick={() => setEndDayOpen(true)} testId="btn-endday" />
         </div>
       </div>
+
+      {endDayOpen && <EndDaySheet save={save} onCancel={() => setEndDayOpen(false)} onConfirm={handleEndDay} />}
 
       {openGirl && (
         <GirlSheet key={openGirl.id} girl={openGirl} save={save} settings={settings} onSaveChange={onSaveChange} onClose={() => { setOpenGirlId(null); setIntro(null) }} intro={intro && intro.girlId === openGirl.id ? intro : null} />
@@ -418,5 +411,40 @@ function ActionButton({ icon: Icon, label, color, onClick, disabled, testId }: {
       <Icon className="w-4 h-4" />
       {label}
     </button>
+  )
+}
+
+/** 结束今天的确认抽屉：预览每个人明早的体力（宿舍 / 休养 / 挂机分开写） */
+function EndDaySheet({ save, onCancel, onConfirm }: { save: GameSave; onCancel: () => void; onConfirm: () => void }) {
+  const plan = nightPlan(save)
+  const left = unusedActions(save)
+  const dorm = getDormInfo(save.player.dormLevel)
+  return (
+    <div className="absolute inset-0 z-40 bg-black/60 flex items-end" data-testid="endday-sheet" onClick={onCancel}>
+      <div className="w-full rounded-t-2xl border-t border-border bg-card px-4 pt-3 pb-4 space-y-2.5" onClick={(e) => e.stopPropagation()}>
+        <div className="mx-auto w-10 h-1 rounded-full bg-muted-foreground/30" />
+        <p className="text-sm font-bold gold-text">结束第 {save.currentDay} 天</p>
+        <p className="text-[11px] text-muted-foreground leading-relaxed">
+          宿舍「{dorm.name}」每晚 +{dorm.nightly}{dorm.clearsExhaustion ? '、解除疲惫' : ''}。
+          {left > 0 ? <span className="text-emerald-300"> 还剩 {left} 次行动没用：全员再 +{left * UNUSED_ACTION_REST_BONUS}。</span> : ' 行动已用完。'}
+          今天没出场的人 +{IDLE_REST_BONUS} 并解除疲惫。
+        </p>
+        <div className="space-y-1">
+          {plan.map((p) => (
+            <div key={p.girlId} className="flex items-center gap-2 rounded-lg border border-border bg-secondary/30 px-3 py-1.5 text-xs" data-testid={`endday-${p.name}`}>
+              <span className="w-16 truncate gold-text">{p.name}</span>
+              <span className="flex-1 text-[10px] text-muted-foreground">
+                {p.machine ? `机械挂机：宿舍减半 +${p.dorm}` : [`宿舍 +${p.dorm}`, p.bestBed && `床位 +${p.bestBed}`, p.idle && `休养 +${p.idle}`, p.unused && `空闲 +${p.unused}`].filter(Boolean).join(' · ')}
+              </span>
+              <span className="text-emerald-300 tabular-nums">{p.before} → {p.after}</span>
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-2 gap-2 pt-1">
+          <Button variant="outline" className="h-9 text-xs" onClick={onCancel}>再想想</Button>
+          <Button className="h-9 text-xs" onClick={onConfirm} data-testid="endday-confirm">结束今天</Button>
+        </div>
+      </div>
+    </div>
   )
 }

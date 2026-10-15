@@ -5,7 +5,7 @@ import { generateDailyGuests, getGuestCapacity, getGirlCapacity, getUpgradeCost,
 import { resolveService, canSkipService } from '../lib/resolve-service'
 import { resolveTraining } from '../lib/resolve-training'
 import { applyServiceToSave, applyTrainingToSave } from '../lib/settle-session'
-import { endDay, restGirl, upgradeDorm, getDormInfo } from '../lib/hub-logic'
+import { endDay, upgradeDorm, getDormInfo } from '../lib/hub-logic'
 import { withInitialProficiency, SERVING_PROF_SKILLS, PROF_TIERS } from '../lib/proficiency'
 import { buyRecovery, useRecovery, upgradeServiceRoom, upgradeTrainingRoom, buyWardrobe } from '../lib/shop'
 import { OUTFITS, STOCKINGS } from '../lib/catalog'
@@ -128,9 +128,9 @@ for (let day = 1; day <= DAYS; day++) {
       const r = resolveTraining({ girl: trainee, direction: dir, skip: true, roomLevel: save.player.trainingRoomLevel, scene: tscene, day: save.currentDay })
       if (r.ok) { save = applyTrainingToSave(save, r, undefined, rng); stats.trainings++; noteScene(r, tscene); continue }
     }
-    const tired = [...save.girls].sort((x, y) => (x.stamina ?? 100) - (y.stamina ?? 100))[0]
-    const rr = restGirl(save, tired.id)
-    if (rr.ok) { save = rr.save; stats.rests++ } else stats.idle++
+    // 没有值得做的事：把剩下的行动留着，结束今天时变成全员休养（UX 6）
+    stats.rests += MAX_ACTIONS_PER_DAY - a
+    break
   }
   const avgSt = Math.round(save.girls.reduce((s, g) => s + (g.stamina ?? 100), 0) / save.girls.length)
   // 机械挂机：今天没出场、服从最低的那位
@@ -185,7 +185,7 @@ function peekCost(f: () => { ok: boolean } & ({ ok: true } | { ok: false; error:
 }
 
 out('')
-out(`策略 ${STRAT}｜种子 ${seed}｜接客 ${stats.services}，调教 ${stats.trainings}，休息 ${stats.rests}，闲置 ${stats.idle}，热餐 ${stats.potions}，买人 ${stats.bought}`)
+out(`策略 ${STRAT}｜种子 ${seed}｜接客 ${stats.services}，调教 ${stats.trainings}，休养（留空行动）${stats.rests}，闲置 ${stats.idle}，热餐 ${stats.potions}，买人 ${stats.bought}`)
 out(`评价分布 ${JSON.stringify(stats.tiers)}｜满意度 最低 ${Math.min(...stats.sats)} 平均 ${Math.round(stats.sats.reduce((a, b) => a + b, 0) / stats.sats.length)} 最高 ${Math.max(...stats.sats)}｜接客总收入 ${stats.serviceIncome}，惩罚 ${stats.punish}`)
 out(`回头客 ${(save.regulars ?? []).length}，最终声望 ${save.player.reputation ?? 0}，最终金币 ${save.player.gold}`)
 out(`升级记录 ${stats.upgrades.join('，') || '无'}`)

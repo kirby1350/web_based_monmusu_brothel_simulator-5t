@@ -1,8 +1,8 @@
 import { buildDaySummary, freshDayLog } from './day-summary'
-// 大厅经营动作（纯函数）：送礼、休息、宿舍升级、结束今天
+// 大厅经营动作（纯函数）：送礼、宿舍升级、结束今天（含休养）
 import type { GameSave, Guest, MonstGirl, SkillKey } from './types'
 import {
-  DORM_LEVELS, DORM_UPGRADE_COSTS, MAX_STAMINA, REST_STAMINA,
+  DORM_LEVELS, DORM_UPGRADE_COSTS, MAX_STAMINA, IDLE_REST_BONUS, UNUSED_ACTION_REST_BONUS,
   getUpgradeCostFor, getPlaySlots, TRAINING_ROOM_MULT, TRAINING_ROOM_PROP_SLOTS,
 } from './catalog'
 import { nightlyIncidents } from './incidents'
@@ -47,27 +47,6 @@ export function giveGift(save: GameSave, girlId: string, giftIndex: number): Hub
   }
 }
 
-// ─── 休息：占 1 次行动，体力 +50 ────────────────────────────────────────────────
-
-export function restGirl(save: GameSave, girlId: string): HubResult {
-  const girl = save.girls.find((g) => g.id === girlId)
-  if (!girl) return { ok: false, error: '找不到这名魔物娘' }
-  const used = save.actionsUsedToday ?? 0
-  if (used >= MAX_ACTIONS_PER_DAY) return { ok: false, error: '今日行动已用尽' }
-  const before = girl.stamina ?? MAX_STAMINA
-  const updated = { ...girl, stamina: clampStamina(before + REST_STAMINA) }
-  const appeared = save.appearedToday ?? []
-  return {
-    ok: true,
-    message: `${girl.name} 休息了一会儿，体力 ${before} → ${updated.stamina}`,
-    save: {
-      ...save,
-      actionsUsedToday: used + 1,
-      girls: replaceGirl(save, updated),
-      appearedToday: appeared.includes(girl.id) ? appeared : [...appeared, girl.id],
-    },
-  }
-}
 
 // ─── 宿舍 ─────────────────────────────────────────────────────────────────────
 
@@ -96,16 +75,57 @@ export function nightlyRecovery(save: GameSave, girl: MonstGirl): number {
 
 // ─── 结束今天：宿舍回复、行动归零、刷新客人池 ─────────────────────────────────
 
+/** 一个人今晚的恢复明细（结束今天的预览与结算共用） */
+export interface NightRest {
+  girlId: string; name: string; before: number; after: number
+  dorm: number; bestBed: number; idle: number; unused: number
+  /** 机械挂机：宿舍恢复减半、不吃休养加成 */
+  machine: boolean
+  clearsExhaustion: boolean
+}
+
+/** 今天还剩几次行动没用（每次 = 全员休养 +15） */
+export function unusedActions(save: GameSave): number {
+  return Math.max(0, MAX_ACTIONS_PER_DAY - (save.actionsUsedToday ?? 0))
+}
+
+/**
+ * 结束今天的恢复：宿舍每晚恢复（单间床位另加）+ 休养加成。
+ * - 今天没出场：+15，并解除疲惫；
+ * - 每剩 1 次没用的行动：全员 +15（最多 3 次）；
+ * - 机械挂机的人：宿舍恢复减半，不吃休养加成。
+ */
+export function nightPlan(save: GameSave): NightRest[] {
+  const dormInfo = getDormInfo(save.player.dormLevel)
+  const nightId = machineNightTarget(save)
+  const unused = unusedActions(save) * UNUSED_ACTION_REST_BONUS
+  const appeared = save.appearedToday ?? []
+  return save.girls.map((g) => {
+    const before = g.stamina ?? MAX_STAMINA
+    const bestBed = dormInfo.bestBedBonus && save.bestBedGirlId === g.id ? dormInfo.bestBedBonus : 0
+    if (g.id === nightId) {
+      const dorm = Math.floor((dormInfo.nightly + bestBed) / 2)
+      return { girlId: g.id, name: g.name, before, after: clampStamina(before + dorm), dorm, bestBed: 0, idle: 0, unused: 0, machine: true, clearsExhaustion: !!dormInfo.clearsExhaustion }
+    }
+    const idle = appeared.includes(g.id) ? 0 : IDLE_REST_BONUS
+    const total = dormInfo.nightly + bestBed + idle + unused
+    return {
+      girlId: g.id, name: g.name, before, after: clampStamina(before + total), dorm: dormInfo.nightly, bestBed, idle, unused, machine: false,
+      clearsExhaustion: !!dormInfo.clearsExhaustion || idle > 0,
+    }
+  })
+}
+
 export function endDay(save: GameSave, rng: () => number = Math.random): GameSave {
-  const dorm = getDormInfo(save.player.dormLevel)
   // 机械调教室夜间挂机：今天没出场的那一人，服从 +3、当晚体力恢复减半、记一次场景使用
   const nightId = machineNightTarget(save)
   let nightNote: string | undefined
-  const rested = save.girls.map((g) => {
-    const rec = nightlyRecovery(save, g)
-    const base = { ...g, exhausted: dorm.clearsExhaustion ? false : g.exhausted }
-    if (g.id !== nightId) return { ...base, stamina: clampStamina((g.stamina ?? MAX_STAMINA) + rec) }
-    const hooked = { ...base, stamina: clampStamina((g.stamina ?? MAX_STAMINA) + Math.floor(rec / 2)), obedience: Math.min(100, g.obedience + MACHINE_NIGHT_OBEDIENCE) }
+  const plan = nightPlan(save)
+  const rested = save.girls.map((g, i) => {
+    const p = plan[i]
+    const base = { ...g, exhausted: p.clearsExhaustion ? false : g.exhausted }
+    if (g.id !== nightId) return { ...base, stamina: p.after }
+    const hooked = { ...base, stamina: p.after, obedience: Math.min(100, g.obedience + MACHINE_NIGHT_OBEDIENCE) }
     const acc = accumulateScene(hooked, 'machine', save.currentDay)
     nightNote = `${g.name}在机械调教室挂了一夜：服从 +${MACHINE_NIGHT_OBEDIENCE}${acc.awakenedNow ? '，觉醒了器具癖' : ''}`
     let after = g.memory ? addEvent(acc.girl, { day: save.currentDay, kind: 'training', text: '在机械调教室里被挂了一整夜', w: 1, scene: 'machine' }) : acc.girl
@@ -118,7 +138,8 @@ export function endDay(save: GameSave, rng: () => number = Math.random): GameSav
   const upkeep = sceneUpkeep(save.player)
   const paid = Math.min(upkeep, Math.max(0, save.player.gold))
   const charged: GameSave = paid ? { ...save, player: { ...save.player, gold: save.player.gold - paid } } : save
-  const lastDaySummary = { ...buildDaySummary(charged, girls), ...(upkeep ? { upkeep: paid } : {}), ...(nightNote ? { night: nightNote } : {}) }
+  const restNote = restSummary(save, plan)
+  const lastDaySummary = { ...buildDaySummary(charged, girls), ...(upkeep ? { upkeep: paid } : {}), ...(nightNote ? { night: nightNote } : {}), ...(restNote ? { rest: restNote } : {}) }
   const next = { ...charged, currentDay: save.currentDay + 1, girls }
   return {
     ...charged,
@@ -131,6 +152,14 @@ export function endDay(save: GameSave, rng: () => number = Math.random): GameSav
     girls,
     dailyGuests: generateDailyGuests(getGuestCapacity(save.player.level), save.player.reputation ?? 0, save.regulars ?? []),
   }
+}
+
+/** 昨日小结的「休养」一行（没有休养加成时为空） */
+export function restSummary(save: GameSave, plan: NightRest[] = nightPlan(save)): string {
+  const n = unusedActions(save)
+  const idle = plan.filter((p) => p.idle > 0).map((p) => p.name)
+  const parts = [n ? `剩 ${n} 次行动，全员 +${n * UNUSED_ACTION_REST_BONUS}` : '', idle.length ? `没出场的${idle.join('、')}再 +${IDLE_REST_BONUS} 并解除疲惫` : '']
+  return parts.filter(Boolean).join('；')
 }
 
 /** 今晚真正会挂机的人：已购机械调教室、人还在、今天没出场 */
