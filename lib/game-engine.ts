@@ -1,4 +1,5 @@
 import { MonstGirl, Guest, GuestClass, ParticipantStats, ServiceSession, Player } from '@/lib/types'
+import { rollPrefBody } from './body-traits'
 import { parseLooseJson } from '@/lib/utils'
 import { GUEST_RACES, GUEST_PERSONALITIES, GUEST_TRAITS, RACES } from '@/lib/game-data'
 import { nanoid } from 'nanoid'
@@ -112,6 +113,8 @@ export function createRandomGuest(reputation = 0): Guest {
 }
 
 function createCommonGuest(desires: string, profile: ReturnType<typeof getDesireProfile>, reputation: number): Guest {
+  // 约两成客人偏好某项体质（泌乳 / 淫纹…）
+  const prefBody = rollPrefBody(Math.random)
   return {
     id: nanoid(),
     name: pick(GUEST_NAMES),
@@ -129,6 +132,7 @@ function createCommonGuest(desires: string, profile: ReturnType<typeof getDesire
     visits: 0,
     prefRace: pick(RACES).name,
     prefTrait: pick(GUEST_FETISH_PREFS).tag,
+    ...(prefBody ? { prefBody } : {}),
   }
 }
 

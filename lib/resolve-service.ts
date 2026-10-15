@@ -1,8 +1,9 @@
 // 接客结算（纯函数）：五步标准流程 + 额外 play → 满意度 / 档位 / 收入 / 体力
+import { TRAIT_PLAYS, traitPlayAvailable, bodyPrefHit, BODY_GREET_BONUS, getBodyTrait } from './body-traits'
 import { fetishMatchesGuest, fetishName, FETISH_GREET_BONUS } from './scenes'
 import { regularBonus } from './girl-memory'
 import { SERVICE_PROF_MAIN, SERVICE_PROF_SIDE, SERVICE_PROF_LIVE_MULT, type Proficiency } from './proficiency'
-import type { Guest, MonstGirl, OutfitId, SensitivityZone, ServingSkill, SkillRank, StockingId } from './types'
+import type { Guest, MonstGirl, OutfitId, SensitivityZone, ServingSkill, SkillKey, SkillRank, StockingId } from './types'
 import {
   GREET_HOSTING_SCORE, STEP_SCORE, STEP_MAX, SKILL_RANK_BONUS, PLAY_SCORE, PLAYS, RACE_PLAYS, SKIP_MATCH_BONUS, racePlayMatched, PlayDef, WRONG_SIDE_PLAY_PENALTY,
   OUTFITS, STOCKINGS, RACE_TRAITS, getPlaySlots, getGuestProfile, getSkillRank, getInclination,
@@ -126,7 +127,8 @@ export function getMainService(guest: Guest): '口侍' | '胸侍' | '身侍' {
 export function getAvailablePlays(girl: MonstGirl, guest: Guest): PlayDef[] {
   const main = getMainService(guest)
   const inc = getInclination(girl)
-  return [...PLAYS, ...(RACE_PLAYS[girl.race] ?? [])].filter((p) => {
+  return [...PLAYS, ...(RACE_PLAYS[girl.race] ?? []), ...TRAIT_PLAYS].filter((p) => {
+    if (p.source === 'trait') return traitPlayAvailable(p, girl)
     if (p.source === main) return false
     if (p.source === 'race') return p.race === girl.race
     if (p.source === 'M性') return inc === '两面' || (inc === 'M' && !!getSkillRank(girl, 'M性'))
@@ -149,11 +151,11 @@ export function scorePlay(girl: MonstGirl, guest: Guest, play: PlayDef): PlayRes
     const wrongSide = profile.kind !== '中性' && profile.kind !== side
     score = wrongSide ? WRONG_SIDE_PLAY_PENALTY : matched ? PLAY_SCORE[rank] : Math.floor(PLAY_SCORE[rank] / 2)
   } else {
-    if (play.source === 'race') {
+    if (play.source === 'race' || play.source === 'trait') {
       rank = play.rank ?? '熟练'
-      matched = racePlayMatched(play, guest)
+      matched = racePlayMatched(play, guest) || (play.source === 'trait' && guest.prefBody === play.bodyTrait)
     } else {
-      rank = getSkillRank(girl, play.source) ?? '初学'
+      rank = getSkillRank(girl, play.source as SkillKey) ?? '初学'
       matched = profile.service === play.source || profile.secondary.includes(play.source as ServingSkill)
     }
     score = matched ? PLAY_SCORE[rank] : Math.floor(PLAY_SCORE[rank] / 2)
@@ -223,6 +225,8 @@ export function resolveService(input: ServiceInput): ServiceResult {
   // 后天觉醒的性癖对上客人口味：迎客 +2（单场一次）
   const fetishHit = (girl.awakened ?? []).find((id) => fetishMatchesGuest(id, guest))
   if (fetishHit) { greet += FETISH_GREET_BONUS; raceNotes.push(`性癖「${fetishName(fetishHit)}」对上客人口味：迎客 +${FETISH_GREET_BONUS}`) }
+  // 体质对上客人偏好（泌乳 / 淫纹…）：迎客 +4
+  if (bodyPrefHit(guest, girl)) { greet += BODY_GREET_BONUS; raceNotes.push(`体质「${getBodyTrait(guest.prefBody)!.name}」对上客人口味：迎客 +${BODY_GREET_BONUS}`) }
   // 她记得的熟客（接过 ≥3 次、最好一次 ≥70）：迎客 +2
   const regular = regularBonus(girl, guest)
   if (regular) { greet += regular; raceNotes.push(`熟客：她记得${guest.name}，迎客 +${regular}`) }

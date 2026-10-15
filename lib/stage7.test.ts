@@ -60,7 +60,9 @@ test('play 图标：未就绪时返回 undefined（组件显示文字徽章）�
 
 test('30 条 play 图标全部就绪且有文件', async () => {
   const { ALL_PLAYS, PLAY_ICONS_READY } = await import('./catalog')
-  assert.equal(ALL_PLAYS.length, 30)
-  for (const p of ALL_PLAYS) assert.ok(PLAY_ICONS_READY.has(p.id), p.id)
+  // 体质 play（trait_*）的图标还没画：卡片退回文字徽章
+  const drawn = ALL_PLAYS.filter((p) => p.source !== 'trait')
+  assert.equal(drawn.length, 30)
+  for (const p of drawn) assert.ok(PLAY_ICONS_READY.has(p.id), p.id)
   for (const id of PLAY_ICONS_READY) assert.ok(ALL_PLAYS.some((p) => p.id === id), `stray ${id}`)
 })

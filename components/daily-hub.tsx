@@ -1,5 +1,6 @@
 'use client'
 
+import { bodyTraitsOf, getBodyTrait, bodyTraitLabel } from '@/lib/body-traits'
 import { useEffect, useState } from 'react'
 import { Settings, Coins, Calendar, Store, Sword, Moon, Zap } from 'lucide-react'
 import { GameSave, MonstGirl, AppSettings } from '@/lib/types'
@@ -28,12 +29,14 @@ interface DailyHubProps {
   onSaveChange: (save: GameSave) => void
   onNavigate: (tab: GameTab) => void
   onOpenSettings: () => void
+  /** 作弊模式开着时，顶栏多一个「作弊」入口 */
+  onOpenCheat?: () => void
   newlyPurchasedGirl?: MonstGirl | null
   onNewGirlGreeted?: () => void
 }
 
 
-export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSettings, newlyPurchasedGirl, onNewGirlGreeted }: DailyHubProps) {
+export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSettings, onOpenCheat, newlyPurchasedGirl, onNewGirlGreeted }: DailyHubProps) {
   const { player, girls } = save
   const [openGirlId, setOpenGirlId] = useState<string | null>(null)
   const [endDayOpen, setEndDayOpen] = useState(false)
@@ -120,6 +123,9 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
         <span className={cn('flex items-center gap-1 text-xs', noActionsLeft ? 'text-rose-400' : 'text-emerald-300')} data-testid="actions">
           <Zap className="w-3.5 h-3.5" />行动 {actionsLeft}/{MAX_ACTIONS_PER_DAY}
         </span>
+        {save.cheat?.enabled && onOpenCheat && (
+          <button className="h-6 px-2 rounded border border-rose-700/80 bg-rose-950/60 text-[10px] font-semibold text-rose-300 hover:bg-rose-900/60" onClick={onOpenCheat} data-testid="hub-cheat">作弊</button>
+        )}
         <Button variant="ghost" size="icon" className="w-7 h-7" onClick={onOpenSettings}>
           <Settings className="w-4 h-4" />
         </Button>
@@ -145,6 +151,7 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
               {!!d.upkeep && <p className="text-muted-foreground" data-testid="day-upkeep">调教场景维护 −{d.upkeep} G</p>}
               {d.night && <p className="text-muted-foreground" data-testid="day-night">{d.night}</p>}
               {d.rest && <p className="text-emerald-300/90" data-testid="day-rest">休养：{d.rest}</p>}
+              {d.bodyTraits && <p className="text-fuchsia-300/90" data-testid="day-body-traits">体质：{d.bodyTraits}</p>}
               {d.stats.length > 0 && <p className="text-muted-foreground">{d.stats.map((x) => `${x.girl} ${[x.ob && `服${sign(x.ob)}`, x.lw && `淫${sign(x.lw)}`, x.aff && `好${sign(x.aff)}`].filter(Boolean).join(' ')}`).join('｜')}</p>}
               <div className="flex justify-end pt-1">
                 <button className="text-primary font-semibold" data-testid="day-summary-close" onClick={() => onSaveChange(dismissDaySummary(save))}>知道了</button>
@@ -194,6 +201,9 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
                     onUrlCached={(url) => onSaveChange({ ...save, girls: girls.map((x) => x.id === g.id ? { ...x, imageUrl: url } : x) })}
                     alt={g.name} size="sm" className="w-full h-full object-cover" />
                   {appeared.has(g.id) && <span className="absolute top-0 right-0 text-[8px] bg-black/70 text-amber-300 px-1 rounded-bl">已出场</span>}
+                  {(() => { const pt = bodyTraitsOf(g, save.currentDay).filter((t) => t.daysLeft !== undefined); return pt.length ? (
+                    <span data-testid={`potion-mark-${g.name}`} title={pt.map(bodyTraitLabel).join('、')} className="absolute top-0 left-0 text-[8px] bg-fuchsia-700/85 text-white px-1 rounded-br">{getBodyTrait(pt[0].id)!.name}·{pt[0].daysLeft}天{pt.length > 1 ? '+' : ''}</span>
+                  ) : null })()}
                   {g.incident && <span data-testid={`incident-mark-${g.name}`} title={`${g.incident.kind}：${g.incident.text}`} className="absolute bottom-0 left-0 text-[8px] bg-rose-600/85 text-white px-1 rounded-tr">{g.incident.kind === '闯祸' ? '闯祸' : '失败'}</span>}
                 </div>
                 <p className="text-[10px] truncate mt-0.5 gold-text">{g.name}</p>
@@ -267,7 +277,9 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
         {(() => {
           const parsed = parseGuestBias(biasText)
           const races = [...new Set(girls.map((g) => g.race))]
-          const chips = [...races.map((r) => `喜欢${r}`), '巨乳', '贫乳', '丰臀', '兽耳', '口侍', '胸侍', '身侍', 'M', 'S']
+          const chips = [...races.map((r) => `喜欢${r}`), '巨乳', '贫乳', '丰臀', '兽耳', '口侍', '胸侍', '身侍', 'M', 'S',
+            // 馆里有人有的体质（定向找偏好这项体质的客人）
+            ...[...new Set(save.girls.flatMap((g) => bodyTraitsOf(g, save.currentDay).map((t) => getBodyTrait(t.id)!.name)))]]
           const cost = refreshCost(save, true)
           return (
             <div className="space-y-2">

@@ -1,3 +1,5 @@
+import { denseStyleBlock, DENSE_LENGTH, type BankOpts } from './prose-bank'
+import { bodyTraitLine } from './body-traits'
 import { Player, MonstGirl, Guest, ServiceSession, GameSave, ProseStyle } from '@/lib/types'
 import { ALL_PLAYS as PLAYS, getSensitivityLevel, getSkillRank } from '@/lib/catalog'
 import type { OutfitId, StockingId, SceneId } from '@/lib/types'
@@ -9,7 +11,7 @@ import { personalityAnchorBlock } from '@/lib/voice-prompts'
 import { guestVoiceBlock } from '@/lib/guest-voice'
 
 /** 系统提示词的可选游戏状态：天数、当前服装（客人偏好命中用） */
-export interface PromptState { day?: number; outfit?: OutfitId; stockings?: StockingId; scene?: SceneId; /** 快感由本地【此刻的兴奋与快感】给出，不再写模型累计的快感 */ heatLocal?: boolean }
+export interface PromptState { day?: number; outfit?: OutfitId; stockings?: StockingId; scene?: SceneId; /** 快感由本地【此刻的兴奋与快感】给出，不再写模型累计的快感 */ heatLocal?: boolean; /** 重油：当前步骤（0 迎客…3 正戏）、是否已有人到高潮档、抽词种子、最近用过的词库词 */ dense?: BankOpts }
 
 // ─── 文风控制（去油黑名单常驻 + 可切换文风片段） ───────────────────────────────
 
@@ -21,24 +23,14 @@ const PROSE_BAN = `【文风禁令（提升质感，避免 AI 套话）】
    - 空心强度词：前所未有的、灭顶的（快感）、理智的弦断裂、理智彻底失守、如潮水般袭来
    - 言情滥腔：邪魅一笑、勾起一抹弧度、磁性的嗓音、低沉沙哑、深邃的眸子、眼底闪过一丝、骨节分明
 2. 高潮、绝顶、瘫软、坏掉等关键画面禁止套用现成比喻，必须用具体身体细节（某部位的动作/收缩/痉挛/体液）或该角色的专属意象（结合其设定/服装/道具）来写。
-3. 每个比喻必须新鲜、贴合情境，不得重复使用同一个喻体。
+3. 每个比喻必须新鲜、贴合情境，不得重复使用同一个喻体（重油文风的词库词是描写素材、不是喻体，可以叠用，但同一个词一段里只用一次）。
 4. 允许保留重口行话/梗（肉便器、坏掉、ahegao、子宫凸起、母猪/肉壶等），但靠具体细节制造冲击，而非反复堆同一个标签。`
 
-// 可切换文风片段（与常驻 PROSE_BAN 叠加；standard 为空，只走去油）
+// 可切换文风片段（与常驻 PROSE_BAN 叠加；standard 为空，只走去油）。
+// 重油的完整要求与本回合词库放在系统提示词最末尾（见 denseStyleBlock），这里只留一句指路，免得被后面的普通段落冲淡。
 const PROSE_STYLE_PROMPTS: Record<ProseStyle, string> = {
   standard: '',
-  dense: `【★本回合文风：重油堆叠（最高优先级，凌驾于一切"简洁/克制"倾向之上，必须贯穿全段每一句）★】
-在**严格遵守上方【文风禁令】黑名单**的前提下，把描写密度推到极致（密集 ≠ 偷懒，堆叠词必须新鲜、具体、贴合角色）：
-1. 形容词链：每个出场的身体部位前，连续堆叠 4 个以上「质感/肥度/油润/温度」修饰词不停顿（肥/厚/脂/油/腻/糯/雪滑/爆硕/沉甸甸…）。
-2. 功能化定语：用该部位的性用途或性史当作长定语（如「榨精专用甬道」「裹屌丝足」「能吞没整根的肥熟乳沟」）。
-3. 通感四件套：每个画面同时调动 质感+温度+气味+声音 中至少三样。
-4. 一部位一招牌喻体（须新鲜、不在同一段重复）：奶=吊钟/奶山，屄=馒头，臀=肉山/磨盘，后庭=螺纹，嘴=章鱼嘴/丁香小舌，脚趾=珍珠。
-5. 自造四字贬抑词当节奏锤：艳畜、母畜、肉壶、雌躯 之类。
-6. 气味轴贯穿全段：雌臭/狐骚/荷尔蒙媚香/油淫香汗，并与具体部位绑定。
-7. 细节闭环：颜色、道具、剧情前后呼应。
-【重油笔触示例（仅示范"密度与质感"，须照此堆叠浓度来写，但内容必须贴合当前角色/剧情，严禁照抄字句）】
-"那对肥厚脂油、沉甸甸坠到腰际的爆硕奶山一砸在他脸上，浓烈雌臭裹着甜腻奶香直灌鼻腔，滚烫黏腻的乳肉糊了满脸，椰枣般激突的酡红乳尖一被牙关碾过，便滋地喷出温稠拉丝的甜奶，啪——拍出一道白花花、颤巍巍的肥嫩肉浪……"
-（注意：每一段都要达到上面这种"修饰词成串、通感叠加、喻体鲜活、气味贯穿"的浓度，而不是只在开头点一下。）`,
+  dense: '【文风：重油堆叠】本场全程用重油文风，密度要求与本回合词库见提示词最末尾的【★重油文风★】段。',
 }
 
 /** 返回拼接进系统提示词的文风段（常驻禁令 + 当前文风片段） */
@@ -128,7 +120,10 @@ export function buildServiceSystemPrompt(
   state: PromptState = {}
 ): string {
   const base = buildServiceSystemPromptBase(player, session, proseStyle, state)
-  return stepContext ? base + '\n\n' + stepContext : base
+  const withCtx = stepContext ? base + '\n\n' + stepContext : base
+  if (proseStyle !== 'dense') return withCtx
+  const d = state.dense ?? { stepIndex: session.type === 'training' ? 2 : 3, climaxAllowed: false, seed: 0 }
+  return withCtx + '\n\n' + denseStyleBlock(d)
 }
 
 function buildServiceSystemPromptBase(
@@ -138,12 +133,12 @@ function buildServiceSystemPromptBase(
   state: PromptState = {}
 ): string {
   // 重油堆叠需要更多篇幅来铺密度，故 dense 模式下提高字数上限
-  const proseWordCount = proseStyle === 'dense' ? '500-800' : `${REPLY_LENGTH.min}-${REPLY_LENGTH.max}`
+  const proseWordCount = proseStyle === 'dense' ? `${DENSE_LENGTH.min}-${DENSE_LENGTH.max}` : `${REPLY_LENGTH.min}-${REPLY_LENGTH.max}`
   const girlDescriptions = session.girls
     .map(
       (g, i) => {
         const bwh = girlBWH(g)
-        return `魔物娘${i + 1}：${g.name}（${g.race}）\n  外貌：${g.bodyDesc}${bwh ? `，三围 ${bwh}` : ''}\n  性格：${g.personality}${speechLine(g, '\n  ')}\n  服装：${session.type === 'service' && i === 0 ? outfitDescLine(g, state.outfit, state.stockings) : g.outfit}\n  服从度：${g.obedience}/100，淫乱度：${g.lewdness}/100，好感度：${g.affection}/100\n  状态：${girlStateCard(g, state.day, { private: session.type === 'training' })}${g.sexualDesc ? `\n  色色设定：${g.sexualDesc}` : ''}${fetishPromptLine(g) ? `\n  ${fetishPromptLine(g)}` : ''}${memLine(g, { type: session.type === 'training' ? 'training' : 'service', guestId: session.guest?.id, scene: state.scene }, '  ')}`
+        return `魔物娘${i + 1}：${g.name}（${g.race}）\n  外貌：${g.bodyDesc}${bwh ? `，三围 ${bwh}` : ''}\n  性格：${g.personality}${speechLine(g, '\n  ')}\n  服装：${session.type === 'service' && i === 0 ? outfitDescLine(g, state.outfit, state.stockings) : g.outfit}\n  服从度：${g.obedience}/100，淫乱度：${g.lewdness}/100，好感度：${g.affection}/100\n  状态：${girlStateCard(g, state.day, { private: session.type === 'training' })}${bodyTraitLine(g, state.day) ? `\n  ${bodyTraitLine(g, state.day)}` : ''}${g.sexualDesc ? `\n  色色设定：${g.sexualDesc}` : ''}${fetishPromptLine(g) ? `\n  ${fetishPromptLine(g)}` : ''}${memLine(g, { type: session.type === 'training' ? 'training' : 'service', guestId: session.guest?.id, scene: state.scene }, '  ')}`
       }
     )
     .join('\n')
@@ -373,6 +368,8 @@ export interface GuestPromptHints {
   prefs?: { race: boolean; trait: boolean; outfit: boolean }
   traitTags?: string[]
   outfitPrefs?: string[]
+  /** 客人偏好的体质（泌乳 / 淫纹…）：desires 里自然带出来 */
+  bodyPref?: string
 }
 
 export function buildGuestGenerationPrompt(
@@ -389,7 +386,7 @@ export function buildGuestGenerationPrompt(
   ].filter(Boolean).join('\n') : ''
   return `你是一个色情角色生成AI。为一款魔物娘娼馆经营游戏生成一个饥渴的客人。
 
-玩家偏好：${preference || '随机'}${guestClass ? `\n客人身份：${guestClass}（身份越高越体面、出手越阔绰，但也越挑剔，desires 要更讲究）${hints.style ? `\n人设方向：${hints.style}` : ''}` : ''}${hints.theme ? `\n需求方向（必须围绕它展开，不要换成别的玩法）：${hints.theme}` : ''}
+玩家偏好：${preference || '随机'}${guestClass ? `\n客人身份：${guestClass}（身份越高越体面、出手越阔绰，但也越挑剔，desires 要更讲究）${hints.style ? `\n人设方向：${hints.style}` : ''}` : ''}${hints.theme ? `\n需求方向（必须围绕它展开，不要换成别的玩法）：${hints.theme}` : ''}${hints.bodyPref ? `\n他还偏爱「${hints.bodyPref}」体质的魔物娘：desires 里顺带写出这份偏爱` : ''}
 （客人自身种族可自由设定；若写偏好的魔物娘种族，只能从：${VALID_RACES.join('、')}）
 已有客人（避免重复）：${existingGuests.join('、') || '无'}
 

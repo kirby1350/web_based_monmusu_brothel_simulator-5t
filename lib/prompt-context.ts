@@ -1,4 +1,7 @@
 // 提示词的游戏状态片段：纯函数，只产出文本/标签，不改任何请求格式
+import { getBodyTrait, bodyPrefHit } from './body-traits'
+import { DENSE_LENGTH, DENSE_TURN_NOTE } from './prose-bank'
+import type { ProseStyle } from './types'
 import type { ChatMessage, GameSave, Guest, MonstGirl, OutfitId, ServingSkill, SkillKey, StockingId } from './types'
 import {
   OUTFITS, STOCKINGS, RACE_TRAITS, RACE_PLAYS, RACE_ZONE_NAMES, TRAINING_PROPS, TRAINING_ROOM_MULT, SCULPT_POTIONS,
@@ -102,6 +105,7 @@ export function guestPrefLine(guest: Guest, girl: MonstGirl, outfit: OutfitId = 
     const hit = o?.pref === guest.prefOutfit || s?.pref === guest.prefOutfit
     items.push(`服装：${guest.prefOutfit} ${hit ? `✔（已换上${hit && s?.pref === guest.prefOutfit ? s.name : o!.name}）` : '✘'}`)
   }
+  if (guest.prefBody) items.push(`体质：${getBodyTrait(guest.prefBody)?.name ?? guest.prefBody} ${bodyPrefHit(guest, girl) ? '✔' : '✘'}`)
   if (!items.length) return ''
   return `【客人偏好】${items.join('｜')}——命中项要被客人点名称赞，未命中项写出他的挑剔`
 }
@@ -189,10 +193,11 @@ export function buildStepRecap(steps: RecapStep[], currentIndex: number): string
 
 /** 每回合附在玩家消息末尾（只进请求，不进界面/存档）的字数提醒 */
 export const REPLY_LENGTH = { min: 300, max: 500 }
-export function lengthReminder(kind: 'service' | 'training' | 'chat'): string {
-  const { min, max } = REPLY_LENGTH
+export function lengthReminder(kind: 'service' | 'training' | 'chat', style: ProseStyle = 'standard'): string {
+  const dense = style === 'dense' && kind !== 'chat'
+  const { min, max } = dense ? DENSE_LENGTH : REPLY_LENGTH
   if (kind === 'chat') return `\n\n（回复要求：${min}–${max} 字。以她的话语为主，穿插她的动作、神态与心里的小念头，分两三段写，不要只回一两句。）`
-  return `\n\n（本回合要求：正文 ${min}–${max} 字（不含数据块），分三到五段，写足动作、对白和身体反应，不要只写一两句；末尾照常附 STATS 与 ACTIONS 两行。）`
+  return `\n\n（本回合要求：正文 ${min}–${max} 字（不含数据块），分三到五段，写足动作、对白和身体反应，不要只写一两句；末尾照常附 STATS 与 ACTIONS 两行。）${dense ? DENSE_TURN_NOTE : ''}`
 }
 /** 把字数提醒接到最后一条玩家消息上（只改请求内容） */
 export function withTurnSuffix(messages: ChatMessage[], suffix?: string): ChatMessage[] {
@@ -280,7 +285,8 @@ export function recentUseLine(metaphors: string[], plays: string[]): string {
 export function visibleLength(reply: string): number {
   return reply.replace(/<!--[\s\S]*?-->/g, '').replace(/\s/g, '').length
 }
-export function shortReplyNote(reply: string): string {
+export function shortReplyNote(reply: string, style: ProseStyle = 'standard'): string {
   const n = visibleLength(reply)
-  return n > 0 && n < REPLY_LENGTH.min ? `\n（上一段正文只有约 ${n} 字，偏短：这一段请写足 ${REPLY_LENGTH.min}–${REPLY_LENGTH.max} 字，动作、对白、反应都要展开。）` : ''
+  const { min, max } = style === 'dense' ? DENSE_LENGTH : REPLY_LENGTH
+  return n > 0 && n < min ? `\n（上一段正文只有约 ${n} 字，偏短：这一段请写足 ${min}–${max} 字，动作、对白、反应都要展开。）` : ''
 }

@@ -22,6 +22,8 @@ export interface DaySummary {
   night?: string
   /** 休养加成说明（UX 6） */
   rest?: string
+  /** 体质变化：药效到期 / 长期调教觉醒 */
+  bodyTraits?: string
 }
 
 /** 「差一点」成为回头客的满意度线 */

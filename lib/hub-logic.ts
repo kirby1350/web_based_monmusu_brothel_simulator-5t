@@ -1,5 +1,7 @@
 import { buildDaySummary, freshDayLog } from './day-summary'
 // 大厅经营动作（纯函数）：送礼、宿舍升级、结束今天（含休养）
+import { expireBodyTraits, awakenBodyTraits, getBodyTrait } from './body-traits'
+import { freeLimits } from './cheat'
 import type { GameSave, Guest, MonstGirl, SkillKey } from './types'
 import {
   DORM_LEVELS, DORM_UPGRADE_COSTS, MAX_STAMINA, IDLE_REST_BONUS, UNUSED_ACTION_REST_BONUS,
@@ -26,7 +28,7 @@ export const GIFT_OPTIONS = [
 ]
 
 export function canGiveGiftToday(save: GameSave): boolean {
-  return save.player.giftGivenOnDay !== save.currentDay
+  return freeLimits(save) || save.player.giftGivenOnDay !== save.currentDay
 }
 
 export function giveGift(save: GameSave, girlId: string, giftIndex: number): HubResult {
@@ -134,13 +136,22 @@ export function endDay(save: GameSave, rng: () => number = Math.random): GameSav
     return after
   })
   // 事件：过夜未处理扣服从；再按概率随机一人闯祸（记在新的一天）。阴影不产生夜间事件（只在调教里起作用）
-  const girls = nightlyIncidents(rested.map((g) => compactMemory(g, save.currentDay)), save.currentDay + 1, rng)
+  const incidentGirls = nightlyIncidents(rested.map((g) => compactMemory(g, save.currentDay)), save.currentDay + 1, rng)
+  // 体质：药效到期的清掉；长期调教到了门槛的觉醒（永久）
+  const traitNotes: string[] = []
+  const girls = incidentGirls.map((g) => {
+    const ex = expireBodyTraits(g, save.currentDay + 1)
+    const aw = awakenBodyTraits(ex.girl, save.currentDay + 1)
+    if (ex.expired.length) traitNotes.push(`${g.name}的${ex.expired.map((id) => getBodyTrait(id)!.name).join('、')}药效过了`)
+    if (aw.awakened.length) traitNotes.push(`${g.name}觉醒了${aw.awakened.map((id) => getBodyTrait(id)!.name).join('、')}（永久）`)
+    return aw.girl
+  })
   // 调教场景维护费（扣到 0 为止）
   const upkeep = sceneUpkeep(save.player)
   const paid = Math.min(upkeep, Math.max(0, save.player.gold))
   const charged: GameSave = paid ? { ...save, player: { ...save.player, gold: save.player.gold - paid } } : save
   const restNote = restSummary(save, plan)
-  const lastDaySummary = { ...buildDaySummary(charged, girls), ...(upkeep ? { upkeep: paid } : {}), ...(nightNote ? { night: nightNote } : {}), ...(restNote ? { rest: restNote } : {}) }
+  const lastDaySummary = { ...buildDaySummary(charged, girls), ...(upkeep ? { upkeep: paid } : {}), ...(nightNote ? { night: nightNote } : {}), ...(restNote ? { rest: restNote } : {}), ...(traitNotes.length ? { bodyTraits: traitNotes.join('；') } : {}) }
   const next = { ...charged, currentDay: save.currentDay + 1, girls }
   return {
     ...charged,

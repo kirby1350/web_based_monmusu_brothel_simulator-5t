@@ -1,5 +1,7 @@
 // 客人生成的三种「偏向」：早期保底（6b）、定向刷新（6c）、店铺主题（7）。
 // 偏好全由本地决定；AI 只润色文案（见 ai-guests.ts），刷新出的客人保持本地文案。
+import { freeLimits } from './cheat'
+import { BODY_TRAIT_IDS, BODY_BIAS_WORDS, getBodyTrait, type BodyTraitId } from './body-traits'
 import type { GameSave, Guest, MonstGirl, OutfitPref } from './types'
 import { createRandomGuest, generateDailyGuests, getGuestCapacity } from './game-engine'
 import { RACES } from './game-data'
@@ -16,9 +18,11 @@ export interface GuestBias {
   services: Main[]
   kind?: 'M' | 'S'
   outfits: OutfitPref[]
+  /** 偏好的体质（泌乳 / 淫纹…） */
+  bodies?: BodyTraitId[]
 }
 export const EMPTY_BIAS: GuestBias = { races: [], traits: [], services: [], outfits: [] }
-export const biasEmpty = (b: GuestBias) => !b.races.length && !b.traits.length && !b.services.length && !b.kind && !b.outfits.length
+export const biasEmpty = (b: GuestBias) => !b.races.length && !b.traits.length && !b.services.length && !b.kind && !b.outfits.length && !b.bodies?.length
 
 import { withDesire, pickR } from './guest-desire'
 export { withDesire }
@@ -36,8 +40,9 @@ export function parseGuestBias(text: string): GuestBias & { labels: string[] } {
   const kinds = [...new Set(KIND_WORDS.filter(([re]) => re.test(t)).map(([, v]) => v))]
   const kind = kinds.length === 1 ? kinds[0] : undefined
   const outfits = OUTFIT_PREFS.filter((o) => !o.includes('客人') && t.includes(o))
-  const labels = [...races, ...traits, ...services, ...(kind ? [kind === 'M' ? 'M（想施虐）' : 'S（想被榨）'] : []), ...outfits]
-  return { races, traits, services, kind, outfits, labels }
+  const bodies = BODY_TRAIT_IDS.filter((id) => BODY_BIAS_WORDS[id].test(t))
+  const labels = [...races, ...traits, ...services, ...(kind ? [kind === 'M' ? 'M（想施虐）' : 'S（想被榨）'] : []), ...outfits, ...bodies.map((id) => `体质·${getBodyTrait(id)!.name}`)]
+  return { races, traits, services, kind, outfits, bodies, labels }
 }
 /** 每个指定的维度按 strength 概率改写（强偏向，不保证 100%） */
 export const BIAS_STRENGTH = 0.85
@@ -49,6 +54,7 @@ export function biasGuest(g: Guest, b: GuestBias, rng: () => number, strength = 
   if (b.races.length && rng() < strength) out.prefRace = pickR(b.races, rng)
   if (b.traits.length && rng() < strength) out.prefTrait = pickR(b.traits, rng)
   if (b.outfits.length && rng() < strength) out.prefOutfit = pickR(b.outfits, rng)
+  if (b.bodies?.length && rng() < strength) out.prefBody = pickR(b.bodies, rng)
   return out
 }
 
@@ -112,6 +118,7 @@ export function refreshesUsed(save: GameSave): number {
   return save.guestRefresh?.day === save.currentDay ? save.guestRefresh.count : 0
 }
 export function refreshCost(save: GameSave, targeted: boolean): number | null {
+  if (freeLimits(save)) return 0
   const n = refreshesUsed(save)
   if (n >= REFRESH_LIMIT) return null
   return (targeted ? TARGETED_REFRESH_COST : REFRESH_COST)[n]
