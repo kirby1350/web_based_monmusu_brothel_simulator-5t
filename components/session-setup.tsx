@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils'
 import { BottomSheet } from '@/components/bottom-sheet'
 import { SERVICE_STEPS } from '@/lib/resolve-service'
 import { ALL_PLAYS, STEP_ACTION_MAX } from '@/lib/catalog'
-import { getFlows, getDefaultFlow, hasGirlFlow, defaultFlowChoice, resolveFlow, preferredPlays, FLOW_GIRL, type SessionFlow } from '@/lib/service-flows'
+import { flowOptions, raceFlow, getDefaultFlow, hasGirlFlow, defaultFlowChoice, resolveFlow, preferredPlays, FLOW_GIRL, type SessionFlow } from '@/lib/service-flows'
 
 export interface ServicePlan {
   girl: MonstGirl
@@ -172,10 +172,18 @@ export function SessionSetup({ save, onSkip, onLive }: SessionSetupProps) {
                 <select data-testid="flow-select" value={choice} onChange={(e) => pickFlow(e.target.value)}
                   className="rounded-md border border-border bg-background px-1.5 py-0.5 text-[11px] max-w-[60%]">
                   {hasGirlFlow(plan.girl) && <option value={FLOW_GIRL}>{plan.girl.name}的专属做法</option>}
-                  {getFlows(player).map((f) => <option key={f.id} value={f.id}>{f.name}{f.id === getDefaultFlow(player)?.id ? '（全馆默认）' : ''}{f.plays?.length ? ' · 偏好 play' : ''}</option>)}
+                  {flowOptions(player, plan.girl).filter((o) => o.suggested || !o.builtin).map(({ flow: f, suggested }) => (
+                    <option key={f.id} value={f.id}>{suggested ? `★ ${f.name}（${plan.girl.race}推荐）` : `${f.name}${f.id === getDefaultFlow(player)?.id ? '（全馆默认）' : ''}${f.plays?.length ? ' · 偏好 play' : ''}`}</option>
+                  ))}
+                  <optgroup label="其他种族模板">
+                    {flowOptions(player, plan.girl).filter((o) => o.builtin && !o.suggested).map(({ flow: f }) => <option key={f.id} value={f.id}>{f.name}</option>)}
+                  </optgroup>
                 </select>
               </div>
               <FlowStrip actions={plan.flow!.actions} mainLabel={`正戏：${getMainService(plan.guest)}（客人指定）`} playSteps={plan.flow!.playSteps} edited={stepEdits} onCell={setCell} />
+              {resolved?.choice === raceFlow(plan.girl.race)?.id && (
+                <p className="text-[10px] text-pink-300/80" data-testid="flow-race-hint">按{plan.girl.race}推荐「{resolved!.name}」（内置模板，只改叙述；偏好 play 已尽量预选）</p>
+              )}
               <p className="text-[10px] text-muted-foreground">点某一步：只为这一场改做法，或把额外 play 挂到这一步。做法只影响叙述，不计分。</p>
             </section>
             <section className="space-y-2">
@@ -283,7 +291,7 @@ export function SessionSetup({ save, onSkip, onLive }: SessionSetupProps) {
         )}
         <div className="flex-1" />
         {step < 2 && (
-          <Button size="sm" className="h-9 text-xs glow-btn" disabled={!plan} onClick={() => setStep(step + 1)} data-testid="wizard-next">
+          <Button size="sm" className="h-9 text-xs glow-btn" disabled={!plan} onClick={() => { if (step === 0 && flowChoice === null && plays.length === 0 && girl) pickFlow(choice); setStep(step + 1) }} data-testid="wizard-next">
             下一步<ChevronRight className="w-3.5 h-3.5 ml-1" />
           </Button>
         )}

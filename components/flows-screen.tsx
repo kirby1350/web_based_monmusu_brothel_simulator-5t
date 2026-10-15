@@ -1,6 +1,6 @@
 'use client'
 
-// 流程页（第 5 点）：默认流程常驻可编辑 · 流程模板（≤5，设为默认/复制/删除）· 魔物娘专属做法
+// 流程页（第 5 点）：默认流程常驻可编辑 · 流程模板（≤5，设为默认/复制/删除）· 内置种族模板（只读，可复制）· 魔物娘专属做法
 // 做法只进亲自上场的推荐和提示词，不影响计分；偏好 play 只在准备页预选
 import { useState } from 'react'
 import { Plus, Star, Copy, Trash2, Pencil } from 'lucide-react'
@@ -11,10 +11,11 @@ import { GirlThumb } from '@/components/girl-thumb'
 import { getStepActions } from '@/lib/custom-props'
 import { SERVICE_STEPS } from '@/lib/resolve-service'
 import { STEP_STANDARD_ACTION } from '@/lib/live-steps'
-import { PLAYS, STEP_ACTION_MAX } from '@/lib/catalog'
-import { getFlows, getDefaultFlow, saveFlow, duplicateFlow, deleteFlow, setDefaultFlow, hasGirlFlow, MAX_FLOWS, FLOW_NAME_MAX, type FlowResult } from '@/lib/service-flows'
+import { ALL_PLAYS, STEP_ACTION_MAX } from '@/lib/catalog'
+import { getFlows, getDefaultFlow, saveFlow, duplicateFlow, deleteFlow, setDefaultFlow, hasGirlFlow, PRESET_FLOWS, MAX_FLOWS, FLOW_NAME_MAX, type FlowResult, type PresetFlow } from '@/lib/service-flows'
 import { cn } from '@/lib/utils'
 
+const playLabel = (id: string) => { const p = ALL_PLAYS.find((x) => x.id === id); return p ? p.name : id }
 const newId = () => `flow_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
 
 export function FlowsScreen({ save, onSaveChange }: { save: GameSave; onSaveChange: (s: GameSave) => void }) {
@@ -30,6 +31,7 @@ export function FlowsScreen({ save, onSaveChange }: { save: GameSave; onSaveChan
     return r.ok
   }
   const openGirl = girls.find((g) => g.id === girlId) ?? null
+  const shopRaces = new Set(girls.map((g) => g.race))
 
   return (
     <div className="flex flex-col h-full bg-background relative" data-testid="flows">
@@ -70,22 +72,35 @@ export function FlowsScreen({ save, onSaveChange }: { save: GameSave; onSaveChan
                   <IconBtn icon={Trash2} label="删除" disabled={flows.length <= 1} onClick={() => run(deleteFlow(save, f.id))} testId={`flow-delete-${f.name}`} />
                 </div>
                 <p className="text-[10px] text-muted-foreground leading-relaxed">{acts.join(' → ')}</p>
-                {!!f.plays?.length && <p className="text-[10px] text-pink-300/80">偏好 play：{f.plays.map((p) => `${SERVICE_STEPS[p.step]?.label}·${PLAYS.find((x) => x.id === p.playId)?.name ?? p.playId}`).join('、')}</p>}
+                {!!f.plays?.length && <p className="text-[10px] text-pink-300/80">偏好 play：{f.plays.map((p) => `${SERVICE_STEPS[p.step]?.label}·${playLabel(p.playId)}`).join('、')}</p>}
               </div>
             )
           })}
         </section>
 
+        {/* 内置种族模板 */}
+        <section className="space-y-1.5" data-testid="flow-presets">
+          <p className="text-xs font-semibold gold-text">内置种族模板 <span className="text-[10px] text-muted-foreground font-normal">只读 · 不占名额 · 复制后可改</span></p>
+          <p className="text-[10px] text-muted-foreground">准备页会先推荐她的种族模板（她没有专属做法、全馆默认还是空白「标准」时直接选上）。</p>
+          {PRESET_FLOWS.filter((f) => shopRaces.has(f.race)).map((f) => <PresetCard key={f.id} f={f} inShop full={flows.length >= MAX_FLOWS} onCopy={() => run(duplicateFlow(save, f.id, newId))} />)}
+          <details className="rounded-lg border border-border/60 px-2 py-1" data-testid="flow-presets-more">
+            <summary className="text-[11px] text-muted-foreground cursor-pointer">其他种族（{PRESET_FLOWS.filter((f) => !shopRaces.has(f.race)).length}）</summary>
+            <div className="space-y-1.5 pt-1.5">
+              {PRESET_FLOWS.filter((f) => !shopRaces.has(f.race)).map((f) => <PresetCard key={f.id} f={f} full={flows.length >= MAX_FLOWS} onCopy={() => run(duplicateFlow(save, f.id, newId))} />)}
+            </div>
+          </details>
+        </section>
+
         {/* 专属做法 */}
         <section className="space-y-1.5" data-testid="flow-girls">
           <p className="text-xs font-semibold gold-text">魔物娘专属做法</p>
-          <p className="text-[10px] text-muted-foreground">设了专属做法的人，接客时默认用她自己的（准备页可以改选模板）。</p>
+          <p className="text-[10px] text-muted-foreground">设了专属做法的人，接客时默认用她自己的；没设的用全馆默认或她的种族模板（准备页可以改选）。</p>
           {girls.map((g) => (
             <button key={g.id} onClick={() => setGirlId(g.id)} data-testid={`flow-girl-${g.name}`}
               className="w-full flex items-center gap-2 rounded-lg border border-border bg-card px-2 py-1.5 text-left hover:border-amber-400/40">
               <GirlThumb g={g} />
               <div className="min-w-0 flex-1">
-                <p className="text-xs gold-text">{g.name} <span className={cn('text-[9px] ml-1', hasGirlFlow(g) ? 'text-pink-300' : 'text-muted-foreground')}>{hasGirlFlow(g) ? '专属' : '用默认'}</span></p>
+                <p className="text-xs gold-text">{g.name} <span className={cn('text-[9px] ml-1', hasGirlFlow(g) ? 'text-pink-300' : 'text-muted-foreground')}>{hasGirlFlow(g) ? '专属' : '用模板'}</span></p>
                 <p className="text-[10px] text-muted-foreground truncate">{getStepActions(player, g).join(' → ')}</p>
               </div>
             </button>
@@ -110,6 +125,22 @@ function GirlFlowEditor({ girl, save, onSaveChange }: { girl: MonstGirl; save: G
   return (
     <StepActionsEditor title="标准做法（只对她）" testId="girl-step-actions" value={girl.stepActions} placeholders={getStepActions(save.player)} defaultOpen
       onSave={(v) => onSaveChange({ ...save, girls: save.girls.map((g) => (g.id === girl.id ? { ...g, stepActions: v } : g)) })} />
+  )
+}
+
+function PresetCard({ f, inShop, full, onCopy }: { f: PresetFlow; inShop?: boolean; full: boolean; onCopy: () => void }) {
+  return (
+    <div className="rounded-lg border border-pink-400/20 bg-card px-3 py-2 space-y-1" data-testid={`flow-preset-${f.race}`}>
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-semibold">{f.name}</span>
+        <span className="text-[9px] rounded bg-pink-400/10 text-pink-300 px-1">{f.race}</span>
+        {inShop && <span className="text-[9px] text-muted-foreground">店里有</span>}
+        <span className="flex-1" />
+        <IconBtn icon={Copy} label={full ? `模板已满 ${MAX_FLOWS} 个` : '复制为我的模板'} disabled={full} onClick={onCopy} testId={`flow-preset-copy-${f.race}`} />
+      </div>
+      <p className="text-[10px] text-muted-foreground leading-relaxed">{f.actions.join(' → ')}</p>
+      <p className="text-[10px] text-pink-300/80">偏好 play：{f.plays!.map((p) => `${SERVICE_STEPS[p.step]?.label}·${playLabel(p.playId)}`).join('、')}</p>
+    </div>
   )
 }
 
@@ -155,12 +186,12 @@ function FlowForm({ flow, onSave, testId, withPlays, compact }: {
               </select>
               <select value={p.playId} onChange={(e) => setPlays((ps) => ps.map((x, j) => (j === k ? { ...x, playId: e.target.value } : x)))}
                 className="flex-1 rounded-md border border-border bg-background px-1 py-0.5 text-[11px]">
-                {PLAYS.map((x) => <option key={x.id} value={x.id}>{x.name}（{x.source}）</option>)}
+                {ALL_PLAYS.map((x) => <option key={x.id} value={x.id}>{x.name}（{x.source === 'race' ? `${x.race}专属` : x.source}）</option>)}
               </select>
               <button className="text-[11px] text-rose-300 px-1" onClick={() => setPlays((ps) => ps.filter((_, j) => j !== k))}>×</button>
             </div>
           ))}
-          {plays.length < 3 && <button className="text-[11px] text-amber-400" data-testid={`${testId}-addplay`} onClick={() => setPlays((ps) => [...ps, { step: 3, playId: PLAYS[0].id }])}>+ 偏好 play</button>}
+          {plays.length < 3 && <button className="text-[11px] text-amber-400" data-testid={`${testId}-addplay`} onClick={() => setPlays((ps) => [...ps, { step: 3, playId: ALL_PLAYS[0].id }])}>+ 偏好 play</button>}
         </div>
       )}
       <button data-testid={`${testId}-save`} onClick={() => onSave({ id: flow?.id, name: compact ? (flow?.name ?? '标准') : name, actions: acts, plays: withPlays ? plays : flow?.plays })}
