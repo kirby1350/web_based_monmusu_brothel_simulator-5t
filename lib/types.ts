@@ -194,6 +194,8 @@ export interface MonstGirl {
   hip: number
   personality: string
   personalityTags: string
+  /** 口癖：自称 / 称呼 / 语气与句尾 / 招牌台词（多行文本；旧存档与自建角色可为空） */
+  speechStyle?: string
   outfit: string
   outfitTags: string
   otherDesc: string
