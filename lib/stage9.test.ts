@@ -19,7 +19,7 @@ const play = (race: string, name: string) => RACE_PLAYS[race].find((p) => p.name
 
 test('每个有种族特技的种族至少一条专属 play；通用种族特技已删除', () => {
   for (const r of Object.keys(RACE_TRAITS)) if (r !== '精灵' || RACE_PLAYS[r]) assert.ok((RACE_PLAYS[r] ?? []).length >= 1, r)
-  assert.equal(RACE_PLAYS['拉米亚'].map((p) => p.name).join(','), '缠绕,石化凝视,蛇发缠绕')
+  assert.equal(RACE_PLAYS['拉米亚'].map((p) => p.name).join(','), '缠绕,蛇瞳魅惑,尾尖撩拨')
   assert.ok(!getAvailablePlays(girl(), guest()).some((p) => p.source === 'race'))
   assert.equal(play('龙娘', '龙威压制').rank, '精通')
   assert.equal(play('魔女', '淫纹魔法').rank, '熟练')
@@ -27,7 +27,7 @@ test('每个有种族特技的种族至少一条专属 play；通用种族特技
 
 test('只有本种族能选，不用先学', () => {
   const lamia = getAvailablePlays(girl({ race: '拉米亚' }), M).filter((p) => p.source === 'race').map((p) => p.name)
-  assert.deepEqual(lamia, ['缠绕', '石化凝视', '蛇发缠绕'])
+  assert.deepEqual(lamia, ['缠绕', '蛇瞳魅惑', '尾尖撩拨'])
   assert.ok(!getAvailablePlays(girl({ race: '猫娘' }), M).some((p) => p.race === '拉米亚'))
 })
 
@@ -53,7 +53,7 @@ test('正戏主类型限制：同类型 skill play 不能当额外 play；自动
   const picks = autoPickPlays(lamia, M, 1)
   assert.ok(['race_lamia_coil', 'race_lamia_gaze'].includes(picks[0]), picks.join())
   const r = resolveService({ girl: lamia, guest: M, skip: true, roomLevel: 2 })
-  assert.ok(r.plays.some((p) => p.name === '缠绕' || p.name === '石化凝视'))
+  assert.ok(r.plays.some((p) => p.name === '缠绕' || p.name === '蛇瞳魅惑'))
 })
 
 test('美杜莎：种族表删除；旧档迁移为拉米亚，三条 play 可选，敏感带数值保留，幂等', () => {
