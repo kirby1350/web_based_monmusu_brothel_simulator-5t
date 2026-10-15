@@ -18,7 +18,7 @@ import {
 } from '@/lib/game-engine'
 import { parseLooseJson, cn } from '@/lib/utils'
 import { OUTFITS, STOCKINGS, STEP_MAX, getSensitivityLevel, playIconPath, ALL_PLAYS } from '@/lib/catalog'
-import { buildStepRecap, provokeSection } from '@/lib/prompt-context'
+import { buildStepRecap, provokeSection, lengthReminder } from '@/lib/prompt-context'
 import { ItemIcon } from '@/components/item-icon'
 import { SERVICE_STEPS } from '@/lib/resolve-service'
 import {
@@ -264,7 +264,7 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
       {/* 对话区 */}
       <div className="flex-1 flex flex-col min-h-0">
         <ChatEngine ref={chatRef} systemPrompt={systemPrompt} recap={recap} messages={messages} onMessagesChange={setMessages} onRememberUser={onRemember}
-          settings={settings} onRawStreamComplete={handleRawReply} showInput={false} className="flex-1 min-h-0" />
+          settings={settings} turnSuffix={lengthReminder('service')} onRawStreamComplete={handleRawReply} showInput={false} className="flex-1 min-h-0" />
         <SuggestionBar suggestions={shownSuggestions} onSelect={(t) => setInputValue(t)} />
         <div className="border-t border-border px-3 pb-3 pt-2 flex gap-2 items-end">
           <textarea value={inputValue} onChange={(e) => setInputValue(e.target.value)} data-testid="scene-input"
@@ -356,7 +356,7 @@ export function TrainingScene({ player, girl, directionLabel, trainingInfo, extr
         </p>
       )}
       <ChatEngine ref={chatRef} systemPrompt={systemPrompt} messages={messages} onMessagesChange={setMessages} onRememberUser={onRemember}
-        settings={settings} onRawStreamComplete={onRaw} showInput={false} className="flex-1 min-h-0" />
+        settings={settings} turnSuffix={lengthReminder('training')} onRawStreamComplete={onRaw} showInput={false} className="flex-1 min-h-0" />
       <SuggestionBar suggestions={suggestions} onSelect={(t) => setInputValue(t)} />
       <div className="border-t border-border px-3 pb-3 pt-2 flex gap-2 items-end">
         <textarea value={inputValue} onChange={(e) => setInputValue(e.target.value)}

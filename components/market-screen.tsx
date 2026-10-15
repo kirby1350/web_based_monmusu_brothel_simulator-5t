@@ -52,7 +52,6 @@ export function MarketScreen({ save, settings, onSaveChange, onBack, embedded }:
   // Market arrival opening
   useEffect(() => {
     const apiKey = settings.chatModel.startsWith('grok') ? settings.grokApiKey : settings.chatApiKey
-    if (!apiKey) return
     const prompt = buildOpeningDialoguePrompt('market', player, girls)
     fetch('/api/chat', {
       method: 'POST',

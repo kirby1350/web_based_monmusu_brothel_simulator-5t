@@ -184,3 +184,17 @@ export function buildStepRecap(steps: RecapStep[], currentIndex: number): string
   const line = parts.length > 3 ? `${parts.slice(0, half).join(' → ')}\n→ ${parts.slice(half).join(' → ')}` : parts.join(' → ')
   return `【前情】${line}`
 }
+
+/** 每回合附在玩家消息末尾（只进请求，不进界面/存档）的字数提醒 */
+export const REPLY_LENGTH = { min: 300, max: 500 }
+export function lengthReminder(kind: 'service' | 'training' | 'chat'): string {
+  const { min, max } = REPLY_LENGTH
+  if (kind === 'chat') return `\n\n（回复要求：${min}–${max} 字。以她的话语为主，穿插她的动作、神态与心里的小念头，分两三段写，不要只回一两句。）`
+  return `\n\n（本回合要求：正文 ${min}–${max} 字（不含数据块），分三到五段，写足动作、对白和身体反应，不要只写一两句；末尾照常附 STATS 与 ACTIONS 两行。）`
+}
+/** 把字数提醒接到最后一条玩家消息上（只改请求内容） */
+export function withTurnSuffix(messages: ChatMessage[], suffix?: string): ChatMessage[] {
+  if (!suffix) return messages
+  const i = messages.map((m) => m.role).lastIndexOf('user')
+  return i < 0 ? messages : messages.map((m, j) => (j === i ? { ...m, content: m.content + suffix } : m))
+}

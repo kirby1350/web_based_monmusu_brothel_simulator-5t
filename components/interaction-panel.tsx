@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { StatBar } from '@/components/stat-bar'
 import { ImageDisplay } from '@/components/image-display'
 import { ChatEngine } from '@/components/chat-engine'
+import { lengthReminder } from '@/lib/prompt-context'
 import { buildInteractionSystemPrompt, buildOpeningDialoguePrompt } from '@/lib/prompt-builder'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -44,10 +45,7 @@ export function InteractionPanel({ girl, player, settings, onClose, onGirlUpdate
     setStarted(true)
     const apiKey = settings.chatModel.startsWith('grok') ? settings.grokApiKey : settings.chatApiKey
     const fallback = `……（${girl.name} 看了看你，${girl.affection >= 50 ? '露出了微笑' : '保持着沉默'}）`
-    if (!apiKey) {
-      setMessages([{ role: 'assistant', content: fallback }])
-      return
-    }
+    // 没填前端 Key 也照常请求：服务端会用环境变量里的 Key（没有时返回 401 → 走下面的兜底）
     setOpeningLoading(true)
     setMessages([{ role: 'assistant', content: '' }]) // placeholder for streaming
     const prompt = buildOpeningDialoguePrompt('interaction', player, [girl], { girl })
@@ -219,6 +217,7 @@ export function InteractionPanel({ girl, player, settings, onClose, onGirlUpdate
                     messages={messages}
                     onMessagesChange={setMessages}
                     settings={settings}
+                    turnSuffix={lengthReminder('chat')}
                     className="flex-1 min-h-0"
                     placeholder={`和 ${girl.name} 说点什么…`}
                     onRememberUser={(t) => onGirlUpdated(recordQuote(girl, t, day ?? player.day))}

@@ -116,7 +116,7 @@ export function buildStepContext(opts: {
 }): string {
   return [
     '【本场标准流程】迎客 → 挑逗 → 前戏 → 正戏 → 清洗',
-    `【当前步骤】${opts.stepLabel}。这一段只写「${opts.stepLabel}」这一步，不要提前写到后面的步骤。`,
+    `【当前步骤】${opts.stepLabel}。这一段只写「${opts.stepLabel}」这一步，不要提前写到后面的步骤；但要把这一步写足写细（放慢节奏，写动作、对白、反应的来回），篇幅照常。`,
     `【这一步的标准做法】${opts.standardAction}`,
     `【当前服装】${opts.outfitName}`,
     opts.zoneLabel ? `【这一步碰到的敏感带】${opts.zoneLabel}：${opts.zoneLevel}` : '',

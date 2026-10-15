@@ -1,6 +1,6 @@
 'use client'
 
-import { trimHistory } from '@/lib/prompt-context'
+import { trimHistory, withTurnSuffix } from '@/lib/prompt-context'
 
 import {
   useState,
@@ -38,6 +38,8 @@ interface ChatEngineProps {
   showInput?: boolean
   /** 在玩家消息上显示「让她记住」；点了把这句原话交给调用方 */
   onRememberUser?: (text: string) => void
+  /** 只附在本次请求最后一条玩家消息末尾的提醒（字数等），不进界面与存档 */
+  turnSuffix?: string
 }
 
 export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
@@ -56,6 +58,7 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
       className,
       showInput = true,
       onRememberUser,
+      turnSuffix,
     },
     ref
   ) {
@@ -83,10 +86,10 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
         const controller = new AbortController()
         abortRef.current = controller
 
-        // Auto-abort after 60 seconds to prevent UI lockup
+        // 90 秒自动中止，防止界面卡死（300–500 字的长回复要多留时间）
         const timeoutId = setTimeout(() => {
           controller.abort()
-        }, 60_000)
+        }, 90_000)
 
         // 声明在 try 之外，catch（中止/超时）也需要读取已接收的内容
         let full = ''
@@ -104,7 +107,7 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
               messages: [
                 { role: 'system', content: systemPrompt },
                 // 只改发送内容：旧回复去掉隐藏数据块、保留最近 6 轮（界面与存档里的历史不变）
-                ...trimHistory(next, 6, recap),
+                ...withTurnSuffix(trimHistory(next, 6, recap), turnSuffix),
               ],
               model: settings.chatModel,
               apiKey,
@@ -164,7 +167,7 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
           abortRef.current = null
         }
       },
-      [messages, streaming, systemPrompt, recap, settings, onMessagesChange, onAssistantReply, onStreamComplete]
+      [messages, streaming, systemPrompt, recap, turnSuffix, settings, onMessagesChange, onAssistantReply, onStreamComplete]
     )
 
     useImperativeHandle(ref, () => ({ sendMessage }))

@@ -231,7 +231,7 @@ export function GirlCreator({ settings, onComplete }: GirlCreatorProps) {
                 variant="outline"
                 size="sm"
                 className="h-8 text-xs gap-1.5"
-                disabled={generatingTags || !settings.chatApiKey}
+                disabled={generatingTags}
                 onClick={generateTags}
                 title="根据文字设定让 AI 总结生图 TAG"
               >
