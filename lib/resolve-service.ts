@@ -1,4 +1,5 @@
 // 接客结算（纯函数）：五步标准流程 + 额外 play → 满意度 / 档位 / 收入 / 体力
+import { fetishMatchesGuest, fetishName, FETISH_GREET_BONUS } from './scenes'
 import type { Guest, MonstGirl, OutfitId, SensitivityZone, ServingSkill, SkillRank, StockingId } from './types'
 import {
   GREET_HOSTING_SCORE, STEP_SCORE, STEP_MAX, SKILL_RANK_BONUS, PLAY_SCORE, PLAYS, RACE_PLAYS, SKIP_MATCH_BONUS, racePlayMatched, PlayDef, WRONG_SIDE_PLAY_PENALTY,
@@ -208,6 +209,9 @@ export function resolveService(input: ServiceInput): ServiceResult {
   if (traitHit) greet += 2
   if (outfitMatched) greet += OUTFIT_GREET_BONUS
   else if (guest.prefOutfit && outfit !== 'regular') greet += OUTFIT_GREET_MISMATCH
+  // 后天觉醒的性癖对上客人口味：迎客 +2（单场一次）
+  const fetishHit = (girl.awakened ?? []).find((id) => fetishMatchesGuest(id, guest))
+  if (fetishHit) { greet += FETISH_GREET_BONUS; raceNotes.push(`性癖「${fetishName(fetishHit)}」对上客人口味：迎客 +${FETISH_GREET_BONUS}`) }
   // 狐娘「魅惑」：偏好一项都没中，也给一截开场分
   if (girl.race === '狐娘' && !raceHit && !traitHit && !outfitMatched) { greet += 2; raceNotes.push('魅惑：迎客 +2') }
 

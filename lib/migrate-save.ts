@@ -16,6 +16,7 @@ export function migratePlayer(p: Player): Player {
     inventory: p.inventory ?? {},
     ownedTrainingProps: p.ownedTrainingProps ?? [],
     customProps: p.customProps ?? [],
+    ownedScenes: p.ownedScenes ?? [],
   }
 }
 

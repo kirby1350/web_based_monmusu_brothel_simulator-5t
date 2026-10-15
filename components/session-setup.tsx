@@ -3,7 +3,8 @@
 // 接客 / 调教共用的三步准备向导（阶段 2 只接了接客分支，调教分支在阶段 5）
 import { useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight, FastForward, Swords } from 'lucide-react'
-import { CustomProp, GameSave, Guest, MonstGirl, OutfitId, StockingId, TrainingDirection, SkillKey, SensitivityZone } from '@/lib/types'
+import { CustomProp, GameSave, Guest, MonstGirl, OutfitId, StockingId, TrainingDirection, SkillKey, SensitivityZone, SceneId } from '@/lib/types'
+import { TRAINING_SCENES, getScene, sceneReaction, recentUses, hasShadow, fetishProgress, FETISH_THRESHOLD, REACTION_LABEL } from '@/lib/scenes'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { OUTFITS, STOCKINGS, getPlaySlots, getSkillRank, getSensitivityLevel, TRAINING_PROPS, SCULPT_POTIONS, COMMON_ZONES, RACE_ZONE_NAMES, RACE_TRAITS, itemIconPath, playIconPath } from '@/lib/catalog'
@@ -221,9 +222,9 @@ export function SessionSetup({ save, onSkip, onLive }: SessionSetupProps) {
   )
 }
 
-function Chip({ active, onClick, label, hint, icon }: { active: boolean; onClick: () => void; label: string; hint?: string; icon?: string }) {
+function Chip({ active, onClick, label, hint, icon, testId }: { active: boolean; onClick: () => void; label: string; hint?: string; icon?: string; testId?: string }) {
   return (
-    <button onClick={onClick} className={cn('rounded-md border px-2.5 py-1 text-xs transition-colors inline-flex items-center gap-1.5', icon !== undefined && 'pl-1',
+    <button onClick={onClick} data-testid={testId} className={cn('rounded-md border px-2.5 py-1 text-xs transition-colors inline-flex items-center gap-1.5', icon !== undefined && 'pl-1',
       active ? 'border-amber-400/70 text-amber-300 bg-amber-400/10' : 'border-border text-foreground/80 hover:border-primary/50')}>
       {icon !== undefined && <ItemIcon src={icon || undefined} name={label} size={20} />}
       {label}{hint && <span className="ml-1 text-[9px] text-emerald-300">{hint}</span>}
@@ -252,6 +253,8 @@ export interface TrainingPlan {
   potionId?: string
   skill?: SkillKey | typeof TWO_SIDED_KEY
   zone?: SensitivityZone
+  scene?: SceneId
+  day?: number
 }
 
 interface TrainingSetupProps {
@@ -270,7 +273,10 @@ export function TrainingSetup({ save, onSkip, onLive }: TrainingSetupProps) {
   const [potionId, setPotionId] = useState<string | undefined>()
   const [skill, setSkill] = useState<SkillKey | typeof TWO_SIDED_KEY | undefined>()
   const [zone, setZone] = useState<SensitivityZone | undefined>()
+  const [scene, setScene] = useState<SceneId | undefined>()
   const girl = girls.find((g) => g.id === girlId) ?? null
+  const ownedScenes = TRAINING_SCENES.filter((sc) => (player.ownedScenes ?? []).includes(sc.id) && sc.directions.includes(direction))
+  const activeScene = ownedScenes.some((sc) => sc.id === scene) ? scene : undefined
   const roomLevel = player.trainingRoomLevel ?? 1
   const slots = getPropSlots(roomLevel)
   const ownedProps = TRAINING_PROPS.filter((p) => (player.ownedTrainingProps ?? []).includes(p.id))
@@ -284,7 +290,7 @@ export function TrainingSetup({ save, onSkip, onLive }: TrainingSetupProps) {
   ] : []
   const zones: SensitivityZone[] = girl ? [...COMMON_ZONES, ...(RACE_ZONE_NAMES[girl.race] ? ['种族' as SensitivityZone] : [])] : []
 
-  const plan: TrainingPlan | null = girl ? { girl, direction, roomLevel, props, customProps: player.customProps ?? [], outfit, potionId, skill, zone } : null
+  const plan: TrainingPlan | null = girl ? { girl, direction, roomLevel, props, customProps: player.customProps ?? [], outfit, potionId, skill, zone, scene: activeScene, day: save.currentDay } : null
   const preview = plan ? resolveTraining({ ...plan, skip: true }) : null
   const ready = !!preview?.ok
 
@@ -372,6 +378,25 @@ export function TrainingSetup({ save, onSkip, onLive }: TrainingSetupProps) {
               </section>
             )}
 
+            {(player.ownedScenes ?? []).length > 0 && (
+              <section className="space-y-2" data-testid="scene-picker">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-widest">场景（固定加成，不吃倍率）</p>
+                {ownedScenes.length === 0 ? <p className="text-[11px] text-muted-foreground">已有的场景都不适合这个方向。</p> : (
+                  <div className="flex flex-wrap gap-1.5">
+                    <Chip active={!activeScene} onClick={() => setScene(undefined)} label="普通调教室" />
+                    {ownedScenes.map((sc) => {
+                      const r = sceneReaction(girl, sc.id)
+                      const n = recentUses(girl, sc.id, save.currentDay)
+                      const tag = [REACTION_LABEL[r], hasShadow(girl, sc.id) ? '阴影' : '', n ? `本周 ${n} 次` : '',
+                        r !== 'awakened' ? `${sc.fetish} ${Math.min(fetishProgress(girl, sc.id), FETISH_THRESHOLD)}/${FETISH_THRESHOLD}` : ''].filter(Boolean).join('·')
+                      return <Chip key={sc.id} active={activeScene === sc.id} onClick={() => setScene(sc.id)} icon=""
+                        label={sc.name} hint={tag || undefined} testId={`scene-${sc.id}`} />
+                    })}
+                  </div>
+                )}
+              </section>
+            )}
+
             <section className="space-y-2">
               <p className="text-[10px] text-muted-foreground uppercase tracking-widest">道具（调教室 {roomLevel} 级，最多 {slots} 件）</p>
               {slots === 0 ? <p className="text-[11px] text-muted-foreground">一级调教室没有道具槽，升级调教室后可用。</p>
@@ -408,6 +433,7 @@ export function TrainingSetup({ save, onSkip, onLive }: TrainingSetupProps) {
             {preview.ok ? (
               <div className="rounded-xl border border-border bg-card p-3 space-y-1.5 text-xs">
                 <Row label="方向" value={TRAINING_DIRECTIONS.find((d) => d.key === direction)!.label} />
+                {activeScene && <Row label="场景" value={getScene(activeScene)!.name} />}
                 <Row label="成长" value={trainingGains(preview) || '—'} />
                 {preview.measurement && <Row label="三围" value={`${{ bust: '胸围', waist: '腰围', hip: '臀围' }[preview.measurement.stat]} ${preview.measurement.from} → ${preview.measurement.to}`} />}
                 {preview.newRank && <Row label="技能" value={`升到「${preview.newRank}」`} />}
@@ -453,7 +479,7 @@ export function TrainingSetup({ save, onSkip, onLive }: TrainingSetupProps) {
 export function trainingGains(r: TrainingResult): string {
   const d = r.delta
   return [
-    d.obedience && `服从 +${d.obedience}`, d.lewdness && `淫乱 +${d.lewdness}`, d.affection && `好感 +${d.affection}`,
+    d.obedience && `服从 +${d.obedience}`, d.lewdness && `淫乱 +${d.lewdness}`, d.affection && `好感 ${d.affection > 0 ? '+' : '−'}${Math.abs(d.affection)}`,
     d.m && `M 进度 +${d.m}`, d.s && `S 进度 +${d.s}`, d.sensitivity && `敏感度 +${d.sensitivity}`, d.skillProgress && `技能进度 +${d.skillProgress}`,
   ].filter(Boolean).join('，')
 }

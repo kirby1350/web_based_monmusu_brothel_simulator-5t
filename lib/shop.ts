@@ -1,5 +1,6 @@
 // 商店与设施（纯函数）：恢复药、塑形药、衣橱、调教道具；服务房间 / 调教室升级
-import type { GameSave, MonstGirl } from './types'
+import type { GameSave, MonstGirl, SceneId } from './types'
+import { getScene, sceneUnlocked, unlockText } from './scenes'
 import {
   RECOVERY_ITEMS, SCULPT_POTIONS, OUTFITS, STOCKINGS, TRAINING_PROPS, MAX_STAMINA,
   SCULPT_BASE_PRICE, SCULPT_PRICE_STEP, SERVICE_ROOM_UPGRADE_COSTS, TRAINING_ROOM_UPGRADE_COSTS, getUpgradeCostFor,
@@ -68,6 +69,16 @@ export function buyTrainingProp(save: GameSave, id: string): ShopResult {
   if (owned.includes(id)) return fail('已经拥有')
   if (save.player.gold < prop.price) return fail('金币不足')
   return { ok: true, message: `买下了「${prop.name}」，调教时可选`, save: spend(save, prop.price, { ownedTrainingProps: [...owned, id] }) }
+}
+
+export function buyScene(save: GameSave, id: SceneId): ShopResult {
+  const def = getScene(id)
+  if (!def) return fail('无效商品')
+  const owned = save.player.ownedScenes ?? []
+  if (owned.includes(id)) return fail('已经拥有')
+  if (!sceneUnlocked(save, id)) return fail(`尚未解锁：需要${unlockText(def.unlock)}`)
+  if (save.player.gold < def.price) return fail('金币不足')
+  return { ok: true, message: `建好了「${def.name}」，调教时可选；每天维护 ${def.upkeep}G`, save: spend(save, def.price, { ownedScenes: [...owned, id] }) }
 }
 
 // ─── 使用恢复药：不占行动，每人每天一瓶 ────────────────────────────────────────

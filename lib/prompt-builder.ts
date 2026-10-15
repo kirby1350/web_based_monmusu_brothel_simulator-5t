@@ -1,11 +1,12 @@
 import { Player, MonstGirl, Guest, ServiceSession, GameSave, ProseStyle } from '@/lib/types'
 import { ALL_PLAYS as PLAYS, getSensitivityLevel, getSkillRank } from '@/lib/catalog'
-import type { OutfitId, StockingId } from '@/lib/types'
+import type { OutfitId, StockingId, SceneId } from '@/lib/types'
+import { fetishPromptLine, getScene } from '@/lib/scenes'
 import { girlStateCard, guestPrefLine, VALID_RACES } from '@/lib/prompt-context'
 import { speechLine, speechRuleFor } from '@/lib/speech-style'
 
 /** 系统提示词的可选游戏状态：天数、当前服装（客人偏好命中用） */
-export interface PromptState { day?: number; outfit?: OutfitId; stockings?: StockingId }
+export interface PromptState { day?: number; outfit?: OutfitId; stockings?: StockingId; scene?: SceneId }
 
 // ─── 文风控制（去油黑名单常驻 + 可切换文风片段） ───────────────────────────────
 
@@ -136,7 +137,7 @@ function buildServiceSystemPromptBase(
     .map(
       (g, i) => {
         const bwh = girlBWH(g)
-        return `魔物娘${i + 1}：${g.name}（${g.race}）\n  外貌：${g.bodyDesc}${bwh ? `，三围 ${bwh}` : ''}\n  性格：${g.personality}${speechLine(g, '\n  ')}\n  服装：${g.outfit}\n  服从度：${g.obedience}/100，淫乱度：${g.lewdness}/100，好感度：${g.affection}/100\n  状态：${girlStateCard(g, state.day)}${g.sexualDesc ? `\n  色色设定：${g.sexualDesc}` : ''}`
+        return `魔物娘${i + 1}：${g.name}（${g.race}）\n  外貌：${g.bodyDesc}${bwh ? `，三围 ${bwh}` : ''}\n  性格：${g.personality}${speechLine(g, '\n  ')}\n  服装：${g.outfit}\n  服从度：${g.obedience}/100，淫乱度：${g.lewdness}/100，好感度：${g.affection}/100\n  状态：${girlStateCard(g, state.day)}${g.sexualDesc ? `\n  色色设定：${g.sexualDesc}` : ''}${fetishPromptLine(g) ? `\n  ${fetishPromptLine(g)}` : ''}`
       }
     )
     .join('\n')
@@ -239,7 +240,7 @@ ${proseSection(proseStyle)}
     return `你是一个重口味成人互动小说写作引擎，为一款魔物娘娼馆经营模拟器提供极致色情调教叙述。
 
 【当前场景：淫虐调教训练】
-地点：${player.name}娼馆的调教室，墙上挂满皮鞭、铁链、拘束架与各种粗大玩具，地板上沾满干涸的精液、淫水与潮吹痕迹，空气浓郁着皮革、汗液与发情腥甜的混合气味
+地点：${getScene(state.scene)?.place ?? `${player.name}娼馆的调教室，墙上挂满皮鞭、铁链、拘束架与各种粗大玩具，地板上沾满干涸的精液、淫水与潮吹痕迹，空气浓郁着皮革、汗液与发情腥甜的混合气味`}
 
 【玩家信息】
 名称：${player.name}

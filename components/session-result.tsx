@@ -1,6 +1,7 @@
 'use client'
 
 // 结算卡：五步得分 / play / 服装 / 体力 / 成长，没有 play 时不画空段
+import { getScene } from '@/lib/scenes'
 import { useState } from 'react'
 import { Loader2, Star, PenLine, Brush, BookmarkPlus } from 'lucide-react'
 import { buildMemoryPrompt } from '@/lib/prompt-builder'
@@ -189,10 +190,12 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 // ─── 调教结算卡 ───────────────────────────────────────────────────────────────
 
-export function TrainingResultCard({ mode, before, result, onBack }: {
+export function TrainingResultCard({ mode, before, result, incident, onBack }: {
   mode: 'skip' | 'live'
   before: MonstGirl
   result: TrainingResult
+  /** 场景风险事件（结算时掷出） */
+  incident?: string
   onBack: () => void
 }) {
   const after = result.girl
@@ -209,6 +212,17 @@ export function TrainingResultCard({ mode, before, result, onBack }: {
         <h2 className="text-lg font-bold gold-text">{mode === 'skip' ? '跳过调教' : '调教结束'}</h2>
         <p className="text-xs text-muted-foreground">{result.summary}</p>
       </div>
+      {result.awakenedScene && (
+        <div className="rounded-xl border border-fuchsia-400/40 bg-fuchsia-500/10 px-3 py-2 text-xs text-fuchsia-200" data-testid="tr-awakened">
+          ✦ {before.name}觉醒了性癖「{getScene(result.awakenedScene)!.fetish}」——{getScene(result.awakenedScene)!.fetishDesc}
+        </div>
+      )}
+      {result.shadowScene && (
+        <div className="rounded-xl border border-slate-400/30 bg-slate-500/10 px-3 py-2 text-xs text-slate-300" data-testid="tr-shadow">
+          {getScene(result.shadowScene)!.name}在{before.name}心里留下了阴影：再用这里会更伤好感，夜里也可能做噩梦（温泉恩宠间可以慢慢抚平）
+        </div>
+      )}
+      {incident && <p className="text-[11px] text-rose-300 text-center" data-testid="tr-incident">⚠ {before.name}{incident}</p>}
       <div className="rounded-xl border border-border bg-card p-4 space-y-3 text-xs">
         <Section title="成长">
           {rows.filter(([, a, b]) => a !== b).map(([l, a, b]) => (

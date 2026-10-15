@@ -3,7 +3,8 @@
 // 亲自上场的对话场景（阶段 2：整段搬自旧 service-screen，阶段 3 再改成步骤条）
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { Loader2, Send, ChevronRight, Shirt, Plus, Check } from 'lucide-react'
-import { MonstGirl, Guest, ChatMessage, ServiceSession, AppSettings, Player, OutfitId, StockingId } from '@/lib/types'
+import { MonstGirl, Guest, ChatMessage, ServiceSession, AppSettings, Player, OutfitId, StockingId, SceneId } from '@/lib/types'
+import { getScene } from '@/lib/scenes'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ChatEngine, ChatEngineHandle } from '@/components/chat-engine'
@@ -278,10 +279,12 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish }: Ses
 
 // ─── 调教的亲自上场（仍用旧调教提示词，无步骤条） ──────────────────────────────
 
-export function TrainingScene({ player, girl, directionLabel, trainingInfo, extraPrompt, settings, onFinish }: {
+export function TrainingScene({ player, girl, directionLabel, trainingInfo, extraPrompt, settings, onFinish, scene, day }: {
   player: Player
   girl: MonstGirl
   directionLabel: string
+  scene?: SceneId
+  day?: number
   /** 调教上下文（方向效果 / 道具 / 调教室 / 目标），缺省只写方向名 */
   trainingInfo?: string
   /** 附在提示词末尾（惩罚缘由等） */
@@ -292,7 +295,7 @@ export function TrainingScene({ player, girl, directionLabel, trainingInfo, extr
   const [session] = useState<ServiceSession>(() => createServiceSession('training', [girl], {}))
   const [messages, setMessages] = useState<ChatMessage[]>(() => [{
     role: 'assistant',
-    content: `调教室的门缓缓关上。${girl.name}被带到你面前，今天的项目是「${directionLabel}」。` +
+    content: `${getScene(scene) ? `${getScene(scene)!.name}的门缓缓关上。${getScene(scene)!.desc}` : '调教室的门缓缓关上。'}${girl.name}被带到你面前，今天的项目是「${directionLabel}」。` +
       `\n<!--STATS:${JSON.stringify({ girls: { [girl.name]: { pleasure: 0, stamina: 0 } }, satisfaction: 0 })}-->` +
       `\n<!--ACTIONS:["命令她跪下","抬起她的下巴","她低声求饶"]-->`,
   }])
@@ -301,7 +304,7 @@ export function TrainingScene({ player, girl, directionLabel, trainingInfo, extr
   const [suggestions, setSuggestions] = useState<[string, string, string] | null>(['命令她跪下', '抬起她的下巴', '她低声求饶'])
   const [inputValue, setInputValue] = useState('')
   const chatRef = useRef<ChatEngineHandle>(null)
-  const systemPrompt = buildServiceSystemPrompt(player, { ...session, messages }, settings.proseStyle) + `\n\n${trainingInfo ?? `【本次调教方向】${directionLabel}`}` + (extraPrompt ? `\n${extraPrompt}` : '')
+  const systemPrompt = buildServiceSystemPrompt(player, { ...session, messages }, settings.proseStyle, undefined, { scene, day }) + `\n\n${trainingInfo ?? `【本次调教方向】${directionLabel}`}` + (extraPrompt ? `\n${extraPrompt}` : '')
 
   const onRaw = useCallback((raw: string) => {
     const a = parseActionsFromReply(raw)

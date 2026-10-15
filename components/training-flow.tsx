@@ -13,11 +13,12 @@ import { trainingContext } from '@/lib/prompt-context'
 import { TrainingResultCard } from '@/components/session-result'
 import { resolveTraining, resolveLiveTraining, TRAINING_DIRECTIONS, type TrainingResult } from '@/lib/resolve-training'
 import { applyTrainingToSave } from '@/lib/settle-session'
+import { getScene } from '@/lib/scenes'
 
 type Phase =
   | { kind: 'setup' }
   | { kind: 'scene'; plan: TrainingPlan }
-  | { kind: 'result'; mode: 'skip' | 'live'; before: MonstGirl; result: TrainingResult }
+  | { kind: 'result'; mode: 'skip' | 'live'; before: MonstGirl; result: TrainingResult; incident?: string }
 
 export function TrainingFlow({ save, settings, onSaveChange, onBack }: {
   save: GameSave; settings: AppSettings; onSaveChange: (s: GameSave) => void; onBack: () => void
@@ -25,8 +26,10 @@ export function TrainingFlow({ save, settings, onSaveChange, onBack }: {
   const [phase, setPhase] = useState<Phase>({ kind: 'setup' })
   const settle = (plan: TrainingPlan, mode: 'skip' | 'live', result: TrainingResult) => {
     if (!result.ok) return
-    onSaveChange(applyTrainingToSave(save, result, plan.direction === 'sculpt' ? plan.potionId : undefined))
-    setPhase({ kind: 'result', mode, before: plan.girl, result })
+    const next = applyTrainingToSave(save, result, plan.direction === 'sculpt' ? plan.potionId : undefined)
+    const inc = next.girls.find((g) => g.id === result.girl.id)?.incident
+    onSaveChange(next)
+    setPhase({ kind: 'result', mode, before: plan.girl, result, incident: inc && inc !== result.girl.incident ? inc.text : undefined })
   }
   const label = phase.kind === 'setup' ? '准备' : phase.kind === 'scene' ? '进行中' : '结算'
   return (
@@ -35,7 +38,7 @@ export function TrainingFlow({ save, settings, onSaveChange, onBack }: {
         <Button variant="ghost" size="icon" className="w-7 h-7" disabled={phase.kind === 'scene'} onClick={onBack} aria-label="返回">
           <ArrowLeft className="w-4 h-4" />
         </Button>
-        <h1 className="text-sm font-bold gold-text">调教</h1>
+        <h1 className="text-sm font-bold gold-text">调教{phase.kind !== 'setup' && phase.kind === 'scene' && phase.plan.scene ? ` · ${getScene(phase.plan.scene)!.name}` : ''}</h1>
         <Badge variant="secondary" className="text-[10px] h-5 px-2">{label}</Badge>
       </header>
       {phase.kind === 'setup' && (
@@ -46,12 +49,13 @@ export function TrainingFlow({ save, settings, onSaveChange, onBack }: {
       {phase.kind === 'scene' && (
         <TrainingScene player={save.player} girl={phase.plan.girl} settings={settings}
           directionLabel={TRAINING_DIRECTIONS.find((d) => d.key === phase.plan.direction)!.label}
+          scene={phase.plan.scene} day={save.currentDay}
           trainingInfo={trainingContext({ ...phase.plan, skip: true, customProps: save.player.customProps })}
           extraPrompt={phase.plan.direction === 'punish' ? incidentPromptLine(phase.plan.girl) : undefined}
           onFinish={(turns, pleasure) => settle(phase.plan, 'live', resolveLiveTraining(phase.plan, turns, pleasure))} />
       )}
       {phase.kind === 'result' && (
-        <TrainingResultCard mode={phase.mode} before={phase.before} result={phase.result} onBack={onBack} />
+        <TrainingResultCard mode={phase.mode} before={phase.before} result={phase.result} incident={phase.incident} onBack={onBack} />
       )}
     </div>
   )

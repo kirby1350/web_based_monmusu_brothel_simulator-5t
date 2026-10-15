@@ -21,6 +21,7 @@ import { StepActionsEditor } from '@/components/step-actions-editor'
 import { getStepActions } from '@/lib/custom-props'
 import { cn } from '@/lib/utils'
 import { SpeechStyleBlock } from '@/components/speech-style-block'
+import { awakenedFetishes, shadowScenes, getScene } from '@/lib/scenes'
 
 interface GirlSheetProps {
   girl: MonstGirl
@@ -112,6 +113,16 @@ export function GirlSheet({ girl, save, settings, onSaveChange, onClose, intro }
                 <p className="text-xs">{girl.name}{girl.incident.text}。去调教里选「惩罚」处理；过夜不处理每晚服从 −3。</p>
               </div>
             )}
+            {(girl.awakened?.length || shadowScenes(girl).length) ? (
+              <div className="flex flex-wrap gap-1" data-testid="girl-fetishes">
+                {awakenedFetishes(girl).map((d) => (
+                  <span key={d.id} title={d.fetishDesc} className="rounded-full border border-fuchsia-400/40 bg-fuchsia-500/10 px-2 py-0.5 text-[10px] text-fuchsia-200">✦ {d.fetish}</span>
+                ))}
+                {shadowScenes(girl).map((id) => (
+                  <span key={id} title="温泉恩宠间可以慢慢抚平" className="rounded-full border border-slate-400/30 bg-slate-500/10 px-2 py-0.5 text-[10px] text-slate-300">阴影 · {getScene(id)!.name}</span>
+                ))}
+              </div>
+            ) : null}
             {intro && (
               <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 space-y-1" data-testid="arrival-intro">
                 <p className="text-[11px] text-amber-300">入馆 · {intro.speaker}带路</p>
