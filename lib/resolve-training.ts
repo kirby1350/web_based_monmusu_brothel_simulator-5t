@@ -273,7 +273,7 @@ function applyScene(input: TrainingInput, id: SceneId, next: MonstGirl, delta: T
   const reaction = sceneReaction(girl, id)
   const holyHalf = id === 'altar' && (input.outfit === 'nun' || input.outfit === 'bridal')
   const k = (n: number) => Math.round(n * decay * (holyHalf ? 0.5 : 1))
-  let ob = 0, lw = 0, sens = 0, m = 0, rep = 0
+  let ob = 0, lw = 0, sens = 0, m = 0, s = 0, rep = 0
   const extraZones: Partial<Record<SensitivityZone, number>> = {}
   const tameLike = direction === 'tame' || direction === 'punish'
   switch (id) {
@@ -297,6 +297,8 @@ function applyScene(input: TrainingInput, id: SceneId, next: MonstGirl, delta: T
       else for (const z of COMMON_ZONES) if (z !== input.zone) extraZones[z] = k(2)
       break
     case 'onsen': if (direction === 'tame') ob = k(3); else lw = k(3); break
+    case 'queen_room': s = k(6); lw = k(3); break
+    case 'throne': s = k(8); lw = k(2); rep = 1; break
   }
   // 主项：亲和/觉醒 +2，抗拒 −2
   const mainAdj = reaction === 'affinity' || reaction === 'awakened' ? AFFINITY_MAIN_BONUS : reaction === 'aversion' ? -AVERSION_MAIN_PENALTY : 0
@@ -312,7 +314,7 @@ function applyScene(input: TrainingInput, id: SceneId, next: MonstGirl, delta: T
   else if (reaction === 'aversion') aff += AVERSION_AFFECTION
   if (hasShadow(girl, id)) aff += SHADOW_AFFECTION
 
-  delta.obedience += ob; delta.lewdness += lw; delta.m += m; delta.affection += aff
+  delta.obedience += ob; delta.lewdness += lw; delta.m += m; delta.s += s; delta.affection += aff
   if (sens && input.zone) {
     delta.sensitivity += sens
     next.sensitivities = { ...next.sensitivities, [input.zone]: clamp100((girl.sensitivities?.[input.zone] ?? SENSITIVITY_DEFAULT) + delta.sensitivity) }
@@ -323,7 +325,7 @@ function applyScene(input: TrainingInput, id: SceneId, next: MonstGirl, delta: T
     next.sensitivities = { ...next.sensitivities, [zone]: clamp100((next.sensitivities?.[zone] ?? girl.sensitivities?.[zone] ?? SENSITIVITY_DEFAULT) + v) }
   }
 
-  const gains = [ob && `服从 +${ob}`, lw && `淫乱 +${lw}`, sens && `敏感 +${sens}`, m && `M性 +${m}`,
+  const gains = [ob && `服从 +${ob}`, lw && `淫乱 +${lw}`, sens && `敏感 +${sens}`, m && `M性 +${m}`, s && `S性 +${s}`,
     Object.keys(extraZones).length && `${Object.entries(extraZones).map(([z, v]) => `${z} +${v}`).join('、')}`, rep && `声望 +${rep}`].filter(Boolean)
   notes.push(`${def.name}：${gains.join('，') || '—'}${aff ? `，好感 ${aff > 0 ? '+' : '−'}${Math.abs(aff)}` : ''}${def.staminaExtra ? `，体力 ${def.staminaExtra > 0 ? '+' : '−'}${Math.abs(def.staminaExtra)}` : ''}`)
   if (decay < 1) notes.push(`本周第 ${countLabel(girl, id, day)} 次用${def.name}：加成 ×${decay}`)

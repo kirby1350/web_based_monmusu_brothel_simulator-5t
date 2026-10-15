@@ -21,10 +21,11 @@ const human = (o: Partial<MonstGirl> = {}) => fxGirl({ race: '人类', ...o })
 const mkSave = (o: Partial<GameSave['player']> = {}, girls: MonstGirl[] = [human()]): GameSave =>
   migrateSave({ player: { ...fxPlayer, gold: 5000, ...o }, girls, currentDay: 5, phase: 'morning', actionsUsedToday: 0, dailyGuests: [] })
 
-test('场景表：8 个，维护费合计 16，价格与维护单调大致对应', () => {
-  assert.equal(TRAINING_SCENES.length, 8)
+test('场景表：10 个（含 2 个放权场景），维护费合计 19，价格与维护单调大致对应', () => {
+  assert.equal(TRAINING_SCENES.length, 10)
   const total = TRAINING_SCENES.reduce((a, s) => a + s.upkeep, 0)
-  assert.equal(total, 16)
+  assert.equal(total, 19)
+  assert.equal(TRAINING_SCENES.filter((s) => s.directions.includes('release') && !s.directions.includes('tame')).map((s) => s.id).join(','), 'altar,queen_room,throne')
   for (const s of TRAINING_SCENES) { assert.ok(s.upkeep >= 1 && s.upkeep <= 3); assert.ok(s.directions.length >= 1) }
 })
 
@@ -264,4 +265,46 @@ test('阴影不进接客：结算、提示词、夜间事件、心里话都不�
     const r1 = endDay(mkSave({}, [{ ...plain, id: 'w' }]), () => seed), r2 = endDay(mkSave({}, [{ ...g, id: 'w' }]), () => seed)
     assert.deepEqual(r2.girls[0].incident ?? null, r1.girls[0].incident ?? null)
   }
+})
+
+test('放权场景：女王调教室 / 王座间——S性、淫乱、好感、声望；亲和 / 抗拒 / 觉醒 / 风险', async () => {
+  const { resolveTraining } = await import('./resolve-training')
+  const { getScene, sceneRiskIncident, fetishMatchesGuest, accumulateScene, FETISH_THRESHOLD, hasShadow } = await import('./scenes')
+  const mk = (race: string, o: Partial<import('./types').MonstGirl> = {}): import('./types').MonstGirl => ({
+    id: 'x', name: 'X', race, age: '', bodyDesc: '', bodyTags: '', bust: 85, waist: 60, hip: 88, personality: '', personalityTags: '',
+    outfit: '', outfitTags: '', otherDesc: '', otherTags: '', affection: 40, obedience: 40, lewdness: 50, skills: [], imageTags: '', stamina: 100,
+    proficiency: { 口侍: 10, 胸侍: 10, 身侍: 10, 手技: 10, 待客: 10, M性: 0, S性: 10 }, ...o,
+  })
+  assert.deepEqual(getScene('queen_room')!.directions, ['release'])
+  assert.deepEqual(getScene('throne')!.directions, ['release'])
+  // 普通种族：放权基础 S性 +5，女王调教室再 +6、淫乱 +3、好感 +1
+  const plain = resolveTraining({ girl: mk('猫娘'), direction: 'release', skip: true })
+  const q = resolveTraining({ girl: mk('猫娘'), direction: 'release', skip: true, scene: 'queen_room', day: 1 })
+  assert.equal(q.delta.s, plain.delta.s + 6)
+  assert.equal(q.delta.lewdness, plain.delta.lewdness + 3)
+  assert.equal(q.delta.affection, plain.delta.affection + 1)
+  assert.equal(q.girl.proficiency!['S性'], 10 + 11)
+  // 王座间：S性 +8、声望 +1、体力 +5；龙娘亲和淫乱主项 +2
+  const t = resolveTraining({ girl: mk('龙娘'), direction: 'release', skip: true, scene: 'throne', day: 1 })
+  assert.equal(t.delta.s, plain.delta.s + 8)
+  assert.equal(t.delta.lewdness, plain.delta.lewdness + 2 + 2)
+  assert.equal(t.reputationDelta, 1)
+  assert.equal(t.staminaCost, 25)
+  // 不适合的方向
+  assert.equal(resolveTraining({ girl: mk('猫娘'), direction: 'tame', skip: true, scene: 'throne' }).ok, false)
+  // 抗拒：兔娘在女王调教室好感 −3+1、淫乱 −2，积累阴影
+  const bun = resolveTraining({ girl: mk('兔娘'), direction: 'release', skip: true, scene: 'queen_room', day: 1 })
+  assert.equal(bun.delta.affection, plain.delta.affection + 1 - 3)
+  let g = mk('兔娘')
+  for (let d = 1; d <= 3; d++) g = accumulateScene(g, 'queen_room', d * 10).girl
+  assert.ok(hasShadow(g, 'queen_room'))
+  // 觉醒：女王癖 / 支配欲，对上 S 向客人
+  let dg = mk('龙娘', { lewdness: 60 })
+  for (let d = 1; d <= 3; d++) dg = accumulateScene(dg, 'throne', d * 10).girl
+  assert.ok(dg.awakened!.includes('throne'), `fp ${dg.sceneState?.throne?.fp} / ${FETISH_THRESHOLD}`)
+  const sGuest = { id: 'c', name: 'c', race: '人类', personality: '', traits: [], desires: '渴望被傲娇的魔物娘嫌弃着榨干', imageTags: '', satisfaction: 0, budget: 100, visits: 0 }
+  assert.ok(fetishMatchesGuest('throne', sGuest) && fetishMatchesGuest('queen_room', sGuest))
+  // 王座间风险：服从 <30 时 20% 恃宠而骄
+  assert.ok(sceneRiskIncident('throne', mk('龙娘'), mk('龙娘', { obedience: 20 }), 3, () => 0.1))
+  assert.equal(sceneRiskIncident('throne', mk('龙娘'), mk('龙娘', { obedience: 40 }), 3, () => 0.1), null)
 })

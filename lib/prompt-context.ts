@@ -77,7 +77,8 @@ export function sceneContext(input: Pick<TrainingInput, 'girl' | 'scene'>): stri
     : '她第一次面对这样的地方时会紧张，身体却诚实'
   const lv = shadowLevel(g, def.id)
   const shadow = lv ? `；这里在她心里留有阴影（${SHADOW_LEVEL_LABEL[lv]}），会发抖、想逃` : ''
-  return `\n【调教场景】${def.name}：${def.place}\n她的反应（${REACTION_LABEL[r] || '普通'}）：${react}${shadow}——请让场景本身成为叙述的主角，道具与环境要被实际使用`
+  const role = def.roleNote ? `\n${def.roleNote}；她仍是原来的性格、自称与口癖，只是多了支配的一面` : ''
+  return `\n【调教场景】${def.name}：${def.place}\n她的反应（${REACTION_LABEL[r] || '普通'}）：${react}${shadow}${role}——请让场景本身成为叙述的主角，道具与环境要被实际使用`
 }
 
 /**
