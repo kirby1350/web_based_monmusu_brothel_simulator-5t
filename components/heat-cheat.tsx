@@ -5,7 +5,7 @@ import { useState } from 'react'
 import type { HeatState } from '@/lib/arousal'
 import { setHeatValues } from '@/lib/cheat'
 
-export function HeatCheat({ heat, people, onChange }: { heat: HeatState; people: { id: string; name: string }[]; onChange: (h: HeatState) => void }) {
+export function HeatCheat({ heat, people, onChange, align = 'right' }: { heat: HeatState; people: { id: string; name: string }[]; onChange: (h: HeatState) => void; align?: 'left' | 'right' }) {
   const [open, setOpen] = useState(false)
   const inp = 'h-6 w-12 rounded border border-zinc-700 bg-zinc-900 px-1 text-[11px] text-zinc-100'
   const of = (id: string) => (id === 'guest' ? heat.guest : heat.girls[id]) ?? { arousal: 0, pleasure: 0, climaxes: 0 }
@@ -13,7 +13,7 @@ export function HeatCheat({ heat, people, onChange }: { heat: HeatState; people:
     <div className="relative">
       <button className="h-6 px-2 rounded border border-rose-700/80 bg-rose-950/60 text-[10px] font-semibold text-rose-300" onClick={() => setOpen((v) => !v)} data-testid="heat-cheat">作弊</button>
       {open && (
-        <div className="absolute right-0 top-7 z-50 w-64 rounded-lg border border-rose-900/70 bg-zinc-950 p-2.5 space-y-1.5 shadow-xl" data-testid="heat-cheat-panel">
+        <div className={`absolute ${align === 'left' ? 'left-0' : 'right-0'} top-7 z-50 w-64 rounded-lg border border-rose-900/70 bg-zinc-950 p-2.5 space-y-1.5 shadow-xl`} data-testid="heat-cheat-panel">
           <p className="text-[10px] font-semibold tracking-widest text-rose-400">作弊 · 兴奋 / 快感</p>
           {people.map((p) => (
             <div key={p.id} className="flex items-center justify-between gap-1 text-[11px] text-zinc-300">

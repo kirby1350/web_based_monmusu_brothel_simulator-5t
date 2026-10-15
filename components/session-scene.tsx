@@ -282,7 +282,7 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
       <div className="border-b border-border px-3 pt-2 pb-1.5 shrink-0 space-y-1.5" data-testid="step-bar">
         <div className="flex gap-1 items-center">
           {cheat && live.heat && (
-            <HeatCheat heat={live.heat} people={[{ id: 'guest', name: guest.name }, ...cast.map((g) => ({ id: g.id, name: g.name }))]} onChange={(h) => setLive((s) => ({ ...s, heat: h }))} />
+            <HeatCheat heat={live.heat} people={[{ id: 'guest', name: guest.name }, ...cast.map((g) => ({ id: g.id, name: g.name }))]} onChange={(h) => setLive((s) => ({ ...s, heat: h }))} align="left" />
           )}
           {SERVICE_STEPS.map((st, i) => (
             <div key={st.key} data-testid={`step-${st.key}`} data-state={i < live.stepIndex ? 'done' : i === live.stepIndex ? 'current' : 'todo'}
