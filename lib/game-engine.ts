@@ -2,7 +2,7 @@ import { MonstGirl, Guest, GuestClass, ParticipantStats, ServiceSession, Player 
 import { parseLooseJson } from '@/lib/utils'
 import { GUEST_RACES, GUEST_PERSONALITIES, GUEST_TRAITS, RACES } from '@/lib/game-data'
 import { nanoid } from 'nanoid'
-import { getDesireProfile, OUTFIT_PREFS } from '@/lib/catalog'
+import { getDesireProfile, pickOutfitPref } from '@/lib/catalog'
 
 // ─── 经营机制：行动次数 / 容量 / 升级 ──────────────────────────────────────────
 
@@ -106,7 +106,7 @@ export function createRandomGuest(reputation = 0): Guest {
     demand: def.demand,
     race: `${def.label}·${base.race}`,
     budget: Math.round((base.budget ?? BASE_GUEST_BUDGET) * def.budgetMult),
-    prefOutfit: def.demand >= 8 ? (base.prefOutfit ?? pick(OUTFIT_PREFS)) : base.prefOutfit,
+    prefOutfit: def.demand >= 8 ? (base.prefOutfit ?? pickOutfitPref()) : base.prefOutfit,
     imageTags: `1man, ${def.tags}, anime, masterpiece, best quality`,
   }
 }
@@ -122,7 +122,7 @@ function createCommonGuest(desires: string, profile: ReturnType<typeof getDesire
     desireKind: profile.kind,
     desireService: profile.service,
     // 约一半客人没有服装喜好
-    prefOutfit: Math.random() < 0.5 ? null : pick(OUTFIT_PREFS),
+    prefOutfit: Math.random() < 0.5 ? null : pickOutfitPref(),
     imageTags: '1man, adventurer, anime, masterpiece, best quality',
     satisfaction: 0,
     budget: rollGuestBudget(reputation),

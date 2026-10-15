@@ -7,7 +7,7 @@ import type { CustomProp } from './types'
 import type { MonstGirl, OutfitId, SensitivityZone, SkillKey, SkillRank, TrainingDirection } from './types'
 import {
   SCULPT_POTIONS, SCULPT_BOUNDS, TRAINING_ROOM_MULT, TRAINING_ROOM_PROP_SLOTS, SKILL_PROGRESS_PER_RANK,
-  SKIP_OBEDIENCE_MIN, TRAINING_PROPS, MAX_STAMINA,
+  SKIP_OBEDIENCE_MIN, TRAINING_PROPS, MAX_STAMINA, outfitName,
 } from './catalog'
 
 export const TRAINING_DIRECTIONS: { key: TrainingDirection; label: string; hint: string }[] = [
@@ -104,7 +104,7 @@ export function resolveTraining(input: TrainingInput): TrainingResult {
       if (skip && girl.obedience < SKIP_OBEDIENCE_MIN) { ob = Math.round(ob * 0.8); notes.push('服从不足 25，跳过的驯服八折') }
       if (props.has('whip')) { ob += 3; notes.push('皮鞭：服从 +3') }
       if (props.has('rack')) { delta.m += 1; notes.push('拘束架：M 进度 +1') }
-      if (input.outfit === 'restraint') { ob += 1; notes.push('拘束衣：服从 +1') }
+      if (input.outfit === 'restraint' || input.outfit === 'nun') { ob += 1; notes.push(`${outfitName(input.outfit)}：服从 +1`) }
       delta.obedience = ob; delta.m += m(1); delta.affection = m(1)
       break
     }
@@ -114,7 +114,8 @@ export function resolveTraining(input: TrainingInput): TrainingResult {
       let ob = m(6)
       if (props.has('whip')) { ob += 3; notes.push('皮鞭：服从 +3') }
       if (props.has('rack')) { delta.m += 1; notes.push('拘束架：M 进度 +1') }
-      if (input.outfit === 'restraint') { ob += 1; notes.push('拘束衣：服从 +1') }
+      if (input.outfit === 'restraint') { ob += 1; notes.push(`${outfitName(input.outfit)}：服从 +1`) }
+      if (input.outfit === 'harness') { delta.m += 1; notes.push(`${outfitName(input.outfit)}：M 进度 +1`) }
       delta.m += m(1); delta.affection = m(1)
       if (girl.incident) {
         ob += PUNISH_EXTRA_OBEDIENCE; delta.m += PUNISH_EXTRA_M
@@ -131,7 +132,7 @@ export function resolveTraining(input: TrainingInput): TrainingResult {
       let lw = m(6)
       if (props.has('massage_table')) { lw += 3; notes.push('按摩台：淫乱 +3') }
       if (props.has('censer')) { lw += 2; notes.push('香炉：淫乱 +2') }
-      if (input.outfit === 'queen') { lw += 1; notes.push('女王装：淫乱 +1') }
+      if (input.outfit === 'queen' || input.outfit === 'babydoll' || input.outfit === 'latex') { lw += 1; notes.push(`${outfitName(input.outfit)}：淫乱 +1`) }
       delta.lewdness = lw; delta.s = m(1); delta.affection = m(1)
       break
     }
@@ -165,8 +166,11 @@ export function resolveTraining(input: TrainingInput): TrainingResult {
       }
       const rank = skill ? girl.skillRanks?.[skill] : undefined
       if (!skill || !rank) return fail('只能特训已选的技能')
-      delta.skillProgress = Math.max(0, m(1) + (props.has('mirror') ? 1 : 0) + (input.progressAdjust ?? 0))
+      // 舞娘纱衣：特训「待客」+1，与练习镜不叠加
+      const dancerBonus = input.outfit === 'dancer' && skill === '待客' && !props.has('mirror') ? 1 : 0
+      delta.skillProgress = Math.max(0, m(1) + (props.has('mirror') ? 1 : 0) + dancerBonus + (input.progressAdjust ?? 0))
       if (props.has('mirror')) notes.push('练习镜：进度 +1')
+      if (dancerBonus) notes.push(`${outfitName(input.outfit)}：待客进度 +1`)
       const prog = (girl.skillProgress?.[skill] ?? 0) + delta.skillProgress
       let idx = RANKS.indexOf(rank)
       let rest = prog
@@ -183,12 +187,17 @@ export function resolveTraining(input: TrainingInput): TrainingResult {
       let v = m(10)
       const zoneProp = TRAINING_PROPS.find((p) => p.zone === zone && props.has(p.id))
       if (zoneProp) { v += 4; notes.push(`${zoneProp.name}：对口 +4`) }
-      if (input.outfit === 'crotchless' && (zone === '阴蒂' || zone === '小穴' || zone === '后庭')) { v += 2; notes.push('开裆装：+2') }
+      if (input.outfit === 'crotchless' && (zone === '阴蒂' || zone === '小穴' || zone === '后庭')) { v += 2; notes.push(`${outfitName(input.outfit)}：+2`) }
+      // 兔女郎装→耳朵、吊带泳衣→乳房：+2，已有同部位道具时不叠加
+      if (!zoneProp && ((input.outfit === 'bunny' && zone === '耳朵') || (input.outfit === 'sling' && zone === '乳房'))) { v += 2; notes.push(`${outfitName(input.outfit)}：+2`) }
       delta.sensitivity = v
       next.sensitivities = { ...girl.sensitivities, [zone]: clamp100((girl.sensitivities?.[zone] ?? 30) + v) }
       break
     }
   }
+
+  // 纯白婚纱内衣：任意方向好感 +1
+  if (input.outfit === 'bridal') { delta.affection = (delta.affection ?? 0) + 1; notes.push(`${outfitName(input.outfit)}：好感 +1`) }
 
   // 不对口的道具不生效
   for (const id of props) if (!notes.some((n) => n.startsWith(PROP_NAME(id)))) notes.push(`${PROP_NAME(id)}：方向不对口，无效果`)
