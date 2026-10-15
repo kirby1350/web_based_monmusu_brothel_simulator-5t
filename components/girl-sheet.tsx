@@ -20,6 +20,7 @@ import { ItemIcon } from '@/components/item-icon'
 import { StepActionsEditor } from '@/components/step-actions-editor'
 import { getStepActions } from '@/lib/custom-props'
 import { cn } from '@/lib/utils'
+import { SpeechStyleBlock } from '@/components/speech-style-block'
 
 interface GirlSheetProps {
   girl: MonstGirl
@@ -177,6 +178,7 @@ export function GirlSheet({ girl, save, settings, onSaveChange, onClose, intro }
             </Button>
 
             {girl.personality && <p className="text-xs text-foreground/70 leading-relaxed">{girl.personality}</p>}
+            <SpeechStyleBlock value={girl.speechStyle} />
           </TabsContent>
 
           <TabsContent value="body" className="space-y-4 mt-0">
