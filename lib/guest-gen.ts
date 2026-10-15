@@ -1,11 +1,12 @@
 // 客人生成的三种「偏向」：早期保底（6b）、定向刷新（6c）、店铺主题（7）。
 // 偏好全由本地决定；AI 只润色文案（见 ai-guests.ts），刷新出的客人保持本地文案。
 import type { GameSave, Guest, MonstGirl, OutfitPref } from './types'
-import { GUEST_DESIRES, createRandomGuest, generateDailyGuests, getGuestCapacity } from './game-engine'
+import { createRandomGuest, generateDailyGuests, getGuestCapacity } from './game-engine'
 import { RACES } from './game-data'
-import { OUTFIT_PREFS, getDesireProfile } from './catalog'
+import { OUTFIT_PREFS } from './catalog'
 import { getMainService, traitMatched } from './resolve-service'
 import { proficiencyFromLegacy } from './proficiency'
+import { getTheme } from './store-theme'
 
 type Main = '口侍' | '胸侍' | '身侍'
 export interface GuestBias {
@@ -18,19 +19,8 @@ export interface GuestBias {
 export const EMPTY_BIAS: GuestBias = { races: [], traits: [], services: [], outfits: [] }
 export const biasEmpty = (b: GuestBias) => !b.races.length && !b.traits.length && !b.services.length && !b.kind && !b.outfits.length
 
-const pickR = <T,>(arr: T[], rng: () => number): T => arr[Math.floor(rng() * arr.length)]
-const desiresFor = (svc: Main | null, kind?: 'M' | 'S' | '中性') => GUEST_DESIRES.filter((d) => {
-  const p = getDesireProfile(d)
-  const main = p.service === '口侍' || p.service === '胸侍' ? p.service : '身侍'
-  return (!svc || main === svc) && (!kind || p.kind === kind)
-})
-/** 换掉客人的主需求（连同判定标签），可指定主类型 / M·S */
-export function withDesire(g: Guest, svc: Main | null, kind: 'M' | 'S' | undefined, rng: () => number): Guest {
-  const pool = desiresFor(svc, kind).length ? desiresFor(svc, kind) : desiresFor(svc).length ? desiresFor(svc) : GUEST_DESIRES
-  const desires = pickR(pool, rng)
-  const p = getDesireProfile(desires)
-  return { ...g, desires, desireKind: p.kind, desireService: p.service, desireDetail: undefined }
-}
+import { withDesire, pickR } from './guest-desire'
+export { withDesire }
 
 // ─── 6c 定向刷新：文字/标签解析 ───────────────────────────────────────────────
 const TRAIT_WORDS: [RegExp, string][] = [[/巨乳|大胸|爆乳|丰满/, '巨乳'], [/贫乳|平胸|小胸|萝/, '贫乳'], [/丰臀|翘臀|大屁股|屁股/, '丰臀'], [/兽耳|兽娘|毛茸/, '兽耳']]
@@ -95,16 +85,14 @@ export interface PoolOpts {
   bias?: GuestBias
   theme?: string | null
 }
-export type ThemeFilter = (g: Guest, rng: () => number) => Guest
-let themeHook: ((theme: string) => ThemeFilter | null) | null = null
-/** 主题模块在加载时登记自己（避免循环依赖） */
-export function registerThemeHook(fn: (theme: string) => ThemeFilter | null) { themeHook = fn }
-
+/** 新客人成形：主题加权 → 定向偏向 → 主题排除（主题店不会出现与主题冲突的客人，定向也绕不过） */
 export function shapeGuest(g: Guest, opts: PoolOpts, rng: () => number): Guest {
   if ((g.visits ?? 0) > 0) return g
+  const th = opts.theme ? getTheme(opts.theme) : undefined
   let out = g
-  if (opts.theme && themeHook) { const f = themeHook(opts.theme); if (f) out = f(out, rng) }
+  if (th) out = th.boost(out, rng)
   if (opts.bias && !biasEmpty(opts.bias)) out = biasGuest(out, opts.bias, rng)
+  if (th) out = { ...th.exclude(out, rng), themeTag: th.id }
   return out
 }
 export function rollDailyGuests(count: number, reputation: number, regulars: Guest[], opts: PoolOpts, rng: () => number = Math.random): Guest[] {

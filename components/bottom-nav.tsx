@@ -8,7 +8,7 @@ const ITEMS: { key: NavTab; label: string; icon: typeof Home }[] = [
   { key: 'hub', label: '馆内', icon: Home },
   { key: 'market', label: '市场', icon: ShoppingBag },
   { key: 'facilities', label: '设施', icon: Building2 },
-  { key: 'flows', label: '流程', icon: ListOrdered },
+  { key: 'flows', label: '经营', icon: ListOrdered },
 ]
 
 /** 底部导航（接客 / 调教向导里隐藏） */

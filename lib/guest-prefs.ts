@@ -3,6 +3,7 @@ import type { Guest, MonstGirl, OutfitId } from './types'
 import { OUTFITS, STOCKINGS, getSkillRank, getInclination } from './catalog'
 import { getAvailablePlays, getMainService, scorePlay, traitMatched } from './resolve-service'
 import { GUEST_CLASSES } from './game-engine'
+import { getTheme } from './store-theme'
 
 export interface PrefCheck { key: string; label: string; ok?: boolean }
 const KIND_TEXT = { M: 'M（想施虐）', S: 'S（想被榨）' } as const
@@ -31,6 +32,8 @@ export function guestPrefChecks(guest: Guest, girls: MonstGirl[], opts: { outfit
     const k = guest.desireKind
     out.push({ key: 'kind', label: KIND_TEXT[k], ok: any((g) => { const inc = getInclination(g); return inc === k || inc === '两面' }) })
   }
+  const th = getTheme(guest.themeTag)
+  if (th) out.push({ key: 'theme', label: `主题客 ${th.id}`, ok: any((g) => th.fits(g)) })
   const demand = guest.demand ?? 0
   out.push({ key: 'demand', label: demand ? `挑剔 −${demand}（${GUEST_CLASSES[guest.guestClass ?? 'commoner'].label}）` : '不挑剔' })
   return out

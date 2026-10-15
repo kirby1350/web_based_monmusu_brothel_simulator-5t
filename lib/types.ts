@@ -285,6 +285,8 @@ export interface Guest {
   demand?: number                // 挑剔度：结算满意度直接扣这么多
   desireDetail?: string          // AI 润色的需求细节（只做文案；判定仍看 desires）
   aiFlavored?: boolean           // 已由 AI 润色过
+  /** 在主题店期间生成的客人（经营页主题 id） */
+  themeTag?: string
 }
 
 export type GuestClass = 'commoner' | 'merchant' | 'adventurer' | 'noble' | 'captain'

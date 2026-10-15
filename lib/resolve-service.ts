@@ -10,6 +10,7 @@ import {
   SKIP_OBEDIENCE_MIN, DRAGON_SKIP_OBEDIENCE_MULT, ANAL_UNLOCK, OUTFIT_GREET_BONUS, OUTFIT_GREET_MISMATCH,
 } from './catalog'
 import { getSatisfactionTier, calcServiceReward, type SatisfactionTier } from './game-engine'
+import { themeSatBonus } from './store-theme'
 
 export type ServiceStepKey = 'greet' | 'tease' | 'foreplay' | 'main' | 'cleanup'
 export const SERVICE_STEPS: { key: ServiceStepKey; label: string }[] = [
@@ -285,6 +286,9 @@ export function resolveService(input: ServiceInput): ServiceResult {
   }
   // 高档客人更挑剔：直接扣 demand（并入 satisfactionBonus，亲自上场同样生效）
   if (guest.demand) { satisfactionBonus -= guest.demand; raceNotes.push(`挑剔的客人：满意度 −${guest.demand}`) }
+  // 主题店：主题客人由符合主题的姑娘接待 +3
+  const tb = themeSatBonus(guest, girl)
+  if (tb) { satisfactionBonus += tb; raceNotes.push(`主题店「${guest.themeTag}」：满意度 +${tb}`) }
   let satisfaction = Math.max(0, Math.min(100, standardScore + playScore + satisfactionBonus + matchBonus))
   // 同一条验收：没对口 play、没对口服装的跳过，技能加成也不把它推过 70
   if (skip && !outfitMatched && !plays.some((p) => p.matched && p.score > 0) && sk.total) {

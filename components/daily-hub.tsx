@@ -16,6 +16,7 @@ import { dismissDaySummary } from '@/lib/day-summary'
 import { TUTORIAL_STEPS, isTutorialVisible, advanceTutorial, dismissTutorial } from '@/lib/tutorial'
 import { cn } from '@/lib/utils'
 import { GuestPrefs } from '@/components/guest-prefs'
+import { getTheme } from '@/lib/store-theme'
 import { BottomSheet } from '@/components/bottom-sheet'
 import { refreshGuests, refreshCost, refreshesUsed, parseGuestBias, REFRESH_LIMIT, EARLY_GUARANTEE_DAYS } from '@/lib/guest-gen'
 import type { GameTab } from '@/app/game/page'
@@ -228,6 +229,7 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
             </>)
           })()}
         </div>
+        {getTheme(player.storeTheme) && <p className="mx-4 text-[9px] text-pink-300/80 shrink-0" data-testid="hub-theme">主题：{getTheme(player.storeTheme)!.label}（冲突的客人不上门）</p>}
         {save.currentDay <= EARLY_GUARANTEE_DAYS && <p className="mx-4 text-[9px] text-muted-foreground shrink-0">开业头 {EARLY_GUARANTEE_DAYS} 天：至少有一位客人适合馆里的姑娘。</p>}
         <div className="flex-1 overflow-y-auto px-4 py-2">
           <div className="space-y-2" data-testid="guest-list">
@@ -280,6 +282,7 @@ export function DailyHub({ save, settings, onSaveChange, onNavigate, onOpenSetti
               <p className="text-[10px] text-muted-foreground" data-testid="guest-bias-parsed">
                 {parsed.labels.length ? `会偏向：${parsed.labels.join('、')}（强偏向，不保证每位都对上）` : '没认出偏好：可以写种族、巨乳/贫乳/丰臀/兽耳、口侍/胸侍/身侍、M/S、服装喜好。'}
               </p>
+              {getTheme(player.storeTheme) && <p className="text-[10px] text-pink-300/80">店铺主题「{getTheme(player.storeTheme)!.label}」优先：和主题冲突的偏好会被改掉。</p>}
               <button data-testid="guest-bias-confirm" disabled={!parsed.labels.length || cost === null || player.gold < (cost ?? 0)}
                 onClick={() => { const r = refreshGuests(save, parsed); if ('error' in r) flash(r.error); else { onSaveChange(r.save); flash(`按「${parsed.labels.join('、')}」换了一批客人（−${r.cost}G）`) } setBiasOpen(false) }}
                 className="w-full h-8 text-xs rounded-lg border border-amber-400/40 text-amber-400 disabled:opacity-40">换一批（{cost ?? '—'}G）</button>

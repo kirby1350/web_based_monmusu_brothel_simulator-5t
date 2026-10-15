@@ -43,7 +43,9 @@ let save: GameSave = migrateSave({
   dailyGuests: [], regulars: [],
 })
 // 开局客人池与真实开局一致（含早期保底）
-save = { ...save, dailyGuests: rollDailyGuests(getGuestCapacity(1), 0, [], { day: 1, girls: save.girls }) }
+// SIM_THEME=巨乳 等：开局就挂店铺主题
+if (process.env.SIM_THEME) save = { ...save, player: { ...save.player, storeTheme: process.env.SIM_THEME, storeThemeDay: 1 } }
+save = { ...save, dailyGuests: rollDailyGuests(getGuestCapacity(1), 0, [], { day: 1, girls: save.girls, theme: save.player.storeTheme ?? null }) }
 
 const stats = { upkeep: 0, sceneUses: {} as Record<string, number>, awakenings: [] as string[], peakOb: [] as string[], punish: 0, sats: [] as number[], serviceIncome: 0, services: 0, trainings: 0, rests: 0, idle: 0, tiers: {} as Record<string, number>, upgrades: [] as string[], potions: 0, bought: 0, incomeByDay: [] as number[], svcByGirl: {} as Record<string, number>, drills: 0, invest: 0, early: [] as number[] }
 const firstAffordable: Record<string, number | undefined> = {}
