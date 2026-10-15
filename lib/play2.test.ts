@@ -65,3 +65,76 @@ test('调教开场白提示词：带场景、方向、反应、阴影、性癖�
   const plain = buildTrainingOpeningPrompt(fxPlayer, fxGirl(), { directionLabel: '驯服' })
   assert.ok(plain.includes('调教室') && plain.includes('驯服'))
 })
+
+import { CASES, STYLES, runLive } from '../scripts/live-sat-table'
+import { resolveService } from './resolve-service'
+import { initLiveState, recordTurn, nextStep, resolveLiveSteps, recordModelStats, topicHit, liveMatchBonus, turnKind } from './live-steps'
+import { initHeat, heatTurn, speechBand, heatPromptBlock, heatSatBonus, HEAT_MAX } from './arousal'
+
+test('亲自上场满意度示例：敷衍 ≤ 跳过；每步 1 条对口 > 跳过；每步 3 条对口明显高于跳过', () => {
+  for (const c of CASES) {
+    const skip = resolveService({ girl: c.girl, guest: c.guest, outfit: c.outfit, stockings: c.stockings, plays: c.plays, roomLevel: c.roomLevel, skip: true }).satisfaction
+    const [lazy, plain, topic, engaged] = STYLES.map((st) => runLive(c, st).satisfaction)
+    assert.ok(lazy <= skip && lazy >= skip - 8, `${c.name} 敷衍 ${lazy} vs 跳过 ${skip}`)
+    assert.ok(Math.abs(plain - skip) <= 5, `${c.name} 普通 ${plain} vs ${skip}`)
+    assert.ok(topic > skip, `${c.name} 对口 ${topic} vs ${skip}`)
+    assert.ok(engaged >= Math.min(100, skip + 10), `${c.name} 投入 ${engaged} vs ${skip}`)
+  }
+  // 新人这一例的具体数（文档里的表）
+  const c = CASES[0]
+  assert.deepEqual(STYLES.map((st) => runLive(c, st).satisfaction), [53, 59, 64, 85])
+})
+
+test('模型满意度：每回合 ±2、每步 ±3、整场 −6~+8；敷衍回合不算', () => {
+  const c = CASES[0]
+  const plan = { girl: c.girl, guest: c.guest, outfit: c.outfit, stockings: c.stockings, roomLevel: 1 }
+  let s = initLiveState(plan)
+  s = recordTurn(s, { text: '贴耳低语撩拨他，慢慢来' }); s = recordModelStats(s, 20)
+  assert.equal(s.model![0], 2)
+  s = recordTurn(s, { text: '贴耳低语撩拨他，慢慢来' }); s = recordModelStats(s, 20)
+  assert.equal(s.model![0], 3) // 每步封顶 3
+  s = recordTurn(s, { text: '嗯' }); s = recordModelStats(s, 20)
+  assert.equal(s.model![0], 3)
+  for (let i = 1; i < 5; i++) { s = nextStep(s); for (let k = 0; k < 3; k++) { s = recordTurn(s, { text: '认真地照着做这一步' }); s = recordModelStats(s, 20) } }
+  assert.equal(resolveLiveSteps(plan, s).live.model, 8) // 整场封顶 8
+  assert.equal(turnKind('嗯嗯', true), 'short')
+})
+
+test('准备页选的 play（含流程模板预选）在亲自上场同样计分', () => {
+  const c = CASES[1]
+  const plan = { girl: c.girl, guest: c.guest, outfit: c.outfit, stockings: c.stockings, roomLevel: c.roomLevel, plays: c.plays }
+  const s = initLiveState(plan)
+  assert.deepEqual(s.plays.map((p) => p.id), c.plays)
+  assert.ok(resolveLiveSteps(plan, s).playScore > 0)
+  assert.equal(liveMatchBonus(15, [['topic'], ['plain'], [], ['topic'], []]), Math.round(15 * (0.5 + 0.5 * 2 / 5)))
+})
+
+test('对口判定：需求、做法、部位、正戏主类型关键词', () => {
+  const ctx = { desires: '想被痴女主动求欢', stepIndex: 3, stepAction: '开始正式侍奉', mainSkill: '口侍' }
+  assert.ok(topicHit('她跪下去用舌头含住', ctx))
+  assert.ok(topicHit('她主动求欢地扑上来', { ...ctx, stepIndex: 0 }))
+  assert.ok(!topicHit('今天天气不错', ctx))
+})
+
+test('兴奋/快感：偏好命中时客人起步高；正戏快感上升，到顶记高潮并回落；说话档位随之变化', () => {
+  const g = CASES[1].girl
+  const hit = initHeat({ ...CASES[1].guest, prefRace: g.race, prefTrait: '巨乳' }, [g])
+  const miss = initHeat({ ...CASES[1].guest, prefRace: '龙娘', prefTrait: '贫乳', prefOutfit: undefined }, [g])
+  assert.ok(hit.guest.arousal >= miss.guest.arousal + 30)
+  let h = hit
+  const input = { guest: CASES[1].guest, girls: [g], mainSkill: '口侍', zone: '唇舌' as const, onTopic: true, text: '用力地含住' }
+  let climaxed = false
+  for (let i = 0; i < 10; i++) { h = heatTurn(h, { ...input, stepIndex: 3 }); if (h.justClimaxed.includes('guest')) climaxed = true }
+  assert.ok(climaxed && h.guest.climaxes >= 1)
+  assert.ok(h.guest.pleasure < HEAT_MAX)
+  assert.equal(speechBand({ arousal: 10, pleasure: 0, climaxes: 0 }), '从容')
+  assert.equal(speechBand({ arousal: 50, pleasure: 70, climaxes: 0 }), '慌乱')
+  assert.equal(speechBand({ arousal: 90, pleasure: 90, climaxes: 0 }), '临界')
+  assert.equal(speechBand({ arousal: 0, pleasure: 0, climaxes: 1 }, true), '高潮')
+  const block = heatPromptBlock(h, '王老板', [g])
+  assert.ok(block.includes('兴奋') && block.includes('口癖保持不变'.slice(0, 2)) && block.includes(g.name))
+  assert.ok(heatSatBonus(h) >= 3 && heatSatBonus(h) <= 5)
+  // 清洗：快感回落
+  const cooled = heatTurn(h, { ...input, stepIndex: 4 })
+  assert.ok(cooled.guest.pleasure < h.guest.pleasure || h.guest.pleasure === 0)
+})

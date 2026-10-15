@@ -57,8 +57,10 @@ export interface ServiceResult {
   staminaExtra: number
   staminaMult: number
   staminaRefund: number
-  /** 跳过结算的匹配加成（已算进 satisfaction；亲自上场为 0） */
+  /** 跳过结算的匹配加成（已算进 satisfaction；亲自上场为 0，亲自上场按投入度另算 liveMatch） */
   matchBonus: number
+  /** 不带 70 保护的匹配加成全额（主类型 / 对口 play / 服装），给亲自上场按投入度折算 */
+  matchPotential: number
   matchParts: string[]
   /** 种族特技带来的满意度加成（已算进 satisfaction） */
   satisfactionBonus: number
@@ -265,6 +267,9 @@ export function resolveService(input: ServiceInput): ServiceResult {
   // 跳过结算的匹配加成：主类型、play、服装三个维度可叠加（亲自上场不加）
   const matchParts: string[] = []
   let matchBonus = 0
+  const matchPotential = (getSkillRank(girl, main) ? SKIP_MATCH_BONUS.service : 0)
+    + Math.min(SKIP_MATCH_BONUS.maxPlays, plays.filter((p) => p.matched && p.score > 0).length) * SKIP_MATCH_BONUS.play
+    + (outfitMatched ? SKIP_MATCH_BONUS.outfit : 0)
   if (skip) {
     if (getSkillRank(girl, main)) { matchBonus += SKIP_MATCH_BONUS.service; matchParts.push(`主类型 +${SKIP_MATCH_BONUS.service}`) }
     const mp = Math.min(SKIP_MATCH_BONUS.maxPlays, plays.filter((p) => p.matched && p.score > 0).length)
@@ -313,7 +318,7 @@ export function resolveService(input: ServiceInput): ServiceResult {
     canSkip: canSkipService(girl),
     steps, standardScore, plays, playScore, outfitMatched,
     satisfaction, tier, reward, staminaCost,
-    staminaExtra, staminaMult, staminaRefund, satisfactionBonus, matchBonus, matchParts, raceNotes,
+    staminaExtra, staminaMult, staminaRefund, satisfactionBonus, matchBonus, matchPotential, matchParts, raceNotes,
     affectionDelta: 1,
     summary: buildServiceSummary(girl.name, guest.name, tier.key, plays.length),
     memoryDetail: serviceDetailLine(girl.name, guest.name, {

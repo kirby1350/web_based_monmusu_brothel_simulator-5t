@@ -7,7 +7,7 @@ import { girlStateCard, guestPrefLine, VALID_RACES, REPLY_LENGTH } from '@/lib/p
 import { speechLine, speechRuleFor } from '@/lib/speech-style'
 
 /** 系统提示词的可选游戏状态：天数、当前服装（客人偏好命中用） */
-export interface PromptState { day?: number; outfit?: OutfitId; stockings?: StockingId; scene?: SceneId }
+export interface PromptState { day?: number; outfit?: OutfitId; stockings?: StockingId; scene?: SceneId; /** 快感由本地【此刻的兴奋与快感】给出，不再写模型累计的快感 */ heatLocal?: boolean }
 
 // ─── 文风控制（去油黑名单常驻 + 可切换文风片段） ───────────────────────────────
 
@@ -152,7 +152,7 @@ function buildServiceSystemPromptBase(
   const girlStats = session.girls
     .map(
       (g) =>
-        `${g.name}：小穴快感 ${session.girlsStats[g.id]?.pleasure ?? 50}/100，体力 ${session.girlsStats[g.id]?.stamina ?? 100}/100${session.girlsStats[g.id]?.isExhausted ? '（淫液横流、双腿发软）' : ''}`
+        `${g.name}：${state.heatLocal ? '' : `小穴快感 ${session.girlsStats[g.id]?.pleasure ?? 50}/100，`}体力 ${session.girlsStats[g.id]?.stamina ?? 100}/100${session.girlsStats[g.id]?.isExhausted ? '（淫液横流、双腿发软）' : ''}`
     )
     .join('，')
 
@@ -188,7 +188,7 @@ ${girlDescriptions}
 姓名：${g.name}　种族：${g.race}　性格：${g.personality}
 特性：${g.traits.join('、') || '无'}
 需求：${g.desires}${g.desireDetail ? `（${g.desireDetail}）` : ''}${session.girls.map((x) => guestPrefLine(g, x, state.outfit, state.stockings)).filter(Boolean).map((l) => '\n' + l).join('')}${(g.visits ?? 0) > 0 ? `\n来访：第 ${(g.visits ?? 0) + 1} 次` : ''}
-当前状态 — 肉棒快感 ${stats?.pleasure ?? 0}/100，体力 ${stats?.stamina ?? 100}/100${stats?.isExhausted ? '（射精过度、阴茎抽搐）' : ''}，射精满足度 ${g.satisfaction}/100
+当前状态 — ${state.heatLocal ? '兴奋与快感见下方【此刻的兴奋与快感】' : `肉棒快感 ${stats?.pleasure ?? 0}/100，体力 ${stats?.stamina ?? 100}/100${stats?.isExhausted ? '（射精过度、阴茎抽搐）' : ''}`}，满意度 ${g.satisfaction}/100
 ${g.memories && Object.keys(g.memories).length > 0 ? `
 【关系记忆（老客人档案，必须自然融入叙述语气）】
 （visitCount 越高代表越熟络：老主顾应表现出更随意的亲昵、更直接的指名要求、更默契的配合或更过分的玩法，体现"回头客"的递进关系，而非初次见面的生疏。）

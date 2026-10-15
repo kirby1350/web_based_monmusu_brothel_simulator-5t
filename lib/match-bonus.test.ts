@@ -30,10 +30,11 @@ test('不对口的组合保持一般/不满', () => {
   assert.ok(r.satisfaction < 70, String(r.satisfaction))
 })
 
-test('亲自上场不加匹配加成', () => {
+test('亲自上场：没有跳过的 matchBonus，改按投入度给 liveMatch（无对口回合 = 全额一半）', () => {
   const plan = { girl: trained, guest: guest(), roomLevel: 2, outfit: 'maid' as const, stockings: 'none' as const }
   const live = resolveLiveSteps(plan, { ...initLiveState(plan), stepIndex: 4, turns: [1, 1, 1, 1, 1] })
   assert.equal(live.matchBonus ?? 0, 0)
+  assert.equal(live.live.liveMatch, Math.round(live.matchPotential / 2))
   assert.equal(resolveService({ ...plan, skip: false }).matchBonus, 0)
 })
 

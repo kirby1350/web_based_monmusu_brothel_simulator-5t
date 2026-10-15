@@ -23,8 +23,11 @@ import { ItemIcon } from '@/components/item-icon'
 import { SERVICE_STEPS } from '@/lib/resolve-service'
 import {
   initLiveState, recordTurn, nextStep, canChangeOutfit, changeOutfit, insertablePlays, insertPlay,
-  resolveLiveSteps, buildStepContext, type LiveState,
+  resolveLiveSteps, buildStepContext, recordModelStats, topicHit, type LiveState,
 } from '@/lib/live-steps'
+import { heatPromptBlock } from '@/lib/arousal'
+import { HeatPanel } from '@/components/heat-panel'
+import { getMainService } from '@/lib/resolve-service'
 import type { ServicePlan } from '@/components/session-setup'
 import { speechLine } from '@/lib/speech-style'
 
@@ -118,6 +121,9 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
     }
     const multi = parseStatsFromReply(raw)
     const fallback = multi ? null : estimateStatDelta(raw)
+    // 满意度：模型的 satisfaction 增量按回合/按步夹紧后计入结算（与步骤条显示同一个数）；她的快感微调兴奋/快感面板
+    const gd = multi ? getGirlDelta(multi, girl.name) : null
+    setLive((s) => recordModelStats(s, multi?.satisfactionDelta, gd ? { girlId: girl.id, delta: gd.pleasureDelta } : undefined))
     setSession((prev) => {
       const girlsStats = { ...prev.girlsStats }
       const delta = multi ? (getGirlDelta(multi, girl.name) ?? { pleasureDelta: 5, staminaDelta: -8 }) : fallback!
@@ -150,7 +156,11 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
     plays: preview.plays.map((p) => p.name),
   })
   const behaviour = buildBehaviourLines(girl.name, stepBehaviour(girl, live.stepIndex, currentStep.zone, currentStep.note, preview.plays.map((p) => p.id)))
-  const systemPrompt = buildServiceSystemPrompt(player, { ...session, messages }, settings.proseStyle, behaviour ? `${stepContext}\n${behaviour}` : stepContext, { outfit: live.outfit, stockings: live.stockings })
+  const heatBlock = live.heat ? heatPromptBlock(live.heat, guest.name, [girl]) : ''
+  const ctxAll = [stepContext, behaviour, heatBlock].filter(Boolean).join('\n')
+  // 提示词里的「满意度」用结算同一个数（不再有另算的射精满足度）
+  const promptSession = { ...session, messages, guest: session.guest ? { ...session.guest, satisfaction: preview.satisfaction } : session.guest }
+  const systemPrompt = buildServiceSystemPrompt(player, promptSession, settings.proseStyle, ctxAll, { outfit: live.outfit, stockings: live.stockings, heatLocal: !!live.heat })
   const recap = buildStepRecap(preview.steps.map((st, i) => ({
     label: SERVICE_STEPS[i].label, score: st.score, max: STEP_MAX, turns: live.turns[i],
     key: i === 3 && preview.plays.length ? `${st.note ?? ''}+${preview.plays.map((p) => p.name).join('、')}` : (st.zone ?? stepActions[i]?.slice(0, 8)),
@@ -161,10 +171,26 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
   const outfitOpts = OUTFITS.filter((o) => o.id === 'regular' || owned.has(o.id))
   const stockingOpts = STOCKINGS.filter((x) => x.id === 'none' || owned.has(x.id))
   const playOpts = insertablePlays(plan, live)
+  const mainSkill = getMainService(guest)
+  const playsUsedRef = useRef(live.plays.length)
+  const [pending, setPending] = useState<string | null>(null)
+  // 先按玩家这句话推进回合质量与兴奋/快感，等提示词更新后再发（这一回合的叙述要对得上新数值）
+  useEffect(() => {
+    if (pending === null) return
+    chatRef.current?.sendMessage(pending)
+    setPending(null)
+  }, [pending, systemPrompt])
   const send = (text: string) => {
-    if (!text.trim() || live.finished) return
-    setLive((s) => recordTurn(s))
-    chatRef.current?.sendMessage(text.trim())
+    const t = text.trim()
+    if (!t || live.finished) return
+    const topic = topicHit(t, {
+      desires: guest.desires, desireDetail: guest.desireDetail, stepIndex: live.stepIndex, stepAction: stepActions[live.stepIndex],
+      playNames: preview.plays.map((p) => p.name), zone: currentStep.zone, mainSkill, prefOutfit: guest.prefOutfit ?? undefined,
+    })
+    const newPlays = Math.max(0, live.plays.length - playsUsedRef.current)
+    playsUsedRef.current = live.plays.length
+    setLive((s) => recordTurn(s, { text: t, topic, heat: { guest, girls: [girl], mainSkill, zone: currentStep.zone, newPlays, outfit: s.outfit, stockings: s.stockings } }))
+    setPending(t)
     setInputValue('')
   }
   const goNext = () => {
@@ -214,11 +240,12 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
         </div>
         <div className="flex items-center gap-3 text-[11px] text-foreground/75 flex-wrap">
           <span data-testid="live-stamina">体力 {Math.max(0, (girl.stamina ?? 100) - preview.staminaCost)}（−{preview.staminaCost}）</span>
-          <span data-testid="live-satisfaction">满意度 {preview.satisfaction}（{preview.tier.label}）</span>
+          <span data-testid="live-satisfaction" title={`步骤 ${preview.standardScore} + play ${preview.playScore} + 加成 ${preview.satisfactionBonus} + 匹配 ${preview.live.liveMatch} + 投入 ${preview.live.model} + 高潮 ${preview.live.heat}`}>满意度 {preview.satisfaction}（{preview.tier.label}）</span>
           <span data-testid="live-outfit">服装 {outfitName}</span>
           <span className="flex-1" />
           <button className="underline hover:text-rose-400" onClick={() => finish(live)}>提前结束</button>
         </div>
+        {live.heat && <HeatPanel heat={live.heat} guest={guest} girls={[girl]} />}
         <div className="flex gap-1.5">
           <Button size="sm" className="h-7 text-xs glow-btn" data-testid="btn-next-step"
             onClick={(e) => {
