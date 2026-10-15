@@ -82,7 +82,7 @@ export function bankWordsUsed(text: string): string[] {
 }
 
 export const DENSE_MIN_WORDS = 12
-export const DENSE_LENGTH = { min: 500, max: 800 }
+export const DENSE_LENGTH = { min: 800, max: 1200 }
 
 /** 【★重油文风★】段：放在系统提示词最末尾，作为最后、最高优先级的文风指令 */
 export function denseStyleBlock(o: BankOpts): string {
