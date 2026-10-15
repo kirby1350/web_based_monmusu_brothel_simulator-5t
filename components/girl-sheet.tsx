@@ -222,14 +222,6 @@ export function GirlSheet({ girl, save, settings, onSaveChange, onClose, intro }
             {pendingSkillPicks(girl) > 0 && (
               <SkillPicker girl={girl} onPicked={(g) => { updateGirl(g); setFeedback(`${g.name} 学会了新技能`) }} />
             )}
-            {girl.skills.length > 0 && (
-              <div>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-1">旧技能（不参与新结算）</p>
-                <div className="flex flex-wrap gap-1">
-                  {girl.skills.map((s) => <Badge key={s} variant="secondary" className="text-[9px]">{s}</Badge>)}
-                </div>
-              </div>
-            )}
             <StepActionsEditor title="标准做法（只对她）" testId="girl-step-actions" value={girl.stepActions}
               placeholders={getStepActions(player)}
               onSave={(v) => updateGirl({ ...girl, stepActions: v })} />

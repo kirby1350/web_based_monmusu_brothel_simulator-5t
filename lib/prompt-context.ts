@@ -28,7 +28,6 @@ export function girlStateCard(girl: MonstGirl, day?: number): string {
     .map(([z, v]) => ({ z, lv: getSensitivityLevel(v as number), v: v as number }))
     .filter((x) => x.lv === '敏感' || x.lv === '弱点')
     .sort((a, b) => b.v - a.v).slice(0, 3).map((x) => `${x.z === '种族' ? (RACE_ZONE_NAMES[girl.race] ?? '种族') : x.z} ${x.lv}`)
-  const legacy = girl.skills.length ? `｜招牌：${girl.skills.join('、')}` : ''
   const parts = [
     `技能：${skills.join('、') || '尚未学会'}`,
     `倾向：${inclText}`,
@@ -37,7 +36,7 @@ export function girlStateCard(girl: MonstGirl, day?: number): string {
     girl.incident ? `事件：${girl.incident.kind}·${girl.incident.text}（未处理）` : '',
     day ? `第${day}天` : '',
   ].filter(Boolean)
-  return parts.join('｜') + legacy
+  return parts.join('｜')
 }
 
 /** 2. 调教上下文：方向+效果、道具效果、调教室等级与倍率、目标技能/药 */

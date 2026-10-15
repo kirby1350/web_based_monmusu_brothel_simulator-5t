@@ -119,19 +119,6 @@ export function GirlCard({
             <p className="text-[10px] text-muted-foreground leading-relaxed line-clamp-2">
               {girl.personality}
             </p>
-            {girl.skills.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {girl.skills.map((skill) => (
-                  <Badge
-                    key={skill}
-                    variant="outline"
-                    className="text-[9px] h-4 px-1.5 py-0 border-primary/30 text-primary/80"
-                  >
-                    {skill}
-                  </Badge>
-                ))}
-              </div>
-            )}
           </div>
         )}
 
