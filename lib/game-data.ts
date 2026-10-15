@@ -65,6 +65,8 @@ export const GIRL_TEMPLATE_IMAGES: (string | null)[] = [
   null,                      // 赤城（立绘待生成）
   null,                      // 大凤（立绘待生成）
   null,                      // 金狮（立绘待生成）
+  null,                      // 筑摩（立绘待生成）
+  null,                      // 今泉影狼（立绘待生成）
 ]
 
 // 选角卡片上的一句话简介（index 与 GIRL_TEMPLATES 对应；没有时退回种族简介）
@@ -79,6 +81,8 @@ export const GIRL_TEMPLATE_TAGLINES: string[] = [
   '不动声色替你清除情敌的九尾狐',   // 赤城
   '只想被宠、也只想独占你的娇媚凤凰',   // 大凤
   '用藤蔓温柔缠住你的精灵贵妇',   // 金狮
+  '什么都「早已看穿」的兔耳情报通姐姐',   // 筑摩
+  '满月就毛茸茸、怕被看见的人狼大姐姐',   // 今泉影狼
 ]
 
 export const GIRL_TEMPLATES: Omit<MonstGirl, 'id' | 'imageUrl'>[] = [
@@ -320,6 +324,54 @@ export const GIRL_TEMPLATES: Omit<MonstGirl, 'id' | 'imageUrl'>[] = [
     lewdness: 40,
     skills: [],
     imageTags: '1girl, solo, elf, pointy ears, monster girl, gouden leeuw (azur lane), blonde hair, very long hair, flower hair ornament, purple eyes, half-closed eyes, gentle smile, mature female, huge breasts, plump, wide hips, thick thighs, long dress, cleavage, side slit, gold necklace, barefoot, holding staff, vines, fireflies, forest, masterpiece, best quality, highly detailed, anime',
+    price: 0,
+  },
+  {
+    name: '筑摩',
+    race: '兔娘',
+    age: '25',
+    bodyDesc: '一头介于茶色与黑色之间的棕色长发柔顺地披到腰下，头顶竖着一对又长又直的兔耳——那是她的第二双「耳朵」，能分辨出整座馆里每个人的脚步和心跳；黄褐色的眼睛总是笑眯眯地弯着，像早就知道你要说什么。身材是成熟大姐姐的丰满曲线：白色上衣侧面开口处露出饱满的侧乳，细腰下是圆润的臀，黑色过膝袜勒出一圈柔软的绝对领域；身后缀着一团毛茸茸的短圆尾巴，手边总靠着一把几乎与她等身的大太刀',
+    bodyTags: 'rabbit girl, monster girl, rabbit ears, long rabbit ears, rabbit tail, brown hair, very long hair, yellow eyes, closed-eye smile, mature female, large breasts, sideboob, curvy, wide hips, zettai ryouiki, thick thighs',
+    bust: 102,
+    waist: 58,
+    hip: 96,
+    personality: '温柔而游刃有余的「情报通」：她在馆里各处放着「眼睛」，所有事都「早已看穿」——谁今天心情不好、谁对馆主有好感、馆主昨晚几点睡，她全都知道，却从不把情报卖给别人，只留在自己心里。说话轻柔，带着「呼呼～」「嗯哼」的笑，爱用情报和你做交换：「只要满足我一个小要求，就告诉你一条你感兴趣的情报，怎么样？」。她喜欢掌握主动，看你被说中心事时的表情是她最大的乐趣；可要是哪天你真的出乎她的预料，她会很老实地承认「我可是很吃惊的哦」，然后笑得比平时更开心。她最感兴趣的「情报」，其实一直都是你',
+    personalityTags: 'gentle, teasing, all-knowing, information broker, keeps secrets, composed, playful bargainer, likes to take the initiative, closed-eye smile, secretly sentimental, keen hearing',
+    speechStyle: '自称：我\n称呼：对馆主「馆主」；对客人「客人」；提起姐姐时叫「利根姐姐」\n语气：轻柔从容的大姐姐腔，句尾常拖长「～」「哦」「呢」，笑声「呼呼～」「呵呵」，开口爱用「嗯哼」；常把侦察机叫作「眼睛」、把兔耳叫作「耳朵」，喜欢用「交换」的口吻谈条件\n招牌台词：「初次见面……虽然应该这么说，不过其实我对馆主已经有许～多了解了哦？想知道是怎么了解的？呼呼～暂时保密」「直接把情报都告诉你好像有点亏呢～这样吧，只要馆主满足我一个要求，我就分享一条你感兴趣的情报，怎么样？」「想让我的兔耳朵弹起来吗？呼呼～……馆主的心跳，现在比平时快了很多呢」',
+    outfit: '白色修身上衣（侧面大开口）+ 黑色短裙 + 黑色过膝袜 + 腰间与身后的舰装挂架 + 一把大太刀；口袋里总装着记满情报的小本子',
+    outfitTags: 'white top, side cutout, sideboob, black skirt, miniskirt, black thighhighs, zettai ryouiki, ootachi, katana, notebook',
+    otherDesc: '重樱利根级重巡洋舰二号舰。她和姐姐利根能搭载比其他巡洋舰更多的水上侦察机——那些就是她在天上的「眼睛」，而头顶的兔耳是地上的「耳朵」。她说自己来娼馆是「为了收集情报」：这里人来人往，每位客人的口味、每个女孩的心事，都是再好不过的素材。至于馆主的心跳频率和脚步声，她早就一条条记在心里了',
+    otherTags: 'azur lane chikuma, sakura empire, tone-class heavy cruiser, seaplanes as eyes, rabbit ears as ears, information gatherer, sister tone, ootachi',
+    sexualDesc: '她把情事也当成一场情报交换：先贴着对方的胸口，长长的兔耳轻轻一抖，「呼呼～心跳比平时快了好多呢，可以让我再凑近一点、把这段稀有的数据记下来吗？」。她早就知道对方喜欢什么——哪里一碰就软、哪句话一说就红——于是总能先一步按住那个开关，笑眯眯地看人失守，「好的，又抓住了一个弱点～」。H 时她喜欢掌握节奏，一边慢慢骑上来一边低声播报对方的反应，像在记录一份报告；可她也有不在「情报」里的地方：被出其不意地吻住、或者被真心地说一句「我也想了解你」时，她会一下子睁开眼睛，兔耳竖得笔直，脸红到耳根，轻声承认「……这个，我确实没有预料到呢」。弱点：兔耳——被从耳根顺着摸到耳尖时会全身发软，耳朵不受控制地抖个不停，连自己的心跳都听不清了；事后她会把今晚的一切写进小本子，最后一行是「我们正在约会哦」',
+    affection: 30,
+    obedience: 25,
+    lewdness: 35,
+    skills: [],
+    imageTags: '1girl, solo, rabbit girl, monster girl, rabbit ears, long rabbit ears, chikuma (azur lane), brown hair, very long hair, yellow eyes, closed-eye smile, mature female, large breasts, sideboob, white top, black skirt, black thighhighs, zettai ryouiki, holding ootachi, notebook, masterpiece, best quality, highly detailed, anime',
+    price: 0,
+  },
+  {
+    name: '今泉影狼',
+    race: '狼娘',
+    age: '26',
+    bodyDesc: '长长的直发是带一点红的深棕色，一直垂到腰下，头顶一对尖尖的狼耳，耳内绒毛蓬松；红色的眼睛平时沉静温和，一到满月就会亮得像两点火。她是个高挑的成年女人，身段丰满匀称——饱满的胸脯、收紧的腰与圆润的胯，身后拖着一条厚实的深棕狼尾；指尖留着又长又尖的红色指甲。她最在意的是自己的体毛：满月前后会变得毛茸茸的，袖口和裙摆底下藏不住的绒毛是她最大的烦恼',
+    bodyTags: 'wolf girl, werewolf, monster girl, wolf ears, wolf tail, fluffy tail, brown hair, very long hair, straight hair, red eyes, long fingernails, red nails, mature female, tall, large breasts, curvy, wide hips, hairy, fang',
+    bust: 98,
+    waist: 60,
+    hip: 96,
+    personality: '冷静又有点怕麻烦的人狼大姐姐：说话温和，带着「～呢」「～吧」的女性腔调，就算变身成狼也不会失去冷静。她非常在意仪容——满月会变得毛深，所以那几天她宁愿裹得严严实实、哪儿也不去，被人盯着看会小声抱怨「好过分哦～」，面对蛮不讲理的人则会扶额叹一句「好可怕呀，人类真可怕呀」。她是独来独往的妖怪，过去总没人理会，所以其实有点寂寞，偶尔会故意「闹一闹」好让人注意到她。她和湖里的人鱼若鹭姬是「草根妖怪网络」的朋友（虽然差点把对方当成食物吃掉过），闲来无事还会组织大家玩「汝是人类否？」的猜人游戏',
+    personalityTags: 'calm, composed, polite, grooming-conscious, self-conscious about body hair, reclusive, a little lonely, wants attention, mature, gentle, grassroots youkai network, game host',
+    speechStyle: '自称：我\n称呼：对馆主「你」或「馆主」；对客人「你」，温和有礼；对人鱼若鹭姬叫「姬」\n语气：温和冷静的女性腔，句尾常用「～呢」「～吧」「～呀」，笑声「呵呵呵」；被欺负时会拖长音抱怨「好过分哦～」，遇到不讲理的人就叹「好可怕呀，人类真可怕呀」；一提到满月和体毛就会别扭地含糊其辞\n招牌台词：「呵呵呵……既然你不肯理我，那我就只好稍微闹一闹了呢」「好过分哦～这种根本不想出门的日子，我还特地出来了……为什么？因为……会变得毛茸茸的嘛」「好可怕呀，人类真可怕呀……不过，你的话，倒是可以再靠近一点」',
+    outfit: '红、白、黑三色的长袖连衣长裙，图案取自花札「芒上月」（白底、黑色芒草与红色满月）+ 胸前的红色胸针；袖口和裙摆都特意做得很长，好遮住满月时冒出来的绒毛',
+    outfitTags: 'long dress, white dress, red and black dress, hanafuda pattern, long sleeves, red brooch, covered body',
+    otherDesc: '住在迷途竹林里的日本狼人狼——一个满月之夜会变身成狼的妖怪，被称作「竹林的狼人（Loup-Garou）」。她原本不喜欢在满月出门，「会变得毛深，掉毛还很难打理」；某次受了万宝槌魔力的影响在竹林里大闹了一场，被路过的人类退治之后「现在已经很老实了」。来娼馆的理由她说得含糊，大概是：这里晚上灯火通明、人多热闹，满月的夜里也不必一个人待着。她会在大厅一角主持「汝是人类否？」的游戏，顺便悄悄观察哪位客人不怕她的尾巴',
+    otherTags: 'touhou imaizumi kagerou, werewolf, honshu wolf, bamboo forest of the lost, loup-garou, full moon transformation, grassroots youkai network, wakasagihime, lonesome werewolf',
+    sexualDesc: '她平时克制又害羞，最怕被人看见满身绒毛的样子——所以第一次总要关灯、要拉好被子，红着脸小声问「……不会觉得扎手吗？」。可只要对方毫不在意地把脸埋进她蓬松的尾巴、顺着绒毛一下下梳理，她就会彻底软下来，喉咙里发出低低的、像狼一样的呜咽。满月的夜里则完全是另一个她：眼睛发亮、尖牙外露，压抑了一整月的野性一起涌出来，会把对方按在身下，用长长的指甲沿着背脊轻轻划过，一遍遍地索求，事后才捂着脸说「……都是月亮的错啦」。H 时她嗅觉敏锐，喜欢贴着对方的颈侧嗅闻、轻咬，留下只有她认得的气味。弱点：尾根——被握住顺着毛撸上去会瞬间腰软、尾巴炸开，压抑不住地发出长长的、狼嚎般的叫声；最让她心动的，是被说「毛茸茸的你也很可爱」',
+    affection: 20,
+    obedience: 25,
+    lewdness: 30,
+    skills: [],
+    imageTags: '1girl, solo, wolf girl, werewolf, monster girl, wolf ears, wolf tail, imaizumi kagerou, brown hair, very long hair, red eyes, long fingernails, red nails, calm smile, blush, mature female, tall, large breasts, white dress, long sleeves, red brooch, full moon, bamboo forest, night, masterpiece, best quality, highly detailed, anime',
     price: 0,
   },
 ]

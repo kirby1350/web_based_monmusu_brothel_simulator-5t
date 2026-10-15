@@ -23,7 +23,7 @@ test('预设：全员成年，新角色与种族对应，图片/简介数组与�
     assert.ok(/mature female|adult/.test(`${t.bodyTags}, ${t.imageTags}, ${t.otherTags}`), `${t.name} adult tag`)
     assert.ok(!/high school|school uniform|高中|女高中生|\bteen\b|\bloli\b/i.test(`${t.bodyTags} ${t.imageTags} ${t.otherTags} ${t.otherDesc}`), t.name)
   }
-  const want: Record<string, string> = { 柴郡: '猫娘', 爱宕: '犬娘', 赤城: '狐娘', 大凤: '哈比', 金狮: '精灵' }
+  const want: Record<string, string> = { 柴郡: '猫娘', 爱宕: '犬娘', 赤城: '狐娘', 大凤: '哈比', 金狮: '精灵', 筑摩: '兔娘', 今泉影狼: '狼娘' }
   for (const [name, race] of Object.entries(want)) {
     assert.equal(GIRL_TEMPLATES.find((t) => t.name === name)?.race, race, name)
   }
@@ -86,8 +86,22 @@ test('金狮：精灵、母性但与千雪区分（贵族精灵 + 占有欲暗�
   assert.notEqual(speechRows(gl.speechStyle)[1][1], speechRows(qx.speechStyle)[1][1])
 })
 
-test('种族覆盖：10 个预设覆盖 9 个种族（含新增犬娘/狐娘/哈比/精灵）', () => {
+test('种族覆盖：12 个预设覆盖 11 个种族（含新增犬娘/狐娘/哈比/精灵/兔娘/狼娘）', () => {
   const covered = new Set(GIRL_TEMPLATES.map((t) => t.race))
-  for (const r of ['牛娘', '龙娘', '蜘蛛娘', '拉米亚', '猫娘', '犬娘', '狐娘', '哈比', '精灵']) assert.ok(covered.has(r), r)
-  assert.equal(GIRL_TEMPLATES.length, 10)
+  for (const r of ['牛娘', '龙娘', '蜘蛛娘', '拉米亚', '猫娘', '犬娘', '狐娘', '哈比', '精灵', '兔娘', '狼娘']) assert.ok(covered.has(r), r)
+  assert.equal(GIRL_TEMPLATES.length, 12)
+})
+
+test('筑摩 and 今泉影狼 keep canon race hooks and stay distinct', () => {
+  const c = GIRL_TEMPLATES.find((t) => t.name === '筑摩')!
+  const k = GIRL_TEMPLATES.find((t) => t.name === '今泉影狼')!
+  assert.match(c.imageTags, /chikuma \(azur lane\)/)
+  assert.match(c.speechStyle ?? '', /兔耳朵/)
+  assert.match(c.personality, /情报/)
+  assert.match(k.imageTags, /imaizumi kagerou/)
+  assert.match(k.personality, /满月|毛深/)
+  assert.match(k.speechStyle ?? '', /人类真可怕/)
+  for (const t of [c, k]) assert.ok(Number(t.age) >= 18 && /mature female/.test(t.imageTags))
+  const atago = GIRL_TEMPLATES.find((t) => t.name === '爱宕')!
+  assert.notEqual(c.speechStyle, atago.speechStyle)
 })
