@@ -67,6 +67,9 @@ function rollGuestBudget(reputation: number): number {
   return BASE_GUEST_BUDGET + Math.round(reputation * 1.2) + Math.floor(Math.random() * 40)
 }
 
+/** 客人「偏好特征」可选标签（AI 只能从这里挑） */
+export const GUEST_PREF_TRAIT_TAGS = GUEST_FETISH_PREFS.map((p) => p.tag)
+
 // ─── 客人身份档（按声望） ─────────────────────────────────────────────────────
 export interface GuestClassDef { key: GuestClass; label: string; budgetMult: number; demand: number; tags: string }
 export const GUEST_CLASSES: Record<GuestClass, GuestClassDef> = {

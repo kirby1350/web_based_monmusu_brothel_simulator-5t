@@ -7,6 +7,7 @@ import { getGameSave, saveGameSave, getSettings, saveSettings, clearGameSave } f
 import { generateDailyGuests, getGuestCapacity } from '@/lib/game-engine'
 import { GameSave, AppSettings } from '@/lib/types'
 import { migrateSave } from '@/lib/migrate-save'
+import { shouldGenerateAiGuests, generateAiGuests, applyAiGuests } from '@/lib/ai-guests'
 import { DailyHub } from '@/components/daily-hub'
 import { TrainingFlow } from '@/components/training-flow'
 import { ServiceFlow } from '@/components/service-flow'
@@ -61,6 +62,33 @@ export default function GamePage() {
     setSettings(getSettings())
     setLoaded(true)
   }, [router])
+
+  // AI 润色当天新客人：先用随机客人（已在存档里），后台请求，回来时只替换仍在客人池里的那几位。
+  // 失败/超时静默保留随机客人；无论成败都记 aiGuestsDay，刷新不重复请求。
+  const day = save?.currentDay
+  useEffect(() => {
+    if (!save || !settings || !shouldGenerateAiGuests(save)) return
+    let cancelled = false
+    const targetDay = save.currentDay
+    const apiKey = settings.chatModel.startsWith('grok') ? settings.grokApiKey : settings.chatApiKey
+    generateAiGuests(save, async (prompt, signal) => {
+      const res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal,
+        body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], model: settings.chatModel, apiKey, stream: false }) })
+      if (!res.ok) throw new Error(String(res.status))
+      const data = await res.json().catch(() => null)
+      return String(data?.content ?? '')
+    }).catch(() => []).then((upgraded) => {
+      if (cancelled) return
+      setSave((prev) => {
+        if (!prev) return prev
+        const next = applyAiGuests(prev, targetDay, upgraded)
+        if (next !== prev) saveGameSave(next)
+        return next
+      })
+    })
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [day, loaded])
 
   const handleSaveChange = (updated: GameSave) => {
     setSave(updated)
