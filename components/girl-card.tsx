@@ -5,6 +5,7 @@ import { ChevronDown, ChevronUp, ImageIcon } from 'lucide-react'
 import { MonstGirl } from '@/lib/types'
 import { StatBar } from '@/components/stat-bar'
 import { ImageDisplay } from '@/components/image-display'
+import { PORTRAIT_CARD_SIZES } from '@/lib/portrait'
 import { AppSettings } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
@@ -52,6 +53,8 @@ export function GirlCard({
             cachedUrl={girl.imageUrl}
             onUrlCached={(url) => onImageCached?.(girl.id, url)}
             alt={girl.name}
+            size="md"
+            sizes={PORTRAIT_CARD_SIZES}
             className="w-full aspect-[3/4] rounded-none"
           />
           {selected && (
@@ -69,6 +72,8 @@ export function GirlCard({
             onUrlCached={(url) => onImageCached?.(girl.id, url)}
             alt={girl.name}
             autoGenerate={!girl.imageUrl}
+            size="md"
+            sizes={PORTRAIT_CARD_SIZES}
             className="w-full aspect-[3/4] rounded-none"
           />
         </div>

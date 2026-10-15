@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button'
 import { generateImage } from '@/lib/image-service'
 import { AppSettings } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { PortraitImg } from '@/components/portrait-img'
+import type { PortraitSize } from '@/lib/portrait'
 
 interface ImageDisplayProps {
   tags: string
@@ -15,6 +17,10 @@ interface ImageDisplayProps {
   alt?: string
   className?: string
   autoGenerate?: boolean
+  /** 立绘尺寸：sm 缩略/列表，md 卡片/详情（默认），full 原图 */
+  size?: PortraitSize
+  /** 覆盖 sizes 提示 */
+  sizes?: string
 }
 
 export function ImageDisplay({
@@ -25,6 +31,8 @@ export function ImageDisplay({
   alt = '角色图片',
   className,
   autoGenerate = false,
+  size = 'md',
+  sizes,
 }: ImageDisplayProps) {
   const [url, setUrl] = useState<string>(cachedUrl ?? '')
   const [loading, setLoading] = useState(false)
@@ -65,8 +73,7 @@ export function ImageDisplay({
     if (url) {
       return (
         <div className={cn('relative rounded-lg overflow-hidden', className)}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={url} alt={alt} className="w-full h-full object-cover" />
+          <PortraitImg url={url} size={size} sizes={sizes} alt={alt} className="w-full h-full object-cover" />
         </div>
       )
     }
@@ -102,8 +109,7 @@ export function ImageDisplay({
   if (url) {
     return (
       <div className={cn('relative group rounded-lg overflow-hidden', className)}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={url} alt={alt} className="w-full h-full object-cover" />
+        <PortraitImg url={url} size={size} sizes={sizes} alt={alt} className="w-full h-full object-cover" />
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
           <Button
             size="icon"

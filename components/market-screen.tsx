@@ -9,6 +9,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { StatBar } from '@/components/stat-bar'
 import { ImageDisplay } from '@/components/image-display'
+import { PortraitImg } from '@/components/portrait-img'
+import { PORTRAIT_CARD_SIZES } from '@/lib/portrait'
 import { buildMarketGirlPrompt, buildOpeningDialoguePrompt } from '@/lib/prompt-builder'
 import { getGirlCapacity } from '@/lib/game-engine'
 import { GIRL_TEMPLATES, GIRL_TEMPLATE_IMAGES } from '@/lib/game-data'
@@ -380,8 +382,7 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
                 <div key={template.name} className={cn('bg-card border border-border rounded-xl overflow-hidden', alreadyOwned && 'opacity-60')}>
                   <div className="aspect-[3/4] relative">
                     {imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={imageUrl} alt={template.name} className="w-full h-full object-cover object-top" />
+                      <PortraitImg url={imageUrl} size="md" sizes={PORTRAIT_CARD_SIZES} alt={template.name} className="w-full h-full object-cover object-top" />
                     ) : (
                       <div className="w-full h-full bg-muted/20 flex items-center justify-center">
                         <Star className="w-8 h-8 text-muted-foreground/20" />
@@ -481,6 +482,7 @@ export function MarketScreen({ save, settings, onSaveChange, onBack }: MarketScr
                       onUrlCached={(url) => setListings((prev) => prev.map((g) => g.id === girl.id ? { ...g, imageUrl: url } : g))}
                       alt={girl.name}
                       autoGenerate={!!(imageKeys[girl.id])}
+                      sizes={PORTRAIT_CARD_SIZES}
                       className="w-full h-full rounded-none"
                     />
                     {/* Settings button overlay */}

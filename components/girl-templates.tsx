@@ -7,6 +7,7 @@ import { MonstGirl } from '@/lib/types'
 import { StatBar } from '@/components/stat-bar'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
+import { PortraitImg } from '@/components/portrait-img'
 
 interface GirlTemplatesProps {
   onSelect: (template: Omit<MonstGirl, 'id' | 'imageUrl'>, idx: number) => void
@@ -40,8 +41,7 @@ export function GirlTemplates({ onSelect }: GirlTemplatesProps) {
             {/* Portrait area */}
             <div className="w-full aspect-[3/4] bg-muted/20 relative">
               {presetImage ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={presetImage} alt={tmpl.name} className="w-full h-full object-cover object-top" />
+                <PortraitImg url={presetImage} size="md" sizes="(max-width: 768px) 50vw, 240px" alt={tmpl.name} className="w-full h-full object-cover object-top" />
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 bg-gradient-to-b from-muted/10 to-muted/30">
                   <ImageIcon className="w-6 h-6 text-muted-foreground/20" />
