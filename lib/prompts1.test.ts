@@ -245,3 +245,8 @@ test('walk26 跟进：新鲜感只写一次；摇篮不改口自称；调教档�
   for (let t = 1; t <= 6; t++) h = trainingHeatTurn(h, g, t, '')
   assert.ok(['慌乱', '临界', '高潮'].includes(speechBand(h.girls[g.id])), speechBand(h.girls[g.id]))
 })
+
+test('walk26 跟进：写作素材不点名具体衣物（避免和当前服装打架）', () => {
+  const all = JSON.stringify({ RACE_FLOW_DETAIL, SKILL_CRAFT })
+  assert.doesNotMatch(all, /围裙|裙摆|旗袍|女仆装/)
+})
