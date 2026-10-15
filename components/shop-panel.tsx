@@ -49,7 +49,7 @@ export function ShopPanel({ save, onSaveChange, onOpenMarket }: ShopPanelProps) 
 
       <Section title="衣橱" hint="买一次全馆可穿；常服自带">
         {[...OUTFITS, ...STOCKINGS].filter((o) => o.price > 0).map((o) => (
-          <Item key={o.id} icon={itemIconPath(OUTFITS.some((x) => x.id === o.id) ? 'outfit' : 'stocking', o.id)} name={o.name} desc={`喜好「${o.pref}」`} price={o.price} gold={player.gold}
+          <Item key={o.id} icon={itemIconPath(OUTFITS.some((x) => x.id === o.id) ? 'outfit' : 'stocking', o.id)} name={o.name} desc={`喜好「${o.pref}」${'effect' in o && o.effect ? ` · ${o.effect}` : ''}`} flavor={o.desc} price={o.price} gold={player.gold}
             done={wardrobe.has(o.id)} onBuy={() => run(buyWardrobe(save, o.id))} testId={`buy-${o.id}`} />
         ))}
       </Section>
@@ -90,8 +90,8 @@ function Section({ title, hint, children }: { title: string; hint: string; child
   )
 }
 
-function Item({ icon, name, desc, price, gold, owned, done, onBuy, testId }: {
-  icon?: string; name: string; desc: string; price: number; gold: number; owned?: string; done?: boolean; onBuy: () => void; testId: string
+function Item({ icon, name, desc, flavor, price, gold, owned, done, onBuy, testId }: {
+  icon?: string; name: string; desc: string; flavor?: string; price: number; gold: number; owned?: string; done?: boolean; onBuy: () => void; testId: string
 }) {
   const can = !done && gold >= price
   return (
@@ -104,6 +104,7 @@ function Item({ icon, name, desc, price, gold, owned, done, onBuy, testId }: {
             {owned && <span className="text-[10px] text-emerald-300">{owned}</span>}
           </div>
           <p className="text-[10px] text-muted-foreground">{desc}</p>
+          {flavor && <p className="text-[10px] text-rose-200/60 leading-snug line-clamp-2" title={flavor}>{flavor}</p>}
         </div>
       </div>
       <button data-testid={testId} disabled={!can} onClick={onBuy}

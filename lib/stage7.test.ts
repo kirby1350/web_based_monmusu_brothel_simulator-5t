@@ -14,7 +14,7 @@ test('每个道具都有图标文件（常服/无丝袜除外的规则一致）'
     ...RECOVERY_ITEMS.map((i) => ['recovery', i.id] as const), ...SCULPT_POTIONS.map((i) => ['sculpt', i.id] as const),
     ...TRAINING_PROPS.map((i) => ['prop', i.id] as const),
   ].map(([c, id]) => [c, id])
-  assert.equal(all.length, 29)
+  assert.equal(all.length, 44) // 18 衣服 + 5 丝袜 + 3 恢复 + 6 塑形 + 12 道具
   for (const [c, id] of all) assert.ok(existsSync(pub(itemIconPath(c, id)!)), `${c}/${id}`)
   assert.equal(itemIconPath('stocking', 'none'), undefined)
 })

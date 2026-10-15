@@ -31,7 +31,7 @@ test('1. 服务系统提示词用状态卡替代旧技能行', () => {
 
 test('3. 客人偏好命中：种族/特征/服装（含丝袜）', () => {
   const line = guestPrefLine(fxGuest(), fxGirl(), 'regular', 'black')
-  assert.ok(line.includes('种族：狐娘 ✔') && line.includes('特征：巨乳 ✔') && line.includes('服装：黑丝 ✔（已换上黑丝）'))
+  assert.ok(line.includes('种族：狐娘 ✔') && line.includes('特征：巨乳 ✔') && line.includes('服装：黑丝 ✔（已换上黑色薄丝裤袜）'))
   const miss = guestPrefLine(fxGuest({ prefRace: '龙娘', prefTrait: '贫乳', prefOutfit: '制服' }), fxGirl())
   assert.equal((miss.match(/✘/g) ?? []).length, 3)
   assert.equal(guestPrefLine(fxGuest({ prefRace: undefined, prefTrait: undefined, prefOutfit: null }), fxGirl()), '')

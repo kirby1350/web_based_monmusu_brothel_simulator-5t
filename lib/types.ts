@@ -147,8 +147,9 @@ export type SensitivityLevel = '迟钝' | '普通' | '敏感' | '弱点'
 export type DesireKind = 'M' | 'S' | '中性'
 export type DesireService = ServingSkill | '种族'
 export type OutfitId = 'regular' | 'maid' | 'kimono' | 'crotchless' | 'restraint' | 'queen'
-export type StockingId = 'none' | 'black' | 'white'
-export type OutfitPref = '制服' | '和服' | '黑丝' | '白丝' | '暴露' | '想施虐的客人' | '想被榨的客人'
+  | 'bunny' | 'qipao' | 'dancer' | 'babydoll' | 'sling' | 'nurse' | 'school' | 'miko' | 'nun' | 'bridal' | 'latex' | 'harness'
+export type StockingId = 'none' | 'black' | 'white' | 'garter' | 'fishnet' | 'lace_white'
+export type OutfitPref = '制服' | '和服' | '黑丝' | '白丝' | '暴露' | '想施虐的客人' | '想被榨的客人' | '兔女郎' | '异域' | '圣洁'
 export type TrainingDirection = 'tame' | 'release' | 'sculpt' | 'drill' | 'sensitize' | 'punish'
 
 /** 魔物娘身上的未处理事件（阶段 10） */
