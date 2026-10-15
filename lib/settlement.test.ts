@@ -45,15 +45,15 @@ test('三级房 + 两个对口精通 play + 步骤打满：可以到 90 以上',
   assert.ok(r2.satisfaction > 90, `got ${r2.satisfaction}`)
 })
 
-test('迎客服装：对口 +4、穿错 −2、常服 0', () => {
+test('迎客服装：对口 +6、穿错 −2、常服 0', () => {
   const girl = baseGirl({ skillRanks: { 待客: '初学' } })
   const g = (o: Guest['prefOutfit']) => baseGuest({ prefOutfit: o, prefRace: undefined, prefTrait: undefined })
   const greet = (guest: Guest, outfit: any, stockings: any = 'none') =>
     resolveService({ girl, guest, outfit, stockings, skip: true }).steps[0].score
   assert.equal(greet(g('制服'), 'regular'), 4)
-  assert.equal(greet(g('制服'), 'maid'), 8)
+  assert.equal(greet(g('制服'), 'maid'), 10)
   assert.equal(greet(g('制服'), 'kimono'), 2)
-  assert.equal(greet(g('黑丝'), 'maid', 'black'), 8)
+  assert.equal(greet(g('黑丝'), 'maid', 'black'), 10)
 })
 
 test('跳过门槛：服从 <25 不能跳过，犬娘除外；跳过体力 −40', () => {

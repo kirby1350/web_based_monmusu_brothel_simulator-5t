@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { GIFT_OPTIONS, canGiveGiftToday, giveGift, pendingSkillPicks } from '@/lib/hub-logic'
 import { COMMON_ZONES, RACE_ZONE_NAMES, RACE_TRAITS, RACE_PLAYS, getSensitivityLevel } from '@/lib/catalog'
 import { SkillPicker } from '@/components/skill-picker'
-import { useRecovery } from '@/lib/shop'
+import { useRecovery, recoveryUsedToday } from '@/lib/shop'
 import { RECOVERY_ITEMS, itemIconPath } from '@/lib/catalog'
 import { ItemIcon } from '@/components/item-icon'
 import { StepActionsEditor } from '@/components/step-actions-editor'
@@ -45,6 +45,7 @@ export function GirlSheet({ girl, save, settings, onSaveChange, onClose, intro }
   const stamina = girl.stamina ?? 100
   const giftToday = canGiveGiftToday(save)
   const giftBlockedReason = giftToday ? undefined : '今天已经送过礼了（全馆每天一次）'
+  const usedToday = recoveryUsedToday(save, girl)
 
   const updateGirl = (g: MonstGirl) => onSaveChange({ ...save, girls: save.girls.map((x) => (x.id === g.id ? g : x)) })
 
@@ -157,20 +158,24 @@ export function GirlSheet({ girl, save, settings, onSaveChange, onClose, intro }
             </div>
 
             <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-2">背包 · 恢复药（每人每天一瓶）</p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-widest">背包 · 恢复药（每人每天一瓶）</p>
+                {usedToday && <Badge variant="secondary" className="text-[9px] bg-emerald-500/15 text-emerald-300" data-testid="recovery-used-badge">今日已用</Badge>}
+              </div>
               {RECOVERY_ITEMS.filter((i) => (player.inventory?.[i.id] ?? 0) > 0).length === 0 ? (
                 <p className="text-[11px] text-muted-foreground">背包里没有恢复药，可以在大厅「商店」购买。</p>
               ) : (
                 <div className="flex flex-wrap gap-1.5">
                   {RECOVERY_ITEMS.filter((i) => (player.inventory?.[i.id] ?? 0) > 0).map((i) => (
-                    <button key={i.id} data-testid={`use-${i.id}`} disabled={girl.itemUsedOnDay === save.currentDay}
+                    <button key={i.id} data-testid={`use-${i.id}`} disabled={usedToday} title={usedToday ? '今天已经用过恢复药了' : undefined}
                       onClick={() => { const r = useRecovery(save, girl.id, i.id); if (r.ok) onSaveChange(r.save); setFeedback(r.ok ? r.message : r.error) }}
-                      className={cn('rounded-md border border-border pl-1 pr-2 py-1 text-[11px] hover:border-emerald-400/60 inline-flex items-center gap-1.5', girl.itemUsedOnDay === save.currentDay && 'opacity-40 pointer-events-none')}>
+                      className={cn('rounded-md border border-border pl-1 pr-2 py-1 text-[11px] hover:border-emerald-400/60 inline-flex items-center gap-1.5', usedToday && 'opacity-40 pointer-events-none')}>
                       <ItemIcon src={itemIconPath('recovery', i.id)} name={i.name} size={20} />{i.name} ×{player.inventory?.[i.id]}
                     </button>
                   ))}
                 </div>
               )}
+              {usedToday && <p className="text-[11px] text-amber-300/80 mt-1.5" data-testid="recovery-used-hint">{girl.name} 今天已经用过恢复药了，明天才能再用。</p>}
             </div>
 
             <Button variant="secondary" className="w-full h-9 text-xs" onClick={() => setChatOpen(true)}>

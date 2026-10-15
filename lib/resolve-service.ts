@@ -4,7 +4,7 @@ import {
   GREET_HOSTING_SCORE, STEP_SCORE, STEP_MAX, SKILL_RANK_BONUS, PLAY_SCORE, PLAYS, RACE_PLAYS, SKIP_MATCH_BONUS, racePlayMatched, PlayDef, WRONG_SIDE_PLAY_PENALTY,
   OUTFITS, STOCKINGS, RACE_TRAITS, getPlaySlots, getGuestProfile, getSkillRank, getInclination,
   getSensitivityLevel, SENSITIVITY_STEP_MOD, SENSITIVITY_STAMINA_MOD, SKIP_SERVICE_STAMINA,
-  SKIP_OBEDIENCE_MIN, DRAGON_SKIP_OBEDIENCE_MULT, ANAL_UNLOCK,
+  SKIP_OBEDIENCE_MIN, DRAGON_SKIP_OBEDIENCE_MULT, ANAL_UNLOCK, OUTFIT_GREET_BONUS, OUTFIT_GREET_MISMATCH,
 } from './catalog'
 import { getSatisfactionTier, calcServiceReward, type SatisfactionTier } from './game-engine'
 
@@ -206,8 +206,8 @@ export function resolveService(input: ServiceInput): ServiceResult {
   const traitHit = traitMatched(guest, girl)
   if (raceHit) greet += 2
   if (traitHit) greet += 2
-  if (outfitMatched) greet += 4
-  else if (guest.prefOutfit && outfit !== 'regular') greet -= 2
+  if (outfitMatched) greet += OUTFIT_GREET_BONUS
+  else if (guest.prefOutfit && outfit !== 'regular') greet += OUTFIT_GREET_MISMATCH
   // 狐娘「魅惑」：偏好一项都没中，也给一截开场分
   if (girl.race === '狐娘' && !raceHit && !traitHit && !outfitMatched) { greet += 2; raceNotes.push('魅惑：迎客 +2') }
 

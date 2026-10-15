@@ -19,7 +19,7 @@ test('三个维度叠加：主类型 +6、对口 play +4、服装 +5', () => {
   const r = resolveService({ girl: trained, guest: guest(), skip: true, roomLevel: 2, outfit: 'maid' })
   assert.ok(r.plays.some((p) => p.matched))
   assert.equal(r.matchBonus, SKIP_MATCH_BONUS.service + SKIP_MATCH_BONUS.play + SKIP_MATCH_BONUS.outfit)
-  assert.ok(r.satisfaction >= 70 && r.satisfaction <= 85, `full match ${r.satisfaction}`)
+  assert.ok(r.satisfaction >= 70 && r.satisfaction <= 87, `full match ${r.satisfaction}`) // 服装迎客 +6 后从 84 升到 86，仍是「满意」
   assert.equal(r.tier.key, 'satisfied')
 })
 
