@@ -38,7 +38,7 @@ test('重油：完整要求放在系统提示词最末尾，带密度要求与�
   const dense = buildServiceSystemPrompt(fxPlayer, s, 'dense', '【这一步】ctx', { dense: { stepIndex: 1, climaxAllowed: false, seed: 1 } })
   const tail = dense.slice(dense.lastIndexOf('【★重油文风'))
   assert.ok(dense.lastIndexOf('【★重油文风') > dense.indexOf('【这一步】ctx'))
-  assert.ok(tail.includes('【本回合词库') && tail.includes('结构示例') && tail.includes('四分之一'))
+  assert.ok(tail.includes('【本回合词库') && tail.includes('结构示例') && tail.includes('五分之一'))
   assert.ok(!tail.includes('蜜穴'))
   assert.ok(tail.includes('本回合没有人到高潮') && tail.includes('「挑逗」这一步') && tail.includes('450–650 字'))
   assert.ok(denseStyleBlock({ stepIndex: 3, climaxAllowed: true, seed: 1 }).includes('本回合有人到了高潮档'))
@@ -61,4 +61,12 @@ test('重油：每回合提醒按提示字数 450–650，偏短按实际 800 �
 
 test('重油长回复不会被前端流式超时截断：超时 ≥ 150 秒', () => {
   assert.ok(STREAM_TIMEOUT_MS >= 150_000)
+})
+
+test('重复句检测：上一段里叙述出现两次以上的短句会被点名，台词不算', async () => {
+  const { repeatedClauses, repeatNote } = await import('./prose-bank')
+  const t = '她的腰猛地弓起来，肥臀猛地夹紧。「肥臀猛地夹紧」光又亮了一分，肥臀猛地夹紧。\n<!--STATS:{}-->'
+  assert.deepEqual(repeatedClauses(t), ['肥臀猛地夹紧'])
+  assert.ok(repeatNote(t).includes('「肥臀猛地夹紧」'))
+  assert.equal(repeatNote('一句不重复的话。'), '')
 })

@@ -69,7 +69,7 @@ export function resolveTerms(profile: TermProfile, state: TermsState | undefined
 
 /** 每回合贴在最新消息旁边的一行 */
 export function termsLine(name: string, r: ResolvedTerms): string {
-  return `【本回合称呼·${name}】自称「${r.self.value}」｜叫你「${r.player.value}」｜胸叫「${r.breast.value}」｜下面叫「${r.pussy.value}」｜后面叫「${r.anus.value}」（堕落：${CORRUPT_TIERS[r.corruptTier]}，快感：${AROUSAL_TIERS[r.arousalTier]}）。她的台词里只用这几个叫法，不要混回旧叫法；写到的部位才用，没写到不硬塞；${r.corruptTier < 3 && !/母猪|肉便器/.test(r.self.value) ? '她还没堕到底，台词里不准自称母猪、肉便器之类；' : ''}叙述部分照常。`
+  return `【本回合称呼·${name}】自称「${r.self.value}」｜叫你「${r.player.value}」｜胸叫「${r.breast.value}」｜下面叫「${r.pussy.value}」｜后面叫「${r.anus.value}」（堕落：${CORRUPT_TIERS[r.corruptTier]}，快感：${AROUSAL_TIERS[r.arousalTier]}）。要叫到这些时只用这几个叫法，不要混回旧叫法；器官叫法一段回复里最多点两三次，其余用「那里」「里面」、代词或省掉，不要每句台词都带，自称也不必句句都有；${r.corruptTier < 3 && !/母猪|肉便器/.test(r.self.value) ? '她还没堕到底，台词里不准自称母猪、肉便器之类；' : ''}叙述部分照常。`
 }
 
 export const TERMS_RULE = '称呼规则：每个角色的自称、对你的称呼、器官叫法以【本回合称呼】那一行为准，会随堕落和快感改变；同一回合内保持一致，不要混用旧叫法；「母猪」「肉便器」「精液便所」这类自贬只有那一行里写了才能说，没写就不准自己升级；口癖、语气、句尾仍按原作。'

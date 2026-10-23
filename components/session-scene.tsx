@@ -19,7 +19,7 @@ import {
 import { parseLooseJson, cn } from '@/lib/utils'
 import { OUTFITS, STOCKINGS, STEP_MAX, getSensitivityLevel, playIconPath, ALL_PLAYS } from '@/lib/catalog'
 import { buildStepRecap, provokeSection, lengthReminder, transitionTurn, transitionFallback, climaxSlipNote, shortReplyNote, extractMetaphors, pushRecent, recentUseLine } from '@/lib/prompt-context'
-import { bankWordsUsed } from '@/lib/prose-bank'
+import { bankWordsUsed, repeatNote } from '@/lib/prose-bank'
 import { HeatCheat } from '@/components/heat-cheat'
 import { bodyTraitCraft } from '@/lib/body-traits'
 import { ItemIcon } from '@/components/item-icon'
@@ -129,7 +129,7 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
   const handleRawReply = useCallback((raw: string) => {
     const wasTransition = transitionRef.current
     // 本地回看：越过高潮闸门就在下一回合附一句校正
-    setNextNote(climaxSlipNote(raw, liveRef.current.heat?.justClimaxed ?? []) + shortReplyNote(raw, settings.proseStyle))
+    setNextNote(climaxSlipNote(raw, liveRef.current.heat?.justClimaxed ?? []) + shortReplyNote(raw, settings.proseStyle) + (settings.proseStyle === 'dense' ? repeatNote(raw) : ''))
     setRecentMetaphors((m) => pushRecent(m, extractMetaphors(raw)))
     setRecentBank((m) => [...m.filter((w) => !bankWordsUsed(raw).includes(w)), ...bankWordsUsed(raw)].slice(-30))
     transitionRef.current = false
@@ -455,7 +455,7 @@ export function TrainingScene({ player, girl: girl0, onTerms, directionLabel, tr
   }, [pending, systemPrompt])
 
   const onRaw = useCallback((raw: string) => {
-    setNextNote(climaxSlipNote(raw, heatRef.current.justClimaxed) + shortReplyNote(raw, settings.proseStyle))
+    setNextNote(climaxSlipNote(raw, heatRef.current.justClimaxed) + shortReplyNote(raw, settings.proseStyle) + (settings.proseStyle === 'dense' ? repeatNote(raw) : ''))
     setRecentMetaphors((m) => pushRecent(m, extractMetaphors(raw)))
     setRecentBank((m) => [...m.filter((w) => !bankWordsUsed(raw).includes(w)), ...bankWordsUsed(raw)].slice(-30))
     const a = parseActionsFromReply(raw)
