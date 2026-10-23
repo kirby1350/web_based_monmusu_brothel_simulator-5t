@@ -35,6 +35,9 @@ import { applyPartners } from '@/lib/multi-service'
 import { getMainService } from '@/lib/resolve-service'
 import type { ServicePlan } from '@/components/session-setup'
 import { speechLine } from '@/lib/speech-style'
+import { toast } from 'sonner'
+import { mmTermsLine, termCommandsFor, applyTermCommands } from '@/lib/terms-mm'
+import type { TermsState } from '@/lib/terms'
 import { buildCraftBlock, presetFlowRace, playStepOf, skillCraftLine } from '@/lib/play-prompts'
 import { divisionBlock, partnerRole } from '@/lib/multi-prompts'
 
@@ -46,6 +49,8 @@ export interface SceneOutcome {
 interface SessionSceneProps {
   /** 玩家消息上的「让她记住」 */
   onRemember?: (text: string) => void
+  /** 玩家在对话里改了她的叫法（以后叫自己XX / 叫我XX / 把你的…叫做XX）：写回存档 */
+  onTerms?: (girlId: string, terms: TermsState) => void
   player: Player
   plan: ServicePlan
   wardrobe: string[]
@@ -55,10 +60,11 @@ interface SessionSceneProps {
   cheat?: boolean
 }
 
-export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRemember, cheat }: SessionSceneProps) {
+export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRemember, onTerms, cheat }: SessionSceneProps) {
   const { girl, guest } = plan
   // 多人服务：主位 + 协同，提示词/面板/STATS 都按全员
-  const cast = [girl, ...(plan.partners ?? [])]
+  const [termsById, setTermsById] = useState<Record<string, TermsState | undefined>>({})
+  const cast = [girl, ...(plan.partners ?? [])].map((g) => (g.id in termsById ? { ...g, terms: termsById[g.id] } : g))
   const [live, setLive] = useState<LiveState>(() => initLiveState(plan))
   const [panel, setPanel] = useState<'none' | 'outfit' | 'play'>('none')
   // 下一回合附在玩家消息后的本地校正（高潮越界 / 篇幅过短）
@@ -235,6 +241,13 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
     })
     const newPlays = Math.max(0, live.plays.length - playsUsedRef.current)
     playsUsedRef.current = live.plays.length
+    for (const { girlId, cmds } of termCommandsFor(cast, t)) {
+      const g = cast.find((x) => x.id === girlId)!
+      const next = applyTermCommands(g, cmds, 'command').terms
+      setTermsById((m) => ({ ...m, [girlId]: next }))
+      if (next) onTerms?.(girlId, next)
+      toast(`${g.name}记住了新的叫法`, { description: cmds.map((c) => c.value).join('、') })
+    }
     setLive((s) => recordTurn(s, { text: t, topic, heat: { guest, girls: cast, mainSkill, zone: currentStep.zone, newPlays, outfit: s.outfit, stockings: s.stockings } }))
     setPending({ text: t })
     setInputValue('')
@@ -351,7 +364,7 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
       {/* 对话区 */}
       <div className="flex-1 flex flex-col min-h-0">
         <ChatEngine ref={chatRef} systemPrompt={systemPrompt} recap={recap} messages={messages} onMessagesChange={setMessages} onRememberUser={onRemember}
-          settings={settings} turnSuffix={lengthReminder('service', settings.proseStyle) + nextNote} onRawStreamComplete={handleRawReply} trailerNames={cast.map((g) => g.name)} showInput={false} className="flex-1 min-h-0" />
+          settings={settings} turnSuffix={lengthReminder('service', settings.proseStyle) + nextNote + '\n' + cast.map((g) => mmTermsLine(g, { band: live.heat?.girls[g.id] ? speechBand(live.heat.girls[g.id], live.heat.justClimaxed.includes(g.id)) : undefined })).join('\n')} onRawStreamComplete={handleRawReply} trailerNames={cast.map((g) => g.name)} showInput={false} className="flex-1 min-h-0" />
         <SuggestionBar suggestions={shownSuggestions} onSelect={(t) => setInputValue(t)} />
         <div className="border-t border-border px-3 pb-3 pt-2 flex gap-2 items-end">
           <textarea value={inputValue} onChange={(e) => setInputValue(e.target.value)} data-testid="scene-input"
@@ -371,7 +384,7 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
 
 // ─── 调教的亲自上场（仍用旧调教提示词，无步骤条） ──────────────────────────────
 
-export function TrainingScene({ player, girl, directionLabel, trainingInfo, extraPrompt, settings, onFinish, scene, day, onRemember, zone, drillSkill, cheat }: {
+export function TrainingScene({ player, girl: girl0, onTerms, directionLabel, trainingInfo, extraPrompt, settings, onFinish, scene, day, onRemember, zone, drillSkill, cheat }: {
   cheat?: boolean
   onRemember?: (text: string) => void
   /** 敏感开发的部位（她的快感按这条带的敏感档推进） */
@@ -380,6 +393,7 @@ export function TrainingScene({ player, girl, directionLabel, trainingInfo, extr
   drillSkill?: SkillKey
   player: Player
   girl: MonstGirl
+  onTerms?: (girlId: string, terms: TermsState) => void
   directionLabel: string
   scene?: SceneId
   day?: number
@@ -390,6 +404,8 @@ export function TrainingScene({ player, girl, directionLabel, trainingInfo, extr
   settings: AppSettings
   onFinish: (turns: number, pleasure: number, provoke?: SceneId) => void
 }) {
+  const [girlTerms, setGirlTerms] = useState(girl0.terms)
+  const girl = girlTerms === girl0.terms ? girl0 : { ...girl0, terms: girlTerms }
   const [session] = useState<ServiceSession>(() => createServiceSession('training', [girl], {}))
   // 对话里触到阴影：本场激发一次，之后每回合的提示词都带【激发阴影】，结算时生效
   const [provoked, setProvoked] = useState<SceneId | undefined>()
@@ -450,6 +466,13 @@ export function TrainingScene({ player, girl, directionLabel, trainingInfo, extr
   }, [girl.name])
   const send = (t: string) => {
     if (!t.trim()) return
+    const tc = termCommandsFor([girl], t)[0]
+    if (tc) {
+      const next = applyTermCommands(girl, tc.cmds, 'training').terms
+      setGirlTerms(next)
+      if (next) onTerms?.(girl.id, next)
+      toast(`${girl.name}记住了新的叫法`, { description: tc.cmds.map((c) => c.value).join('、') })
+    }
     setTurns((n) => n + 1)
     setInputValue('')
     // 先推进档位，等提示词更新后再发（这一回合的叙述要对得上新档位）
@@ -498,7 +521,7 @@ export function TrainingScene({ player, girl, directionLabel, trainingInfo, extr
         </p>
       )}
       <ChatEngine ref={chatRef} systemPrompt={systemPrompt} messages={messages} onMessagesChange={setMessages} onRememberUser={onRemember}
-        settings={settings} turnSuffix={lengthReminder('training', settings.proseStyle) + nextNote} onRawStreamComplete={onRaw} trailerNames={[girl.name]} showInput={false} className="flex-1 min-h-0" />
+        settings={settings} turnSuffix={lengthReminder('training', settings.proseStyle) + nextNote + '\n' + mmTermsLine(girl, { band: speechBand(heat.girls[girl.id] ?? { arousal: 0, pleasure: 0, climaxes: 0 }, heat.justClimaxed.includes(girl.id)), day })} onRawStreamComplete={onRaw} trailerNames={[girl.name]} showInput={false} className="flex-1 min-h-0" />
       <SuggestionBar suggestions={suggestions} onSelect={(t) => setInputValue(t)} />
       <div className="border-t border-border px-3 pb-3 pt-2 flex gap-2 items-end">
         <textarea value={inputValue} onChange={(e) => setInputValue(e.target.value)}

@@ -20,6 +20,9 @@ import { FlowsScreen } from '@/components/flows-screen'
 import { BottomNav } from '@/components/bottom-nav'
 import { SettingsPanel } from '@/components/settings-panel'
 import { CheatPanel } from '@/components/cheat-panel'
+import { toast } from 'sonner'
+import { termsChange } from '@/lib/terms'
+import { mmTerms } from '@/lib/terms-mm'
 import { setCheat, freeLimits } from '@/lib/cheat'
 import { Button } from '@/components/ui/button'
 
@@ -135,6 +138,13 @@ export default function GamePage() {
   const handleSaveChange = (updated: GameSave) => {
     // 入馆 / 数值里程碑 / 新事件 → 写进各自的记忆
     const synced = syncMemory(save, updated)
+    // 堕落跨档 → 自称 / 对你的称呼永久改口
+    for (const g of save ? synced.girls : []) {
+      const old = save?.girls.find((x) => x.id === g.id)
+      if (!old) continue
+      const msg = termsChange(mmTerms(old, { day: save?.currentDay }), mmTerms(g, { day: synced.currentDay }), g.name)
+      if (msg) toast('她改口了', { description: msg })
+    }
     setSave(synced)
     saveGameSave(synced)
   }

@@ -250,6 +250,8 @@ export interface MonstGirl {
   /** 后天体质（药剂临时 / 觉醒永久）；天生体质按种族算，不存 */
   bodyTraits?: import('./body-traits').BodyTraitEntry[]
   memory?: import('./girl-memory').GirlMemory   // 她自己的记忆（事件 + 心里话）
+  /** 称呼：玩家命令 / 锁定 / 作弊（见 lib/terms.ts） */
+  terms?: import('./terms').TermsState
   // 图片缓存
   imageTags: string
   imageUrl?: string

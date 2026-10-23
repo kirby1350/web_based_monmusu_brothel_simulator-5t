@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Cinzel, Noto_Serif_SC } from 'next/font/google'
 import './globals.css'
+import { Toaster } from '@/components/ui/sonner'
 
 const _cinzel = Cinzel({
   subsets: ['latin'],
@@ -28,7 +29,7 @@ export default function RootLayout({
     <html lang="zh-CN">
       <body className={`${_cinzel.variable} ${_notoSerifSC.variable} font-sans antialiased`}>
         {children}
-      </body>
+      <Toaster position="top-center" /></body>
     </html>
   )
 }

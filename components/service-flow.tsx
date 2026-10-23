@@ -77,6 +77,7 @@ export function ServiceFlow({ save, settings, onSaveChange, onBack, onOpenSettin
           wardrobe={save.player.wardrobe ?? []}
           settings={settings}
           cheat={!!save.cheat?.enabled}
+          onTerms={(id, terms) => onSaveChange({ ...save, girls: save.girls.map((g) => (g.id === id ? { ...g, terms } : g)) })}
           onRemember={(t) => { const ids = [phase.plan.girl.id, ...(phase.plan.partners ?? []).map((p) => p.id)]; onSaveChange({ ...save, girls: save.girls.map((g) => (ids.includes(g.id) ? recordQuote(g, t, save.currentDay) : g)) }) }}
           onFinish={({ state, messages }) => settle({ ...phase.plan, outfit: state.outfit, stockings: state.stockings }, 'live', applyPartners(resolveLiveSteps(phase.plan, state), phase.plan), messages.filter((m) => !m.hidden).map((m) => m.content).join('\n'))}
         />

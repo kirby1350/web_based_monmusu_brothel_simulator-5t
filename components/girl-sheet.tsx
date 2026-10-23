@@ -22,6 +22,7 @@ import { StepActionsEditor } from '@/components/step-actions-editor'
 import { getStepActions } from '@/lib/custom-props'
 import { cn } from '@/lib/utils'
 import { SpeechStyleBlock } from '@/components/speech-style-block'
+import { TermsCard } from '@/components/terms-card'
 import { awakenedFetishes, shadowScenes, shadowLevel, SHADOW_LEVEL_LABEL, getScene } from '@/lib/scenes'
 import { MemoryTab } from '@/components/memory-tab'
 
@@ -226,6 +227,7 @@ export function GirlSheet({ girl, save, settings, onSaveChange, onClose, intro }
 
             {girl.personality && <p className="text-xs text-foreground/70 leading-relaxed">{girl.personality}</p>}
             <SpeechStyleBlock value={girl.speechStyle} />
+            <TermsCard girl={girl} day={save.currentDay} cheat={!!save.cheat?.enabled} onChange={(g) => onSaveChange({ ...save, girls: save.girls.map((x) => (x.id === g.id ? g : x)) })} />
           </TabsContent>
 
           <TabsContent value="body" className="space-y-4 mt-0">
