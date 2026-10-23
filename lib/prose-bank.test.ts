@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { sampleBank, availableWords, bankWordsUsed, denseStyleBlock, PROSE_BANK, DENSE_MIN_WORDS, STREAM_TIMEOUT_MS } from './prose-bank'
+import { sampleBank, availableWords, bankWordsUsed, denseStyleBlock, PROSE_BANK, STREAM_TIMEOUT_MS } from './prose-bank'
 import { lengthReminder, shortReplyNote } from './prompt-context'
 import { buildServiceSystemPrompt } from './prompt-builder'
 import { createServiceSession } from './game-engine'
@@ -38,9 +38,9 @@ test('重油：完整要求放在系统提示词最末尾，带密度要求与�
   const dense = buildServiceSystemPrompt(fxPlayer, s, 'dense', '【这一步】ctx', { dense: { stepIndex: 1, climaxAllowed: false, seed: 1 } })
   const tail = dense.slice(dense.lastIndexOf('【★重油文风'))
   assert.ok(dense.lastIndexOf('【★重油文风') > dense.indexOf('【这一步】ctx'))
-  assert.ok(tail.includes('【本回合词库') && tail.includes(`${DENSE_MIN_WORDS} 个不同的词`) && tail.includes('3–4 个修饰'))
+  assert.ok(tail.includes('【本回合词库') && tail.includes('结构示例') && tail.includes('四分之一'))
   assert.ok(!tail.includes('蜜穴'))
-  assert.ok(tail.includes('本回合没有人到高潮') && tail.includes('「挑逗」这一步') && tail.includes('最多 1200 字'))
+  assert.ok(tail.includes('本回合没有人到高潮') && tail.includes('「挑逗」这一步') && tail.includes('450–650 字'))
   assert.ok(denseStyleBlock({ stepIndex: 3, climaxAllowed: true, seed: 1 }).includes('本回合有人到了高潮档'))
   assert.ok(!buildServiceSystemPrompt(fxPlayer, s, 'standard').includes('【★重油文风'))
   // 与去油禁令第 3 条不冲突
@@ -48,14 +48,14 @@ test('重油：完整要求放在系统提示词最末尾，带密度要求与�
   assert.equal(denseStyleBlock({ stepIndex: 3, climaxAllowed: false, seed: 2, avoid: ['软糯'] }).includes('前几段已经用过（这段换别的说法）：软糯'), true)
 })
 
-test('重油：每回合提醒与偏短提醒按 800–1200 字', () => {
-  assert.ok(lengthReminder('service', 'dense').includes('正文 800–1200 字'))
+test('重油：每回合提醒按提示字数 450–650，偏短按实际 800 判断', () => {
+  assert.ok(lengthReminder('service', 'dense').includes('正文 450–650 字') && !lengthReminder('service', 'dense').includes('分三到五段'))
   assert.ok(lengthReminder('training', 'dense').includes('重油'))
   assert.ok(lengthReminder('service').includes('正文 300–500 字') && !lengthReminder('service').includes('重油'))
   assert.ok(!lengthReminder('chat', 'dense').includes('重油'))
   const r = '字'.repeat(420)
   assert.equal(shortReplyNote(r), '')
-  assert.ok(shortReplyNote(r, 'dense').includes('800–1200'))
+  assert.ok(shortReplyNote(r, 'dense').includes('450–650'))
   assert.ok(shortReplyNote('字'.repeat(700), 'dense').includes('偏短') && shortReplyNote('字'.repeat(900), 'dense') === '')
 })
 

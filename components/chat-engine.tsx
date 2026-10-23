@@ -1,5 +1,6 @@
 'use client'
 
+import { needsTrailerRescue, rescueTrailer } from '@/lib/trailer-rescue'
 import { trimHistory, withTurnSuffix } from '@/lib/prompt-context'
 import { STREAM_TIMEOUT_MS } from '@/lib/prose-bank'
 
@@ -50,6 +51,8 @@ interface ChatEngineProps {
   onRememberUser?: (text: string) => void
   /** 只附在本次请求最后一条玩家消息末尾的提醒（字数等），不进界面与存档 */
   turnSuffix?: string
+  /** 给了就在回复漏写 STATS/ACTIONS 时补救一次（同一 /api/chat 格式），名字用来拼补救请求与默认块 */
+  trailerNames?: string[]
 }
 
 export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
@@ -69,6 +72,7 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
       showInput = true,
       onRememberUser,
       turnSuffix,
+      trailerNames,
     },
     ref
   ) {
@@ -135,6 +139,20 @@ export const ChatEngine = forwardRef<ChatEngineHandle, ChatEngineProps>(
             setStreamingText(cleanFull)
             onAssistantReply?.(cleanFull)
           })
+
+          if (full && trailerNames?.length && needsTrailerRescue(full)) {
+            // 漏了数据块：用同一接口、同一请求格式再问一次，只要两行；失败就填默认块
+            full = (await rescueTrailer(full, trailerNames, async (msgs) => {
+              const r = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                signal: controller.signal,
+                body: JSON.stringify({ messages: msgs, model: settings.chatModel, apiKey, stream: false }),
+              })
+              if (!r.ok) return ''
+              return String((await r.json()).content ?? '')
+            })).text
+          }
 
           if (full) {
             clearTimeout(timeoutId)

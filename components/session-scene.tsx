@@ -351,7 +351,7 @@ export function SessionScene({ player, plan, wardrobe, settings, onFinish, onRem
       {/* 对话区 */}
       <div className="flex-1 flex flex-col min-h-0">
         <ChatEngine ref={chatRef} systemPrompt={systemPrompt} recap={recap} messages={messages} onMessagesChange={setMessages} onRememberUser={onRemember}
-          settings={settings} turnSuffix={lengthReminder('service', settings.proseStyle) + nextNote} onRawStreamComplete={handleRawReply} showInput={false} className="flex-1 min-h-0" />
+          settings={settings} turnSuffix={lengthReminder('service', settings.proseStyle) + nextNote} onRawStreamComplete={handleRawReply} trailerNames={cast.map((g) => g.name)} showInput={false} className="flex-1 min-h-0" />
         <SuggestionBar suggestions={shownSuggestions} onSelect={(t) => setInputValue(t)} />
         <div className="border-t border-border px-3 pb-3 pt-2 flex gap-2 items-end">
           <textarea value={inputValue} onChange={(e) => setInputValue(e.target.value)} data-testid="scene-input"
@@ -498,7 +498,7 @@ export function TrainingScene({ player, girl, directionLabel, trainingInfo, extr
         </p>
       )}
       <ChatEngine ref={chatRef} systemPrompt={systemPrompt} messages={messages} onMessagesChange={setMessages} onRememberUser={onRemember}
-        settings={settings} turnSuffix={lengthReminder('training', settings.proseStyle) + nextNote} onRawStreamComplete={onRaw} showInput={false} className="flex-1 min-h-0" />
+        settings={settings} turnSuffix={lengthReminder('training', settings.proseStyle) + nextNote} onRawStreamComplete={onRaw} trailerNames={[girl.name]} showInput={false} className="flex-1 min-h-0" />
       <SuggestionBar suggestions={suggestions} onSelect={(t) => setInputValue(t)} />
       <div className="border-t border-border px-3 pb-3 pt-2 flex gap-2 items-end">
         <textarea value={inputValue} onChange={(e) => setInputValue(e.target.value)}
