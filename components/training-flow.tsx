@@ -64,6 +64,7 @@ export function TrainingFlow({ save, settings, onSaveChange, onBack, onOpenSetti
           directionLabel={TRAINING_DIRECTIONS.find((d) => d.key === phase.plan.direction)!.label}
           scene={phase.plan.scene} day={save.currentDay} zone={phase.plan.zone} drillSkill={phase.plan.direction === 'drill' ? phase.plan.skill : undefined}
           onRemember={(t) => onSaveChange({ ...save, girls: save.girls.map((g) => (g.id === phase.plan.girl.id ? recordQuote(g, t, save.currentDay) : g)) })}
+          onTerms={(id, terms) => onSaveChange({ ...save, girls: save.girls.map((g) => (g.id === id ? { ...g, terms } : g)) })}
           trainingInfo={trainingContext({ ...phase.plan, skip: true, customProps: save.player.customProps })}
           extraPrompt={phase.plan.direction === 'punish' ? incidentPromptLine(phase.plan.girl) : undefined}
           onFinish={(turns, pleasure, provoke) => settle(phase.plan, 'live', resolveLiveTraining({ ...phase.plan, provoke }, turns, pleasure))} />

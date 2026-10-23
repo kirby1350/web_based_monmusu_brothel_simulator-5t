@@ -116,7 +116,7 @@ export function applyTrainingToSave(save: GameSave, result: TrainingResult, poti
   const before = save.girls.find((g) => g.id === id) ?? result.girl
   const risk = sceneRiskIncident(result.scene, before, result.girl, save.currentDay, rng)
   // 记忆以存档里的为准（亲自上场时可能刚「让她记住」了一句）
-  const base = { ...result.girl, memory: before.memory, ...(risk ? { incident: risk } : {}) }
+  const base = { ...result.girl, memory: before.memory, terms: before.terms, ...(risk ? { incident: risk } : {}) }
   const girlAfter = recordTraining(base, before, result, save.currentDay)
   return {
     ...save,
