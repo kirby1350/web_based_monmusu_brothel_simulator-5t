@@ -1,6 +1,6 @@
 // 提示词的游戏状态片段：纯函数，只产出文本/标签，不改任何请求格式
 import { getBodyTrait, bodyPrefHit } from './body-traits'
-import { DENSE_LENGTH, DENSE_TURN_NOTE } from './prose-bank'
+import { DENSE_LENGTH, DENSE_PROMPT_LENGTH, DENSE_TURN_NOTE } from './prose-bank'
 import type { ProseStyle } from './types'
 import type { ChatMessage, GameSave, Guest, MonstGirl, OutfitId, ServingSkill, SkillKey, StockingId } from './types'
 import {
@@ -195,9 +195,10 @@ export function buildStepRecap(steps: RecapStep[], currentIndex: number): string
 export const REPLY_LENGTH = { min: 300, max: 500 }
 export function lengthReminder(kind: 'service' | 'training' | 'chat', style: ProseStyle = 'standard'): string {
   const dense = style === 'dense' && kind !== 'chat'
-  const { min, max } = dense ? DENSE_LENGTH : REPLY_LENGTH
+  const { min, max } = dense ? DENSE_PROMPT_LENGTH : REPLY_LENGTH
   if (kind === 'chat') return `\n\n（回复要求：${min}–${max} 字。以她的话语为主，穿插她的动作、神态与心里的小念头，分两三段写，不要只回一两句。）`
-  return `\n\n（本回合要求：正文 ${min}–${max} 字（不含数据块），分三到五段，写足动作、对白和身体反应，不要只写一两句；末尾照常附 STATS 与 ACTIONS 两行。）${dense ? DENSE_TURN_NOTE : ''}`
+  if (dense) return `\n\n（本回合要求：末尾照常附 STATS 与 ACTIONS 两行。）${DENSE_TURN_NOTE}`
+  return `\n\n（本回合要求：正文 ${min}–${max} 字（不含数据块），分三到五段，写足动作、对白和身体反应，不要只写一两句；末尾照常附 STATS 与 ACTIONS 两行。）`
 }
 /** 把字数提醒接到最后一条玩家消息上（只改请求内容） */
 export function withTurnSuffix(messages: ChatMessage[], suffix?: string): ChatMessage[] {
@@ -287,6 +288,7 @@ export function visibleLength(reply: string): number {
 }
 export function shortReplyNote(reply: string, style: ProseStyle = 'standard'): string {
   const n = visibleLength(reply)
-  const { min, max } = style === 'dense' ? DENSE_LENGTH : REPLY_LENGTH
-  return n > 0 && n < min ? `\n（上一段正文只有约 ${n} 字，偏短：这一段请写足 ${min}–${max} 字，动作、对白、反应都要展开。）` : ''
+  const { min } = style === 'dense' ? DENSE_LENGTH : REPLY_LENGTH
+  const { min: askMin, max } = style === 'dense' ? DENSE_PROMPT_LENGTH : REPLY_LENGTH
+  return n > 0 && n < min ? `\n（上一段正文只有约 ${n} 字，偏短：这一段请写足 ${askMin}–${max} 字，动作、对白、反应都要展开。）` : ''
 }

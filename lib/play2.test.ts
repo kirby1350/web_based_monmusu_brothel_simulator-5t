@@ -6,12 +6,12 @@ import { createServiceSession } from './game-engine'
 import { fxPlayer, fxGirl, fxGuest } from './prompt-fixtures'
 import type { ChatMessage } from './types'
 
-test('字数：服务/调教/私聊提示词都要求 300–500 字；重油是 800–1200', () => {
+test('字数：服务/调教/私聊提示词都要求 300–500 字；重油提示 450–650（实际 800–1200）', () => {
   const sv = buildServiceSystemPrompt(fxPlayer, createServiceSession('service', [fxGirl()], { guest: fxGuest() }))
   const tr = buildServiceSystemPrompt(fxPlayer, createServiceSession('training', [fxGirl()], {}))
   const ch = buildInteractionSystemPrompt(fxPlayer, fxGirl(), 'chat')
   for (const p of [sv, tr, ch]) assert.ok(p.includes(`${REPLY_LENGTH.min}-${REPLY_LENGTH.max}字`) || p.includes(`正文${REPLY_LENGTH.min}-${REPLY_LENGTH.max}字`))
-  assert.ok(buildServiceSystemPrompt(fxPlayer, createServiceSession('service', [fxGirl()], { guest: fxGuest() }), 'dense').includes('正文800-1200字'))
+  assert.ok(buildServiceSystemPrompt(fxPlayer, createServiceSession('service', [fxGirl()], { guest: fxGuest() }), 'dense').includes('正文450-650字'))
   assert.ok(!ch.includes('50-100字'))
 })
 

@@ -1,4 +1,4 @@
-import { denseStyleBlock, DENSE_LENGTH, type BankOpts } from './prose-bank'
+import { denseStyleBlock, DENSE_PROMPT_LENGTH, type BankOpts } from './prose-bank'
 import { bodyTraitLine } from './body-traits'
 import { Player, MonstGirl, Guest, ServiceSession, GameSave, ProseStyle } from '@/lib/types'
 import { ALL_PLAYS as PLAYS, getSensitivityLevel, getSkillRank } from '@/lib/catalog'
@@ -78,15 +78,17 @@ const REACTION_MATRIX = `【服从度 × 快感档位 × 淫乱度 综合反应�
 - 每回合相比上一回合，动作/体位/部位/玩法/台词组合必须有明显变化或推进，严禁原地复述上一段的画面与措辞；推进的上限是当前步骤的强度上限与各人的档位`
 
 // 淫叫与拟声词规则（service / training 共用）
-const LEWD_VOICE_RULES = `【淫叫与拟声词强制规则（必须严格执行）】
-- 通用淫语：
-  - 基础音节：齁、呼、咿、咕、喔、啊、哦、噫、嗯、呃、噢、呜
-  - 组合：至少5音节（喉音/尖音开头，元音拖长结尾），例：咕齁齁齁齁哦哦哦❤~、咿呀啊啊啊啊啊❤~
-  - 频率：激烈抽插/撞击段必须3~5次不同组合；方式：穿插断续词汇 + ❤~ ？！ …… 强化
-  - 触发：动摇档零星、短促；慌乱档明显增多；临界档几乎每句都带、词不成句；高潮档只剩失神的长音与惯用语尾的碎片
-- 特殊淫语（口腔/玩具专用）：
-  - 口交/深喉/吞精/插入玩具时使用：啾、噜、咕唧、噗、呕、滋、啾噜、噗噜、呕噗、咕啾
-  - 例：啾噜啾噜啾❤~！咕唧滋滋❤~！噗呕……咕啾啾❤~`
+const LEWD_VOICE_RULES = `【淫叫与拟声词规则（按各人的说话档位写）】
+- 音节：齁、哦、噢、噫、咿、嗯、唔、呜、啊、哈、呃、嗷。「齁」是招牌，常接拉长的元音：齁哦哦哦、齁噫噫、齁唔。
+- 标记：❤ 贴在淫叫或句尾，可以连用（❤❤）；感叹号可以叠（！！）；「……」写喘不上气；「——」写被顶断、拉长或说不完的半句；「～」写撒娇或拖长的尾音。
+- 断词：口吃（别、别动……）、同一个词连说（不要不要、进去了进去了进去了）、一句话说到一半被叫声截断。
+- 分档（看【兴奋与快感】里每个人的档位）：
+  - 从容：不叫，最多一声轻喘。
+  - 动摇：口吃、喘息和短促惊叫（咿！、噫——），「齁」最多一次，❤ 全段两三个以内，拉长不超过三个字。
+  - 慌乱：每句台词夹一声，至少两句「齁」接三到五个字的拉长元音，大多数台词带一到两个 ❤，叠感叹号，半句被叫声截断，词开始重复。
+  - 临界 / 高潮：至少三句带六个字以上的长串（齁哦哦哦哦哦哦——！！❤❤），每句台词至少一个 ❤，同一个词三连，半句话被叫声吞掉；高潮那一句可以几乎全是叫声。
+- 口腔专用（口交、深喉、吞精、插入玩具、嘴被堵住）：咕啾、咕滋、啾噜、咕噜噜、噗啾、呕噗，嘴被占着时写成闷在喉咙里的唔唔唔，夹在含糊的半句话里。
+- 叫声保留各人的自称、说话习惯和对客人的称呼，不同姑娘叫法不同。每次组合现场新写，不要照抄前面回合的串。`
 
 // 满意度评分锚点：把 satisfaction 增量与「客人需求是否被满足」绑定（仅服务场景）
 function satisfactionRubric(desires: string): string {
@@ -133,7 +135,7 @@ function buildServiceSystemPromptBase(
   state: PromptState = {}
 ): string {
   // 重油堆叠需要更多篇幅来铺密度，故 dense 模式下提高字数上限
-  const proseWordCount = proseStyle === 'dense' ? `${DENSE_LENGTH.min}-${DENSE_LENGTH.max}` : `${REPLY_LENGTH.min}-${REPLY_LENGTH.max}`
+  const proseWordCount = proseStyle === 'dense' ? `${DENSE_PROMPT_LENGTH.min}-${DENSE_PROMPT_LENGTH.max}` : `${REPLY_LENGTH.min}-${REPLY_LENGTH.max}`
   const girlDescriptions = session.girls
     .map(
       (g, i) => {
