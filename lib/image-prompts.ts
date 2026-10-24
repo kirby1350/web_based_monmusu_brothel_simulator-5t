@@ -9,20 +9,6 @@ export const IMAGE_QUALITY_PREFIX = 'masterpiece, best quality, amazing quality,
 export const IMAGE_NEGATIVE_PROMPT =
   'lowres, worst quality, low quality, normal quality, jpeg artifacts, blurry, bad anatomy, bad hands, extra fingers, missing fingers, extra digit, fewer digits, extra arms, extra legs, fused bodies, cropped, text, signature, watermark, username, artist name, patreon username, patreon logo, speech bubble, logo, multiple girls, child, loli, shota, petite, flat chest, small breasts, aged down'
 
-/** 按角色标签追加的额外负面词（只对含该角色名标签的提示词生效） */
-export const CHARACTER_NEGATIVE_EXTRA: Record<string, string> = {
-  'taihou_(azur_lane)': 'wings, feathered wings, black wings',
-}
-
-/** 负面词 = 统一负面词 + 提示词里角色对应的额外负面词 */
-export function negativePromptFor(prompts: unknown): string {
-  const text = typeof prompts === 'string' ? prompts : ''
-  const extras = Object.entries(CHARACTER_NEGATIVE_EXTRA)
-    .filter(([tag]) => text.includes(tag))
-    .map(([, neg]) => neg)
-  return [IMAGE_NEGATIVE_PROMPT, ...extras].join(', ')
-}
-
 /** 给纯标签补齐质量前缀（已含 masterpiece 则原样返回） */
 export function withQualityPrefix(tags: string): string {
   const t = tags.trim()

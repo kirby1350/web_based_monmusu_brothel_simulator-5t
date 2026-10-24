@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { negativePromptFor } from '@/lib/image-prompts'
+import { IMAGE_NEGATIVE_PROMPT } from '@/lib/image-prompts'
 
 const PIXAI_ENDPOINT = 'https://api.pixai.art/v1/task'
 const DEFAULT_PIXAI_MODEL_ID = '1861558740588989558'
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         parameters: {
           prompts,
-          negativePrompts: negativePrompts || negativePromptFor(prompts),
+          negativePrompts: negativePrompts || IMAGE_NEGATIVE_PROMPT,
           modelId: modelId || DEFAULT_PIXAI_MODEL_ID,
           width: width || DEFAULT_IMAGE_WIDTH,
           height: height || DEFAULT_IMAGE_HEIGHT,

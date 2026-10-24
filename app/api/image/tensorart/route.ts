@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { negativePromptFor } from '@/lib/image-prompts'
+import { IMAGE_NEGATIVE_PROMPT } from '@/lib/image-prompts'
 
 function randomRequestId(): string {
   return Array.from({ length: 18 }, () => Math.floor(Math.random() * 10)).join('')
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
             width,
             height,
             prompts: [{ text: prompts }],
-            negativePrompts: [{ text: negativePromptFor(prompts) }],
+            negativePrompts: [{ text: IMAGE_NEGATIVE_PROMPT }],
             sdModel: modelId,
             sdVae: 'ae.sft',
             sampler: 'Euler a',
