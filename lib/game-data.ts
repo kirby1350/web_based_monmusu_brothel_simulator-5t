@@ -283,7 +283,7 @@ export const GIRL_TEMPLATES: Omit<MonstGirl, 'id' | 'imageUrl'>[] = [
     race: '哈比',
     age: '25',
     bodyDesc: '乌黑亮泽的长发在头顶两侧束成长长的双马尾，一路垂到膝弯，额前一撮呆毛；头上斜戴一枚金色的凤首面具，发间点缀着赤红翎羽。一双微微上挑的绯红眼睛，像沉着一层浓稠的血色，看人时总带着湿漉漉的笑意。身段是熟透了的丰腴——几乎要从和服里满溢出来的巨巨乳、被腰带勒出的纤细腰肢、圆润挺翘的臀与裹着黑丝的肉感大腿，肌肤白皙细腻；来到馆里后，她背上真的生出了一对赤黑相间的凤羽之翼，收拢时像一件华丽的羽织，张开时满室都是暖烘烘的羽毛香',
-    bodyTags: 'harpy, monster girl, phoenix wings, red and black wings, feathered wings, feathers, black hair, very long hair, twintails, ahoge, red eyes, tsurime, phoenix hair ornament, mature female, gigantic breasts, curvy, wide hips, thick thighs, pale skin',
+    bodyTags: 'harpy, monster girl, phoenix wings, red and black wings, feathered wings, feathers, black hair, very long hair, twintails, ahoge, red eyes, tsurime, hair ornament, mature female, gigantic breasts, curvy, wide hips, thick thighs, pale skin',
     bust: 106,
     waist: 59,
     hip: 98,
@@ -299,7 +299,7 @@ export const GIRL_TEMPLATES: Omit<MonstGirl, 'id' | 'imageUrl'>[] = [
     obedience: 30,
     lewdness: 60,
     skills: [],
-    imageTags: '1girl, solo, harpy, monster girl, phoenix wings, red and black feathered wings, taihou_(azur_lane), black hair, very long hair, twintails, red eyes, red hair ornament, phoenix hair ornament, seductive smile, blush, mature female, gigantic breasts, wide hips, thick thighs, curvy, cleavage, red kimono, off shoulder, black thighhighs, feathers',
+    imageTags: '1girl, solo, harpy, monster girl, phoenix wings, red and black feathered wings, taihou_(azur_lane), black hair, very long hair, twintails, red eyes, red hair ornament, hair ornament, seductive smile, blush, mature female, gigantic breasts, wide hips, thick thighs, curvy, cleavage, red kimono, off shoulder, black thighhighs, feathers',
     price: 0,
   },
   {

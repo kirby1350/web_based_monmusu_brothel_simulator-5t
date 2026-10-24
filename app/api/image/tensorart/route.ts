@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { IMAGE_NEGATIVE_PROMPT } from '@/lib/image-prompts'
+import { negativePromptFor } from '@/lib/image-prompts'
 
 function randomRequestId(): string {
   return Array.from({ length: 18 }, () => Math.floor(Math.random() * 10)).join('')
@@ -7,7 +7,7 @@ function randomRequestId(): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const { prompts, modelId, width = 768, height = 1280, apiKey } = await req.json()
+    const { prompts, modelId, width = 768, height = 1280, apiKey, negativeExtra } = await req.json()
 
     const key = apiKey || process.env.TENSORART_API_KEY
     if (!key) return NextResponse.json({ error: '未配置 TensorArt API Key' }, { status: 400 })
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
             width,
             height,
             prompts: [{ text: prompts }],
-            negativePrompts: [{ text: IMAGE_NEGATIVE_PROMPT }],
+            negativePrompts: [{ text: negativePromptFor(prompts, negativeExtra) }],
             sdModel: modelId,
             sdVae: 'ae.sft',
             sampler: 'Euler a',
