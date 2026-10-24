@@ -7,7 +7,7 @@ function randomRequestId(): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const { prompts, modelId, width = 768, height = 1280, apiKey, negativeExtra } = await req.json()
+    const { prompts, modelId, width = 768, height = 1280, apiKey } = await req.json()
 
     const key = apiKey || process.env.TENSORART_API_KEY
     if (!key) return NextResponse.json({ error: '未配置 TensorArt API Key' }, { status: 400 })
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
             width,
             height,
             prompts: [{ text: prompts }],
-            negativePrompts: [{ text: negativePromptFor(prompts, negativeExtra) }],
+            negativePrompts: [{ text: negativePromptFor(prompts) }],
             sdModel: modelId,
             sdVae: 'ae.sft',
             sampler: 'Euler a',

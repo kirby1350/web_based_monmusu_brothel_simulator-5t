@@ -11,16 +11,15 @@ export const IMAGE_NEGATIVE_PROMPT =
 
 /** 按角色标签追加的额外负面词（只对含该角色名标签的提示词生效） */
 export const CHARACTER_NEGATIVE_EXTRA: Record<string, string> = {
-  'taihou_(azur_lane)': 'mask, mask on head, golden mask',
+  'taihou_(azur_lane)': 'wings, feathered wings, black wings',
 }
 
-/** 负面词 = 统一负面词 + 可选的额外负面词 + 提示词里角色对应的额外负面词 */
-export function negativePromptFor(prompts: unknown, negativeExtra?: unknown): string {
+/** 负面词 = 统一负面词 + 提示词里角色对应的额外负面词 */
+export function negativePromptFor(prompts: unknown): string {
   const text = typeof prompts === 'string' ? prompts : ''
   const extras = Object.entries(CHARACTER_NEGATIVE_EXTRA)
     .filter(([tag]) => text.includes(tag))
     .map(([, neg]) => neg)
-  if (typeof negativeExtra === 'string' && negativeExtra.trim()) extras.unshift(negativeExtra.trim())
   return [IMAGE_NEGATIVE_PROMPT, ...extras].join(', ')
 }
 
