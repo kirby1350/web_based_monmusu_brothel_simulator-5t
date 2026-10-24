@@ -61,27 +61,27 @@ export const IMAGE_STYLES: Record<ImageStyle, { label: string; tags: string }> =
   none: { label: '无', tags: '' },
   'dk.senie': {
     label: 'dk.senie',
-    tags: 'dk.senie, watercolor, soft lineart, pastel colors, dreamy lighting',
+    tags: 'dk.senie',
   },
   hakai_shin: {
     label: 'Hakai Shin',
-    tags: 'hakai_shin, detailed shading, dynamic pose, vibrant colors, anime illustration',
+    tags: 'hakai_shin',
   },
   shiokonbu: {
     label: 'shiokonbu',
-    tags: 'shiokonbu, detailed lineart, soft shading, moe style, clean illustration',
+    tags: 'shiokonbu',
   },
   piromizu: {
     label: 'piromizu',
-    tags: 'piromizu, glossy skin, detailed body, soft gradient, erotic illustration',
+    tags: 'piromizu',
   },
   nohito: {
     label: 'nohito',
-    tags: 'nohito, expressive face, fine details, dramatic lighting, anime art style',
+    tags: 'nohito',
   },
   masami_chie: {
     label: 'masami chie',
-    tags: 'masami chie, soft lineart, delicate shading, warm palette, detailed illustration',
+    tags: 'masami_chie',
   },
 }
 

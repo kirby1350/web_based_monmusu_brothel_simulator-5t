@@ -1,4 +1,5 @@
 import { AppSettings, IMAGE_MODELS, IMAGE_STYLES, TENSORART_MODELS } from '@/lib/types'
+import { withQualityPrefix } from '@/lib/image-prompts'
 
 export interface GenerateImageResult {
   url: string
@@ -18,7 +19,8 @@ async function generatePixAI(
   const modelId = IMAGE_MODELS[settings.imageModel]?.modelId
   const styleTags = IMAGE_STYLES[settings.imageStyle]?.tags ?? ''
   const customTags = settings.imageStyleCustom ?? ''
-  const fullTags = [tags, styleTags, customTags].filter(Boolean).join(', ')
+  // 拼接顺序：画师 → 质量 → 角色/外观/身材/服装/状态 → 自定义
+  const fullTags = [styleTags, withQualityPrefix(tags), customTags].filter(Boolean).join(', ')
 
   const res = await fetch('/api/image/generate', {
     method: 'POST',
@@ -85,7 +87,8 @@ async function generateTensorArt(
   const modelId = TENSORART_MODELS[settings.tensorartModel]?.modelId
   const styleTags = IMAGE_STYLES[settings.imageStyle]?.tags ?? ''
   const customTags = settings.imageStyleCustom ?? ''
-  const fullTags = [tags, styleTags, customTags].filter(Boolean).join(', ')
+  // 拼接顺序：画师 → 质量 → 角色/外观/身材/服装/状态 → 自定义
+  const fullTags = [styleTags, withQualityPrefix(tags), customTags].filter(Boolean).join(', ')
 
   const res = await fetch('/api/image/tensorart', {
     method: 'POST',
